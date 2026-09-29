@@ -1,7 +1,9 @@
 """Update notification banner and release notes dialog."""
 from __future__ import annotations
 
+import re
 import tkinter as tk
+import unicodedata
 import webbrowser
 from tkinter import ttk
 
@@ -9,6 +11,38 @@ from core import __version__
 from core.update import UpdateInfo
 
 BANNER_BG = "#fff4c2"
+MAX_LINE_BYTES = 180  # Tk on Windows splits drawing near 200 UTF-8 bytes and detaches Thai marks there
+
+
+def _wrap_bytes(line: str) -> list[str]:
+    pieces = []
+    while len(line.encode()) > MAX_LINE_BYTES:
+        cut = end = 0
+        for i, ch in enumerate(line):
+            if len(line[:i + 1].encode()) > MAX_LINE_BYTES:
+                break
+            end = i + 1
+            if ch == " ":
+                cut = i
+        if cut <= 0:
+            cut = end
+            while cut > 1 and unicodedata.category(line[cut]) == "Mn":
+                cut -= 1
+        pieces.append(line[:cut].rstrip())
+        line = "  " + line[cut:].lstrip()
+    pieces.append(line)
+    return pieces
+
+
+def plain_notes(text: str) -> list[tuple[str, bool]]:
+    """Release markdown as (line, is_heading) with short lines that Tk can draw."""
+    out = []
+    for raw in text.replace("\r", "").split("\n"):
+        heading = raw.lstrip().startswith("#")
+        line = re.sub(r"^#+\s*", "", raw.strip()) if heading else raw.rstrip()
+        line = line.replace("**", "").replace("`", "")
+        out += [(piece, heading) for piece in _wrap_bytes(line)]
+    return out
 
 
 class UpdateBanner(tk.Frame):
@@ -38,7 +72,9 @@ class UpdateDialog(tk.Toplevel):
         ttk.Label(root, style="Bold.TLabel",
                   text=f"เวอร์ชันใหม่ v{info.version}  (เครื่องนี้ใช้ v{__version__})").grid(row=0, column=0, sticky="w")
         notes = tk.Text(root, wrap="word", height=12, relief="solid", borderwidth=1, font=("Leelawadee UI", 10))
-        notes.insert("1.0", info.notes or "ไม่มีรายละเอียด")
+        notes.tag_configure("h", font=("Leelawadee UI", 10, "bold"))
+        for line, heading in plain_notes(info.notes or "ไม่มีรายละเอียด"):
+            notes.insert("end", line + "\n", ("h",) if heading else ())
         notes.configure(state="disabled")
         notes.grid(row=1, column=0, sticky="nsew", pady=8)
         ttk.Label(root, wraplength=500, justify="left",
