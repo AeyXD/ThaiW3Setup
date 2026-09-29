@@ -1,9 +1,10 @@
 # ThaiW3Setup — ติดตั้งภาษาไทย The Witcher 3: Wild Hunt — Remastered
 
 โปรแกรมติดตั้ง mod แปลไทยสำหรับ **The Witcher 3: Wild Hunt — Remastered** (Steam / GOG / Epic)
-ใช้คำแปลชุดเดียวกับ w3tu (Witcher 3 Translate Utility) แต่สร้างไฟล์ใหม่ให้ตรงกับรูปแบบของเวอร์ชัน Remastered
+ใช้คำแปลของ w3tu (Witcher 3 Translate Utility) เป็นหลัก และเติมข้อความที่ยังขาดจาก Google Sheet ของกลุ่มนักแปลอีกชุด
+แล้วสร้างไฟล์ใหม่ให้ตรงกับรูปแบบของเวอร์ชัน Remastered
 
-- ข้อความในเกมเป็นภาษาไทย (แปลแล้วประมาณ 97%) พร้อมฟอนต์ไทย 6 แบบ
+- ข้อความในเกมเป็นภาษาไทย (แปลแล้วประมาณ 97.8%) พร้อมฟอนต์ไทย 6 แบบ
 - ซับสองภาษา ไทย + อังกฤษ เลือกได้ว่าจะให้ภาษาไหนอยู่บรรทัดแรก
 - ปรับสีและขนาดซับแต่ละบรรทัดได้ และให้ชื่อผู้พูดแสดงเป็นสีได้ มีหน้าตัวอย่างที่ใช้ฟอนต์จริงของเกม
 - ซับคัตซีน Storybook ภาษาไทย
@@ -108,5 +109,6 @@ build.bat offline         :: build โดยไม่ดาวน์โหลด
 ## เครดิต
 
 - คำแปลภาษาไทย ฟอนต์ และซับ Storybook: ทีมแปล w3tu / Kuntoon และผู้ร่วมแปลทุกคนใน Google Sheets
+- คำแปลส่วนเติม: ผู้ร่วมแปลใน [Google Sheet ของกลุ่มนักแปล The Witcher 3 ภาษาไทย](https://docs.google.com/spreadsheets/d/1Ar5MVSc4Mdr7YAFssOmTJcJ9IyHrtxUZxt649-DhnA4)
 - patch ซับสองภาษาต้นฉบับ: svvv
 - The Witcher 3: Wild Hunt © CD PROJEKT S.A. โปรแกรมนี้เป็นผลงานของแฟนเกม ไม่เกี่ยวข้องกับ CD PROJEKT RED

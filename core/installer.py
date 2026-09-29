@@ -135,7 +135,7 @@ def install(opts: InstallOptions, progress: ProgressFn = noop, confirm: ConfirmF
     tr = get_translations(force_download=force_download, progress=scaled(progress, 0.0, 0.45))
     report.source, report.fetched = tr.source, tr.age_text
 
-    text = build_texts(game, tr.thai, opts, scaled(progress, 0.45, 0.75))
+    text = build_texts(game, tr.thai, opts, scaled(progress, 0.45, 0.75), by_text=tr.by_text)
     report.translated, report.total = text.translated, text.total
 
     progress(0.78, "เตรียมฟอนต์และซับ Storybook...")

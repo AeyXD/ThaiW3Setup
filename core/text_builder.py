@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from .game_detect import GameInfo
 from .options import InstallOptions, MODE_DOUBLE, SLOT_TR
 from .progress import ProgressFn, noop
+from .sheet import normalize
 from .w3strings import VERSION_UTF16, VERSION_UTF8, W3Strings
 
 LANGUAGE_NAME_ID = 1084967  # "Turkish" entry in the language list
@@ -45,7 +46,8 @@ def combine(thai: str, english: str, thai_first: bool) -> str:
 
 
 def build_texts(game: GameInfo, thai: dict[int, str], opts: InstallOptions,
-                progress: ProgressFn = noop) -> TextResult:
+                progress: ProgressFn = noop, by_text: dict[str, str] | None = None) -> TextResult:
+    """thai is keyed by string id; by_text (English -> Thai) fills ids thai does not cover."""
     progress(0.0, "กำลังอ่านไฟล์ข้อความของเกม...")
     english = _load_merged(game, "en")
     if english is None:
@@ -64,11 +66,16 @@ def build_texts(game: GameInfo, thai: dict[int, str], opts: InstallOptions,
 
     out = W3Strings(language=opts.slot, version=version)
     double = opts.mode == MODE_DOUBLE
+    translated = 0
     for sid in ids:
         en_text = english.strings.get(sid)
         if en_text is None:
             en_text = slot.strings.get(sid, "") if slot is not None else ""
         th = thai.get(sid)
+        if not th and by_text and en_text.strip():
+            th = by_text.get(normalize(en_text))
+        if th and sid in english.strings:
+            translated += 1
         if th:
             out.strings[sid] = combine(th, en_text, opts.thai_first) if double and sid not in keyed else th
         else:
@@ -88,4 +95,4 @@ def build_texts(game: GameInfo, thai: dict[int, str], opts: InstallOptions,
     progress(0.7, "กำลังสร้างไฟล์ข้อความ...")
     files[f"{opts.slot}.w3strings"] = out.build()
     progress(1.0, "สร้างไฟล์ข้อความภาษาไทยเสร็จแล้ว")
-    return TextResult(files, len(english.strings), sum(1 for s in english.strings if s in thai))
+    return TextResult(files, len(english.strings), translated)
