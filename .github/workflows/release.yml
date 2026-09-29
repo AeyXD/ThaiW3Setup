@@ -33,6 +33,14 @@ jobs:
           python -m pip install --no-binary pyinstaller pyinstaller==6.15.0
           python -m pip install -r requirements.txt
 
+      - name: Verify bootloader is not the prebuilt one
+        run: |
+          $prebuilt = "24B8B4E8C7C58BDDF3C35CBAC3BCA4C5D6866D287617E6BFE4D37129A39783FB"
+          $dir = python -c "import os, PyInstaller; print(os.path.join(os.path.dirname(PyInstaller.__file__), 'bootloader', 'Windows-64bit-intel'))"
+          $hash = (Get-FileHash (Join-Path $dir "runw.exe") -Algorithm SHA256).Hash
+          Write-Host "runw.exe SHA256 $hash"
+          if ($hash -eq $prebuilt) { Write-Error "bootloader was not compiled from source"; exit 1 }
+
       - name: Refresh bundled translations
         continue-on-error: true
         run: python -m core.sheet --export assets/translations.json.gz
