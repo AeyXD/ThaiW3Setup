@@ -172,7 +172,9 @@ def render_line(font: Font, text: str, px: int, color: tuple[int, int, int], sca
     asc = font.ascent or int(EM * 0.9)
     desc = font.descent or int(EM * 0.3)
     width = sum(font.advances[font.glyphs[ord(c)]] if ord(c) in font.glyphs else EM // 3 for c in text)
-    w, h = max(1, int(width * k) + px * scale // 3), max(1, int((asc + desc) * k) + 2 * scale)
+    # Thai upper vowels and tone marks stack above the font ascent.
+    head = EM // 2
+    w, h = max(1, int(width * k) + px * scale // 3), max(1, int((head + asc + desc) * k) + 2 * scale)
     mask = Image.new("1", (w, h), 0)
     pen = 2 * scale / k
     for c in text:
@@ -184,11 +186,15 @@ def render_line(font: Font, text: str, px: int, color: tuple[int, int, int], sca
         draw = ImageDraw.Draw(glyph)
         for contour in font.contours(gi):
             part = Image.new("1", (w, h), 0)
-            ImageDraw.Draw(part).polygon([((pen + x) * k, (asc + y) * k + scale) for x, y in contour], fill=1)
+            ImageDraw.Draw(part).polygon([((pen + x) * k, (head + asc + y) * k + scale) for x, y in contour], fill=1)
             glyph = ImageChops.logical_xor(glyph, part)
         del draw
         mask = ImageChops.logical_or(mask, glyph)
         pen += font.advances[gi]
+    bbox = mask.getbbox()
+    top = min(bbox[1] if bbox else h, int(head * k)) // scale * scale
+    mask = mask.crop((0, top, w, h))
+    w, h = mask.size
     alpha = mask.convert("L").resize((max(1, w // scale), max(1, h // scale)), Image.LANCZOS)
     img = Image.new("RGBA", alpha.size, color + (0,))
     img.putalpha(alpha)
