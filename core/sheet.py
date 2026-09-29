@@ -191,3 +191,5 @@ if __name__ == "__main__":
     args.export.parent.mkdir(parents=True, exist_ok=True)
     save_json(args.export, data, by_text, time.time())
     print(f"\nwrote {len(data):,} id strings and {len(by_text):,} text strings to {args.export}")
+    from .custom import export_defaults
+    export_defaults()

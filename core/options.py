@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import asdict, dataclass, fields
+from dataclasses import asdict, dataclass, field, fields
 
+from .custom import default_sheets
 from .paths import app_data_dir
 
 log = logging.getLogger(__name__)
@@ -38,8 +39,12 @@ class InstallOptions:
     storybook: bool = True
     subtitle_style: bool = True
     slot: str = SLOT_TR
+    custom_sheets: list[dict] = field(default_factory=default_sheets)
 
     def validate(self) -> None:
+        if not isinstance(self.custom_sheets, list) or any(
+                not isinstance(s, dict) or not s.get("sheet_id") for s in self.custom_sheets):
+            raise ValueError("invalid custom sheet list")
         if self.font not in FONTS:
             raise ValueError(f"unknown font {self.font}")
         if self.mode not in (MODE_THAI, MODE_DOUBLE):

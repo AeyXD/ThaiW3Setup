@@ -2,16 +2,39 @@
 import sys
 
 
+def _attach_console() -> None:
+    """The windowed build starts without sys.stdout; reuse redirected handles or the parent console."""
+    import ctypes
+    import msvcrt
+    import os
+
+    kernel32 = ctypes.windll.kernel32
+    kernel32.GetStdHandle.restype = ctypes.c_void_p
+    streams = {}
+    for name, std, mode in (("stdout", -11, "w"), ("stderr", -12, "w")):
+        handle = kernel32.GetStdHandle(std)
+        if handle and handle != ctypes.c_void_p(-1).value and kernel32.GetFileType(ctypes.c_void_p(handle)) in (1, 3):
+            streams[name] = open(msvcrt.open_osfhandle(handle, os.O_WRONLY), mode, encoding="utf-8", buffering=1)
+    if len(streams) < 2 and kernel32.AttachConsole(-1):
+        console = open("CONOUT$", "w", encoding="utf-8", buffering=1)
+        streams.setdefault("stdout", console)
+        streams.setdefault("stderr", console)
+        sys.stdin = open("CONIN$", encoding="utf-8")
+    devnull = None
+    for name in ("stdout", "stderr"):
+        if name not in streams:
+            devnull = devnull or open(os.devnull, "w", encoding="utf-8")
+            streams[name] = devnull
+    sys.stdout, sys.stderr = streams["stdout"], streams["stderr"]
+
+
 def main() -> int:
     if len(sys.argv) > 1:
-        if sys.stdout is None:  # windowed build has no console of its own
-            import ctypes
-            import os
-            if ctypes.windll.kernel32.AttachConsole(-1):
-                sys.stdout = sys.stderr = open("CONOUT$", "w", encoding="utf-8")
-                sys.stdin = open("CONIN$", encoding="utf-8")
-            else:
-                sys.stdout = sys.stderr = open(os.devnull, "w", encoding="utf-8")
+        if sys.stdout is None:
+            _attach_console()
+        for stream in (sys.stdout, sys.stderr):
+            if hasattr(stream, "reconfigure"):
+                stream.reconfigure(encoding="utf-8", errors="replace")
         from core.cli import main as cli_main
         return cli_main()
     from gui.app import run

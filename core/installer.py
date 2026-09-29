@@ -14,6 +14,7 @@ from typing import Callable
 
 from . import __version__
 from .assets import font_files, storybook_files, write_mod_content
+from .custom import merged_overrides
 from .game_detect import GameInfo, identify
 from .options import InstallOptions
 from .progress import ProgressFn, noop, scaled
@@ -42,6 +43,7 @@ class InstallReport:
     total: int = 0
     source: str = ""
     fetched: str = ""
+    custom: int = 0
     warnings: list[str] = field(default_factory=list)
     mods: list[str] = field(default_factory=list)
 
@@ -132,10 +134,13 @@ def install(opts: InstallOptions, progress: ProgressFn = noop, confirm: ConfirmF
     if base_strings_modified(game):
         report.warnings.append("ไฟล์ข้อความของตัวเกมถูกโปรแกรมเก่าแก้ไขไว้ แนะนำให้ใช้ Verify integrity of game files ใน Steam/GOG")
 
-    tr = get_translations(force_download=force_download, progress=scaled(progress, 0.0, 0.45))
+    tr = get_translations(force_download=force_download, progress=scaled(progress, 0.0, 0.38))
     report.source, report.fetched = tr.source, tr.age_text
+    overrides = merged_overrides(opts.custom_sheets, force_download, scaled(progress, 0.38, 0.45))
+    report.custom = len(overrides)
 
-    text = build_texts(game, tr.thai, opts, scaled(progress, 0.45, 0.75), by_text=tr.by_text)
+    text = build_texts(game, tr.thai, opts, scaled(progress, 0.45, 0.75), by_text=tr.by_text,
+                       overrides=overrides)
     report.translated, report.total = text.translated, text.total
 
     progress(0.78, "เตรียมฟอนต์และซับ Storybook...")

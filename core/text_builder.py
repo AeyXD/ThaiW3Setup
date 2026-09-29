@@ -46,8 +46,11 @@ def combine(thai: str, english: str, thai_first: bool) -> str:
 
 
 def build_texts(game: GameInfo, thai: dict[int, str], opts: InstallOptions,
-                progress: ProgressFn = noop, by_text: dict[str, str] | None = None) -> TextResult:
-    """thai is keyed by string id; by_text (English -> Thai) fills ids thai does not cover."""
+                progress: ProgressFn = noop, by_text: dict[str, str] | None = None,
+                overrides: dict[int, str] | None = None) -> TextResult:
+    """thai is keyed by string id; by_text (English -> Thai) fills ids thai does not cover;
+    overrides (custom sheets, keyed by id) replace both."""
+    overrides = overrides or {}
     progress(0.0, "กำลังอ่านไฟล์ข้อความของเกม...")
     english = _load_merged(game, "en")
     if english is None:
@@ -71,7 +74,7 @@ def build_texts(game: GameInfo, thai: dict[int, str], opts: InstallOptions,
         en_text = english.strings.get(sid)
         if en_text is None:
             en_text = slot.strings.get(sid, "") if slot is not None else ""
-        th = thai.get(sid)
+        th = overrides.get(sid) or thai.get(sid)
         if not th and by_text and en_text.strip():
             th = by_text.get(normalize(en_text))
         if th and sid in english.strings:

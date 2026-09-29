@@ -122,6 +122,12 @@ class App(tk.Tk):
             row=7, column=0, columnspan=2, sticky="w")
         ttk.Checkbutton(left, text="ดาวน์โหลดคำแปลล่าสุดทุกครั้ง", variable=self.v_refresh).grid(
             row=8, column=0, columnspan=2, sticky="w", pady=(8, 0))
+        custom = ttk.Frame(left)
+        custom.grid(row=9, column=0, columnspan=2, sticky="w", pady=(6, 0))
+        ttk.Button(custom, text="ปรับแต่งคำแปล...", command=self.open_custom).pack(side="left")
+        self.lbl_custom = ttk.Label(custom, text="")
+        self.lbl_custom.pack(side="left", padx=(6, 0))
+        self.update_custom_label()
 
         right = ttk.LabelFrame(body, text="สีและขนาดซับ", padding=8)
         right.grid(row=0, column=1, sticky="nsew", padx=(4, 0))
@@ -182,6 +188,20 @@ class App(tk.Tk):
                        size1=int(self.v_size1.get()), size2=int(self.v_size2.get()),
                        speaker_colors=self.v_speaker.get(), storybook=self.v_storybook.get(),
                        subtitle_style=self.v_style.get(), slot=self.v_slot.get())
+
+    def update_custom_label(self):
+        sheets = self.opts.custom_sheets
+        on = sum(1 for s in sheets if s.get("enabled"))
+        self.lbl_custom.configure(text=f"เปิดใช้ {on} จาก {len(sheets)} ไฟล์")
+
+    def open_custom(self):
+        from gui.custom_dialog import CustomSheetsDialog
+
+        def on_save(sheets):
+            self.opts = replace(self.current_options(), custom_sheets=sheets)
+            save_options(self.opts)
+            self.update_custom_label()
+        CustomSheetsDialog(self, self.opts.custom_sheets, on_save)
 
     def update_states(self):
         state = "normal" if self.v_style.get() else "disabled"
@@ -382,7 +402,10 @@ class App(tk.Tk):
         slot_hint = ("ในเกมให้ไปที่ ตัวเลือก > ภาษา > ภาษาข้อความ แล้วเลือก \"ไทย (Thai)\""
                      if self.opts.slot == SLOT_TR else "ในเกมให้ตั้งภาษาข้อความเป็น English")
         lines = [f"ติดตั้งเสร็จแล้ว แปลแล้ว {report.percent:.2f}% ({report.translated:,}/{report.total:,} ข้อความ)",
-                 f"คำแปลจาก: {report.source} ({report.fetched})", "", slot_hint]
+                 f"คำแปลจาก: {report.source} ({report.fetched})"]
+        if report.custom:
+            lines.append(f"คำแปลเสริมที่เปิดใช้: {report.custom:,} ข้อความ")
+        lines += ["", slot_hint]
         if report.warnings:
             lines += ["", "ข้อควรทราบ:"] + [f"- {w}" for w in report.warnings]
         self.v_status.set(lines[0])

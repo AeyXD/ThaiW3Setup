@@ -6,6 +6,7 @@ import sys
 from dataclasses import fields
 
 from . import __version__
+from .custom import cached_count
 from .game_detect import find_games, identify
 from .installer import install, status, uninstall
 from .options import FONTS, InstallOptions, load_options, save_options
@@ -29,6 +30,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--version", action="version", version=__version__)
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("detect")
+    sub.add_parser("custom", help="list custom translation sheets")
     for name in ("install", "uninstall", "status"):
         s = sub.add_parser(name)
         s.add_argument("--game")
@@ -44,6 +46,7 @@ def main(argv: list[str] | None = None) -> int:
     inst.add_argument("--no-storybook", action="store_true")
     inst.add_argument("--no-subtitle-style", action="store_true")
     inst.add_argument("--slot", choices=["tr", "en"])
+    inst.add_argument("--custom", metavar="N,N", help="enable exactly these custom sheets (numbers from 'custom', 0 = none)")
     inst.add_argument("--refresh", action="store_true", help="force re-download of translations")
     inst.add_argument("--yes", action="store_true", help="remove old w3tu mods without asking")
     args = p.parse_args(argv)
@@ -51,6 +54,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "detect":
         for g in find_games():
             print(f"{g.path}  [{g.store or '-'}] {g.edition}")
+        return 0
+    if args.cmd == "custom":
+        for i, s in enumerate(load_options().custom_sheets, 1):
+            count = cached_count(s["sheet_id"])
+            print(f"{i}. [{'x' if s.get('enabled') else ' '}] {s.get('name', '')}  {s['sheet_id']}"
+                  f"  ({count if count is not None else '-'} strings)")
         return 0
 
     game_path = _game_path(args.game)
@@ -78,6 +87,10 @@ def main(argv: list[str] | None = None) -> int:
         opts.storybook = False
     if args.no_subtitle_style:
         opts.subtitle_style = False
+    if args.custom is not None:
+        chosen = {int(n) for n in args.custom.split(",") if n.strip()}
+        for i, s in enumerate(opts.custom_sheets, 1):
+            s["enabled"] = i in chosen
 
     def confirm(message: str) -> bool:
         if args.yes:
@@ -86,7 +99,8 @@ def main(argv: list[str] | None = None) -> int:
 
     report = install(opts, _progress, confirm, force_download=args.refresh)
     save_options(opts)
-    print(f"translated {report.translated}/{report.total} ({report.percent:.2f}%) from {report.source}")
+    print(f"translated {report.translated}/{report.total} ({report.percent:.2f}%) from {report.source},"
+          f" custom overrides {report.custom}")
     print("mods:", ", ".join(report.mods))
     for w in report.warnings:
         print("warning:", w)
