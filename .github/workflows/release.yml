@@ -17,6 +17,8 @@ jobs:
       SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
@@ -104,26 +106,12 @@ jobs:
             dist/ThaiW3Setup/ThaiW3Setup.exe
 
       - name: Release notes
-        run: |
-          $vt = "${{ steps.virustotal.outputs.analysis }}"
-          $lines = @(
-            "## ThaiW3Setup ${{ steps.package.outputs.version }}",
-            "",
-            "Download ThaiW3Setup-${{ steps.package.outputs.version }}.zip, extract the whole folder, then run ThaiW3Setup.exe.",
-            "",
-            "SHA256: ``${{ steps.package.outputs.sha256 }}``",
-            "",
-            "Built by GitHub Actions from commit ${{ github.sha }}."
-          )
-          if ($vt) {
-            $lines += ""
-            $lines += "VirusTotal:"
-            foreach ($item in $vt.Split(",")) {
-              $parts = $item.Split("=", 2)
-              $lines += "- [$(Split-Path $parts[0] -Leaf)]($($parts[1]))"
-            }
-          }
-          $lines | Out-File -Encoding utf8 dist/notes.md
+        run: >
+          python packaging/release_notes.py
+          "${{ steps.package.outputs.version }}"
+          "${{ steps.package.outputs.sha256 }}"
+          dist/notes.md
+          "${{ steps.virustotal.outputs.analysis }}"
 
       - name: Upload build
         uses: actions/upload-artifact@v4

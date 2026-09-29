@@ -31,6 +31,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("detect")
     sub.add_parser("custom", help="list custom translation sheets")
+    sub.add_parser("check-update", help="check GitHub for a newer version of this setup")
     for name in ("install", "uninstall", "status"):
         s = sub.add_parser(name)
         s.add_argument("--game")
@@ -54,6 +55,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "detect":
         for g in find_games():
             print(f"{g.path}  [{g.store or '-'}] {g.edition}")
+        return 0
+    if args.cmd == "check-update":
+        from .update import check_for_update
+        info = check_for_update(respect_skip=False)
+        if info is None:
+            print(f"up to date ({__version__})")
+        else:
+            print(f"new version {info.version} (current {__version__})\n{info.download_url}\n\n{info.notes}")
         return 0
     if args.cmd == "custom":
         for i, s in enumerate(load_options().custom_sheets, 1):

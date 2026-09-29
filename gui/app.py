@@ -72,11 +72,14 @@ class App(tk.Tk):
         self.v_game.trace_add("write", lambda *_: self.refresh_game())
         self.after(50, self.detect_games)
         self.after(100, self.poll_events)
+        self.after(1500, lambda: self.check_update(manual=False))
 
     # ---------- layout ----------
     def _build(self):
         root = ttk.Frame(self, padding=12)
         root.pack(fill="both", expand=True)
+        self.root_frame = root
+        self.banner = None
         root.columnconfigure(0, weight=1)
 
         ttk.Label(root, text="ติดตั้งภาษาไทย The Witcher 3: Wild Hunt - Remastered", style="Title.TLabel").grid(
@@ -178,6 +181,8 @@ class App(tk.Tk):
         self.btn_uninstall.grid(row=2, column=2, padx=3)
         ttk.Button(bottom, text="เปิดโฟลเดอร์ mods", command=self.open_mods).grid(row=2, column=3, padx=3)
         ttk.Button(bottom, text="ปิด", command=self.destroy).grid(row=2, column=4, padx=(3, 0))
+        ttk.Button(bottom, text="ตรวจสอบอัปเดต", command=lambda: self.check_update(manual=True)).grid(
+            row=2, column=0, sticky="w")
         self.update_states()
 
     # ---------- helpers ----------
@@ -244,6 +249,35 @@ class App(tk.Tk):
             self.preview.create_image(0, 0, image=self.preview_image, anchor="nw")
         except Exception:
             log.exception("preview failed")
+
+    # ---------- self update ----------
+    def check_update(self, manual: bool):
+        from core.update import check_for_update
+
+        if manual:
+            self.v_status.set("กำลังตรวจสอบเวอร์ชันใหม่...")
+
+        def work():
+            try:
+                self.events.put(("update", check_for_update(respect_skip=not manual), manual))
+            except Exception as exc:
+                log.info("update check failed: %s", exc)
+                self.events.put(("update_error", str(exc), manual))
+        threading.Thread(target=work, daemon=True).start()
+
+    def on_update(self, info, manual: bool):
+        from gui.update_dialog import UpdateBanner, UpdateDialog
+
+        if info is None:
+            if manual:
+                self.v_status.set(f"ใช้เวอร์ชันล่าสุดอยู่แล้ว (v{__version__})")
+            return
+        if self.banner is None or not self.banner.winfo_exists():
+            self.banner = UpdateBanner(self, info)
+            self.banner.pack(fill="x", before=self.root_frame)
+        if manual:
+            self.v_status.set(f"มีเวอร์ชันใหม่ v{info.version}")
+            UpdateDialog(self, info, on_skip=self.banner.destroy)
 
     # ---------- game detection ----------
     def detect_games(self):
@@ -375,6 +409,11 @@ class App(tk.Tk):
                         self.refresh_game()
                     if not games and not self.v_game.get():
                         self.v_status.set("ไม่พบเกมอัตโนมัติ กรุณากด \"เลือก...\" เพื่อระบุโฟลเดอร์เกม")
+                elif kind == "update":
+                    self.on_update(event[1], event[2])
+                elif kind == "update_error":
+                    if event[2]:
+                        self.v_status.set("ตรวจสอบเวอร์ชันใหม่ไม่ได้ (ไม่มีอินเทอร์เน็ตหรือ GitHub ไม่ตอบ)")
                 elif kind == "progress":
                     self.progress["value"] = int(event[1] * 1000)
                     self.v_status.set(event[2])
