@@ -8,14 +8,11 @@ import urllib.request
 from dataclasses import dataclass
 
 from . import APP_NAME, __version__
-from .paths import app_data_dir
-
 log = logging.getLogger(__name__)
 
 REPO = "FordenHillson/ThaiW3Setup"
 LATEST_URL = f"https://api.github.com/repos/{REPO}/releases/latest"
 RELEASES_URL = f"https://github.com/{REPO}/releases"
-STATE_NAME = "update_state.json"
 
 
 @dataclass
@@ -50,26 +47,7 @@ def fetch_latest(timeout: float = 8.0) -> UpdateInfo:
     )
 
 
-def _state_path():
-    return app_data_dir() / STATE_NAME
-
-
-def skipped_version() -> str:
-    try:
-        return json.loads(_state_path().read_text(encoding="utf-8")).get("skip", "")
-    except (OSError, ValueError):
-        return ""
-
-
-def skip_version(version: str) -> None:
-    _state_path().write_text(json.dumps({"skip": version}), encoding="utf-8")
-
-
-def check_for_update(respect_skip: bool = True) -> UpdateInfo | None:
-    """Newer release, or None if up to date / skipped. Network errors propagate."""
+def check_for_update() -> UpdateInfo | None:
+    """Newer release, or None if up to date. Network errors propagate."""
     info = fetch_latest()
-    if not info.newer:
-        return None
-    if respect_skip and info.version == skipped_version():
-        return None
-    return info
+    return info if info.newer else None

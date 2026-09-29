@@ -259,7 +259,7 @@ class App(tk.Tk):
 
         def work():
             try:
-                self.events.put(("update", check_for_update(respect_skip=not manual), manual))
+                self.events.put(("update", check_for_update(), manual))
             except Exception as exc:
                 log.info("update check failed: %s", exc)
                 self.events.put(("update_error", str(exc), manual))
@@ -277,7 +277,7 @@ class App(tk.Tk):
             self.banner.pack(fill="x", before=self.root_frame)
         if manual:
             self.v_status.set(f"มีเวอร์ชันใหม่ v{info.version}")
-            UpdateDialog(self, info, on_skip=self.banner.destroy)
+            UpdateDialog(self, info)
 
     # ---------- game detection ----------
     def detect_games(self):

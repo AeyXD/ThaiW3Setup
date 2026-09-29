@@ -58,7 +58,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.cmd == "check-update":
         from .update import check_for_update
-        info = check_for_update(respect_skip=False)
+        info = check_for_update()
         if info is None:
             print(f"up to date ({__version__})")
         else:
