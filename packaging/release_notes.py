@@ -51,6 +51,7 @@ def main() -> None:
     lines += ["", f"build โดย GitHub Actions จาก commit {git('rev-parse', '--short', 'HEAD')}"]
     with open(path, "w", encoding="utf-8") as fh:
         fh.write("\n".join(lines) + "\n")
+    sys.stdout.reconfigure(encoding="utf-8")
     print("\n".join(lines))
 
 
