@@ -1,0 +1,404 @@
+"""Tkinter GUI for installing the Thai translation."""
+from __future__ import annotations
+
+import ctypes
+import logging
+import os
+import queue
+import sys
+import threading
+import traceback
+from dataclasses import replace
+from pathlib import Path
+from tkinter import colorchooser, filedialog, messagebox
+import tkinter as tk
+from tkinter import ttk
+
+from core import APP_TITLE, __version__
+from core.game_detect import find_games, identify
+from core.installer import install, status, uninstall
+from core.options import FONTS, MODE_DOUBLE, MODE_THAI, SLOT_EN, SLOT_TR, load_options, save_options
+from core.paths import app_data_dir
+
+log = logging.getLogger(__name__)
+
+UI_FONT = ("Leelawadee UI", 10)
+UI_BOLD = ("Leelawadee UI", 10, "bold")
+UI_TITLE = ("Leelawadee UI", 15, "bold")
+PREVIEW_SIZE = (620, 150)
+
+
+class App(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title(f"{APP_TITLE}  v{__version__}")
+        self.minsize(700, 640)
+        self.option_add("*TCombobox*Listbox.font", UI_FONT)
+        style = ttk.Style(self)
+        if "vista" in style.theme_names():
+            style.theme_use("vista")
+        style.configure(".", font=UI_FONT)
+        style.configure("Title.TLabel", font=UI_TITLE)
+        style.configure("Bold.TLabel", font=UI_BOLD)
+        style.configure("Ok.TLabel", foreground="#1a7f37")
+        style.configure("Bad.TLabel", foreground="#c62828")
+        style.configure("Big.TButton", font=UI_BOLD, padding=(16, 6))
+
+        self.opts = load_options()
+        self.events: queue.Queue = queue.Queue()
+        self.busy = False
+        self.preview_image = None
+        self._preview_job = None
+
+        self.v_game = tk.StringVar(value=self.opts.game_path)
+        self.v_font = tk.StringVar(value=FONTS.get(self.opts.font, "CS PraKas"))
+        self.v_mode = tk.StringVar(value=self.opts.mode)
+        self.v_thai_first = tk.BooleanVar(value=self.opts.thai_first)
+        self.v_color1 = tk.StringVar(value=self.opts.color1)
+        self.v_color2 = tk.StringVar(value=self.opts.color2)
+        self.v_size1 = tk.IntVar(value=self.opts.size1)
+        self.v_size2 = tk.IntVar(value=self.opts.size2)
+        self.v_speaker = tk.BooleanVar(value=self.opts.speaker_colors)
+        self.v_storybook = tk.BooleanVar(value=self.opts.storybook)
+        self.v_style = tk.BooleanVar(value=self.opts.subtitle_style)
+        self.v_slot = tk.StringVar(value=self.opts.slot)
+        self.v_refresh = tk.BooleanVar(value=False)
+        self.v_status = tk.StringVar(value="พร้อม")
+
+        self._build()
+        for var in (self.v_font, self.v_mode, self.v_thai_first, self.v_color1, self.v_color2,
+                    self.v_size1, self.v_size2, self.v_speaker, self.v_style):
+            var.trace_add("write", lambda *_: self.schedule_preview())
+        self.v_game.trace_add("write", lambda *_: self.refresh_game())
+        self.after(50, self.detect_games)
+        self.after(100, self.poll_events)
+
+    # ---------- layout ----------
+    def _build(self):
+        root = ttk.Frame(self, padding=12)
+        root.pack(fill="both", expand=True)
+        root.columnconfigure(0, weight=1)
+
+        ttk.Label(root, text="ติดตั้งภาษาไทย The Witcher 3: Wild Hunt - Remastered", style="Title.TLabel").grid(
+            row=0, column=0, sticky="w")
+        ttk.Label(root, text="ติดตั้งลงโฟลเดอร์ mods เท่านั้น ไม่แก้ไขไฟล์ของตัวเกม ถอนการติดตั้งได้ทุกเมื่อ").grid(
+            row=1, column=0, sticky="w", pady=(0, 8))
+
+        game = ttk.LabelFrame(root, text="โฟลเดอร์เกม", padding=8)
+        game.grid(row=2, column=0, sticky="ew")
+        game.columnconfigure(0, weight=1)
+        self.cb_game = ttk.Combobox(game, textvariable=self.v_game)
+        self.cb_game.grid(row=0, column=0, sticky="ew")
+        ttk.Button(game, text="เลือก...", command=self.browse).grid(row=0, column=1, padx=(6, 0))
+        self.lbl_edition = ttk.Label(game, text="")
+        self.lbl_edition.grid(row=1, column=0, columnspan=2, sticky="w", pady=(4, 0))
+        self.lbl_installed = ttk.Label(game, text="")
+        self.lbl_installed.grid(row=2, column=0, columnspan=2, sticky="w")
+
+        body = ttk.Frame(root)
+        body.grid(row=3, column=0, sticky="nsew", pady=8)
+        body.columnconfigure(0, weight=1)
+        body.columnconfigure(1, weight=1)
+        root.rowconfigure(3, weight=1)
+
+        left = ttk.LabelFrame(body, text="ข้อความและฟอนต์", padding=8)
+        left.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
+        ttk.Label(left, text="ฟอนต์").grid(row=0, column=0, sticky="w")
+        ttk.Combobox(left, textvariable=self.v_font, values=list(FONTS.values()), state="readonly", width=18).grid(
+            row=0, column=1, sticky="w", pady=2)
+        ttk.Radiobutton(left, text="ภาษาไทยอย่างเดียว", variable=self.v_mode, value=MODE_THAI).grid(
+            row=1, column=0, columnspan=2, sticky="w", pady=(6, 0))
+        ttk.Radiobutton(left, text="ซับสองภาษา (ไทย + อังกฤษ)", variable=self.v_mode, value=MODE_DOUBLE).grid(
+            row=2, column=0, columnspan=2, sticky="w")
+        self.chk_first = ttk.Checkbutton(left, text="ให้ภาษาไทยอยู่บรรทัดแรก", variable=self.v_thai_first)
+        self.chk_first.grid(row=3, column=0, columnspan=2, sticky="w", padx=(20, 0))
+        ttk.Checkbutton(left, text="ซับคัตซีน Storybook ภาษาไทย", variable=self.v_storybook).grid(
+            row=4, column=0, columnspan=2, sticky="w", pady=(6, 0))
+        ttk.Label(left, text="ช่องภาษาในเกม", style="Bold.TLabel").grid(row=5, column=0, columnspan=2, sticky="w",
+                                                                       pady=(8, 0))
+        ttk.Radiobutton(left, text="แทน Turkish (เมนูแสดงเป็น \"ไทย\") - แนะนำ", variable=self.v_slot,
+                        value=SLOT_TR).grid(row=6, column=0, columnspan=2, sticky="w")
+        ttk.Radiobutton(left, text="แทนภาษาอังกฤษ", variable=self.v_slot, value=SLOT_EN).grid(
+            row=7, column=0, columnspan=2, sticky="w")
+        ttk.Checkbutton(left, text="ดาวน์โหลดคำแปลล่าสุดทุกครั้ง", variable=self.v_refresh).grid(
+            row=8, column=0, columnspan=2, sticky="w", pady=(8, 0))
+
+        right = ttk.LabelFrame(body, text="สีและขนาดซับ", padding=8)
+        right.grid(row=0, column=1, sticky="nsew", padx=(4, 0))
+        right.columnconfigure(1, weight=1)
+        ttk.Checkbutton(right, text="ปรับสีและขนาดซับ (แก้ script ใน mods)", variable=self.v_style,
+                        command=self.update_states).grid(row=0, column=0, columnspan=3, sticky="w")
+        self.style_widgets = []
+        for row, (label, cvar, svar) in enumerate((("บรรทัดที่ 1", self.v_color1, self.v_size1),
+                                                    ("บรรทัดที่ 2", self.v_color2, self.v_size2)), start=1):
+            ttk.Label(right, text=label).grid(row=row * 2 - 1, column=0, sticky="w", pady=(8, 0))
+            swatch = tk.Label(right, width=4, relief="groove", bg=cvar.get(), cursor="hand2")
+            swatch.grid(row=row * 2 - 1, column=1, sticky="w", pady=(8, 0), padx=6)
+            swatch.bind("<Button-1>", lambda _e, v=cvar: self.pick_color(v))
+            cvar.trace_add("write", lambda *_, v=cvar, s=swatch: s.configure(bg=v.get()))
+            btn = ttk.Button(right, text="เลือกสี", command=lambda v=cvar: self.pick_color(v))
+            btn.grid(row=row * 2 - 1, column=2, sticky="e", pady=(8, 0))
+            scale = ttk.Scale(right, from_=16, to=48, orient="horizontal",
+                              command=lambda val, v=svar: v.get() != int(float(val)) and v.set(int(float(val))))
+            scale.set(svar.get())
+            svar.trace_add("write", lambda *_, v=svar, s=scale: s.set(v.get()))
+            scale.grid(row=row * 2, column=0, columnspan=2, sticky="ew")
+            size_lbl = ttk.Label(right, textvariable=svar, width=3)
+            size_lbl.grid(row=row * 2, column=2, sticky="e")
+            self.style_widgets += [swatch, btn, scale]
+        self.chk_speaker = ttk.Checkbutton(right, text="ชื่อผู้พูดเป็นสี", variable=self.v_speaker)
+        self.chk_speaker.grid(row=5, column=0, columnspan=3, sticky="w", pady=(8, 0))
+        self.style_widgets.append(self.chk_speaker)
+        ttk.Button(right, text="คืนค่าเริ่มต้น", command=self.reset_style).grid(row=6, column=0, columnspan=3,
+                                                                           sticky="w", pady=(8, 0))
+        self.v_mode.trace_add("write", lambda *_: self.update_states())
+
+        prev = ttk.LabelFrame(root, text="ตัวอย่างซับในเกม", padding=6)
+        prev.grid(row=4, column=0, sticky="ew")
+        self.preview = tk.Canvas(prev, bg="#16181c", width=PREVIEW_SIZE[0], height=PREVIEW_SIZE[1],
+                                 highlightthickness=0)
+        self.preview.pack(fill="x")
+        self.preview.bind("<Configure>", lambda _e: self.schedule_preview())
+
+        bottom = ttk.Frame(root)
+        bottom.grid(row=5, column=0, sticky="ew", pady=(8, 0))
+        bottom.columnconfigure(0, weight=1)
+        self.progress = ttk.Progressbar(bottom, maximum=1000)
+        self.progress.grid(row=0, column=0, columnspan=5, sticky="ew")
+        ttk.Label(bottom, textvariable=self.v_status).grid(row=1, column=0, columnspan=5, sticky="w", pady=(2, 6))
+        self.btn_install = ttk.Button(bottom, text="ติดตั้ง / อัปเดต", style="Big.TButton", command=self.do_install)
+        self.btn_install.grid(row=2, column=1, padx=3)
+        self.btn_uninstall = ttk.Button(bottom, text="ถอนการติดตั้ง", command=self.do_uninstall)
+        self.btn_uninstall.grid(row=2, column=2, padx=3)
+        ttk.Button(bottom, text="เปิดโฟลเดอร์ mods", command=self.open_mods).grid(row=2, column=3, padx=3)
+        ttk.Button(bottom, text="ปิด", command=self.destroy).grid(row=2, column=4, padx=(3, 0))
+        self.update_states()
+
+    # ---------- helpers ----------
+    def current_options(self):
+        font_key = next((k for k, v in FONTS.items() if v == self.v_font.get()), "CSPraKas")
+        return replace(self.opts, game_path=self.v_game.get().strip(), font=font_key, mode=self.v_mode.get(),
+                       thai_first=self.v_thai_first.get(), color1=self.v_color1.get(), color2=self.v_color2.get(),
+                       size1=int(self.v_size1.get()), size2=int(self.v_size2.get()),
+                       speaker_colors=self.v_speaker.get(), storybook=self.v_storybook.get(),
+                       subtitle_style=self.v_style.get(), slot=self.v_slot.get())
+
+    def update_states(self):
+        state = "normal" if self.v_style.get() else "disabled"
+        for w in self.style_widgets:
+            try:
+                w.configure(state=state)
+            except tk.TclError:
+                pass
+        self.chk_first.configure(state="normal" if self.v_mode.get() == MODE_DOUBLE else "disabled")
+        self.schedule_preview()
+
+    def pick_color(self, var: tk.StringVar):
+        if not self.v_style.get():
+            return
+        _rgb, hex_color = colorchooser.askcolor(color=var.get(), parent=self)
+        if hex_color:
+            var.set(hex_color.upper())
+
+    def reset_style(self):
+        self.v_color1.set("#FFFFFF")
+        self.v_color2.set("#808080")
+        self.v_size1.set(28)
+        self.v_size2.set(28)
+        self.v_speaker.set(True)
+
+    def schedule_preview(self):
+        if self._preview_job:
+            self.after_cancel(self._preview_job)
+        self._preview_job = self.after(120, self.render_preview)
+
+    def render_preview(self):
+        self._preview_job = None
+        try:
+            from PIL import ImageTk
+            from gui.preview import render
+            width = max(200, self.preview.winfo_width())
+            img = render(self.current_options(), width, PREVIEW_SIZE[1])
+            self.preview_image = ImageTk.PhotoImage(img)
+            self.preview.delete("all")
+            self.preview.create_image(0, 0, image=self.preview_image, anchor="nw")
+        except Exception:
+            log.exception("preview failed")
+
+    # ---------- game detection ----------
+    def detect_games(self):
+        def work():
+            try:
+                games = find_games()
+            except Exception:
+                log.exception("detect failed")
+                games = []
+            self.events.put(("games", games))
+        threading.Thread(target=work, daemon=True).start()
+
+    def browse(self):
+        path = filedialog.askdirectory(parent=self, title="เลือกโฟลเดอร์เกม The Witcher 3",
+                                       initialdir=self.v_game.get() or None)
+        if path:
+            self.v_game.set(os.path.normpath(path))
+
+    def refresh_game(self):
+        path = self.v_game.get().strip()
+        if not path:
+            self.lbl_edition.configure(text="ยังไม่ได้เลือกโฟลเดอร์เกม", style="Bad.TLabel")
+            self.lbl_installed.configure(text="")
+            self.btn_install.configure(state="disabled")
+            return
+        game = identify(path)
+        ok = game.supported
+        self.lbl_edition.configure(text=("✔ " if ok else "✖ ") + game.label, style="Ok.TLabel" if ok else "Bad.TLabel")
+        self.btn_install.configure(state="normal" if ok and not self.busy else "disabled")
+        st = status(game) if ok else None
+        if st and st.installed:
+            text = f"ติดตั้งแล้ว v{st.version or '?'}"
+            if st.installed_at:
+                text += f" เมื่อ {st.installed_at}"
+            if st.percent:
+                text += f" (แปลแล้ว {st.percent:.1f}%)"
+        else:
+            text = "ยังไม่ได้ติดตั้งภาษาไทย" if ok else ""
+        if st and st.legacy_mods:
+            text += "  |  พบ mod ไทยตัวเก่า: " + ", ".join(st.legacy_mods)
+        self.lbl_installed.configure(text=text)
+        self.btn_uninstall.configure(state="normal" if st and st.installed and not self.busy else "disabled")
+
+    # ---------- actions ----------
+    def set_busy(self, busy: bool):
+        self.busy = busy
+        self.cb_game.configure(state="disabled" if busy else "normal")
+        self.configure(cursor="watch" if busy else "")
+        self.refresh_game()
+
+    def do_install(self):
+        opts = self.current_options()
+        try:
+            opts.validate()
+        except ValueError as exc:
+            messagebox.showerror(APP_TITLE, str(exc), parent=self)
+            return
+        self.opts = opts
+        save_options(opts)
+        self.set_busy(True)
+        self.progress["value"] = 0
+        refresh = self.v_refresh.get()
+
+        def progress(fraction, message):
+            self.events.put(("progress", fraction, message))
+
+        def confirm(message):
+            answer = {}
+            done = threading.Event()
+            self.events.put(("confirm", message, answer, done))
+            done.wait()
+            return answer.get("yes", False)
+
+        def work():
+            try:
+                report = install(opts, progress, confirm, force_download=refresh)
+                self.events.put(("installed", report))
+            except PermissionError as exc:
+                self.events.put(("permission", str(exc)))
+            except Exception as exc:
+                log.error("install failed\n%s", traceback.format_exc())
+                self.events.put(("error", str(exc)))
+        threading.Thread(target=work, daemon=True).start()
+
+    def do_uninstall(self):
+        path = self.v_game.get().strip()
+        if not messagebox.askyesno(APP_TITLE, "ต้องการถอน mod ภาษาไทยออกจากเกมหรือไม่?", parent=self):
+            return
+        try:
+            removed = uninstall(path)
+        except PermissionError:
+            self.ask_elevate("ไม่มีสิทธิ์ลบไฟล์ในโฟลเดอร์ mods")
+            return
+        except OSError as exc:
+            messagebox.showerror(APP_TITLE, f"ถอนการติดตั้งไม่สำเร็จ: {exc}\nลองปิดเกมก่อนแล้วลองใหม่", parent=self)
+            return
+        self.v_status.set("ถอนการติดตั้งแล้ว: " + (", ".join(removed) or "-"))
+        self.progress["value"] = 0
+        self.refresh_game()
+
+    def open_mods(self):
+        path = Path(self.v_game.get().strip()) / "mods"
+        target = path if path.is_dir() else path.parent
+        if target.is_dir():
+            os.startfile(target)
+
+    def ask_elevate(self, message: str):
+        if messagebox.askyesno(APP_TITLE, f"{message}\nต้องการเปิดโปรแกรมใหม่ด้วยสิทธิ์ผู้ดูแลระบบ (Administrator) หรือไม่?",
+                               parent=self):
+            params = " ".join(f'"{a}"' for a in sys.argv[1:]) if not getattr(sys, "frozen", False) else ""
+            exe = sys.executable
+            if not getattr(sys, "frozen", False):
+                params = f'"{os.path.abspath(sys.argv[0])}" {params}'
+            ctypes.windll.shell32.ShellExecuteW(None, "runas", exe, params, None, 1)
+            self.destroy()
+
+    def poll_events(self):
+        try:
+            while True:
+                event = self.events.get_nowait()
+                kind = event[0]
+                if kind == "games":
+                    games = event[1]
+                    self.cb_game.configure(values=[str(g.path) for g in games])
+                    supported = [g for g in games if g.supported]
+                    if not self.v_game.get() and supported:
+                        self.v_game.set(str(supported[0].path))
+                    else:
+                        self.refresh_game()
+                    if not games and not self.v_game.get():
+                        self.v_status.set("ไม่พบเกมอัตโนมัติ กรุณากด \"เลือก...\" เพื่อระบุโฟลเดอร์เกม")
+                elif kind == "progress":
+                    self.progress["value"] = int(event[1] * 1000)
+                    self.v_status.set(event[2])
+                elif kind == "confirm":
+                    _k, message, answer, done = event
+                    answer["yes"] = messagebox.askyesno(APP_TITLE, message, parent=self)
+                    done.set()
+                elif kind == "installed":
+                    self.set_busy(False)
+                    self.on_installed(event[1])
+                elif kind == "permission":
+                    self.set_busy(False)
+                    self.v_status.set(event[1])
+                    self.ask_elevate(event[1])
+                elif kind == "error":
+                    self.set_busy(False)
+                    self.v_status.set("ติดตั้งไม่สำเร็จ")
+                    messagebox.showerror(APP_TITLE, f"ติดตั้งไม่สำเร็จ:\n{event[1]}\n\nดูรายละเอียดได้ที่ {log_path()}",
+                                         parent=self)
+        except queue.Empty:
+            pass
+        self.after(100, self.poll_events)
+
+    def on_installed(self, report):
+        slot_hint = ("ในเกมให้ไปที่ ตัวเลือก > ภาษา > ภาษาข้อความ แล้วเลือก \"ไทย (Thai)\""
+                     if self.opts.slot == SLOT_TR else "ในเกมให้ตั้งภาษาข้อความเป็น English")
+        lines = [f"ติดตั้งเสร็จแล้ว แปลแล้ว {report.percent:.2f}% ({report.translated:,}/{report.total:,} ข้อความ)",
+                 f"คำแปลจาก: {report.source} ({report.fetched})", "", slot_hint]
+        if report.warnings:
+            lines += ["", "ข้อควรทราบ:"] + [f"- {w}" for w in report.warnings]
+        self.v_status.set(lines[0])
+        messagebox.showinfo(APP_TITLE, "\n".join(lines), parent=self)
+
+
+def log_path() -> Path:
+    return app_data_dir() / "install.log"
+
+
+def run() -> None:
+    logging.basicConfig(filename=log_path(), level=logging.INFO, encoding="utf-8",
+                        format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(1)
+    except (AttributeError, OSError):
+        pass
+    app = App()
+    app.mainloop()

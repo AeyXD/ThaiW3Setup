@@ -1,0 +1,135 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      VT_API_KEY: ${{ secrets.VT_API_KEY }}
+      SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+      SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          architecture: x64
+
+      # A locally compiled bootloader does not share the signature of the prebuilt
+      # one that malware authors also use, which avoids most antivirus false positives.
+      - name: Install PyInstaller with bootloader built from source
+        env:
+          PYINSTALLER_COMPILE_BOOTLOADER: "1"
+        run: |
+          python -m pip install --upgrade pip wheel
+          python -m pip install --no-binary pyinstaller pyinstaller==6.15.0
+          python -m pip install -r requirements.txt
+
+      - name: Refresh bundled translations
+        continue-on-error: true
+        run: python -m core.sheet --export assets/translations.json.gz
+
+      - name: Build
+        run: |
+          python packaging/make_version_info.py
+          python -m PyInstaller --noconfirm --clean ThaiW3Setup.spec
+          Copy-Item README.md dist/ThaiW3Setup/README.md
+
+      - name: Smoke test
+        run: |
+          $p = Start-Process dist/ThaiW3Setup/ThaiW3Setup.exe -ArgumentList "--version" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { exit 1 }
+
+      - name: Upload unsigned build
+        id: unsigned
+        uses: actions/upload-artifact@v4
+        with:
+          name: ThaiW3Setup-unsigned
+          path: dist/ThaiW3Setup
+
+      - name: Sign with SignPath
+        if: env.SIGNPATH_API_TOKEN != ''
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ThaiW3Setup
+          signing-policy-slug: release-signing
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: dist/signed
+
+      - name: Use signed files
+        if: env.SIGNPATH_API_TOKEN != ''
+        run: |
+          Remove-Item -Recurse -Force dist/ThaiW3Setup
+          Move-Item dist/signed dist/ThaiW3Setup
+
+      - name: Package
+        id: package
+        run: |
+          $version = python -c "import core; print(core.__version__)"
+          $zip = "dist/ThaiW3Setup-$version.zip"
+          Compress-Archive -Path dist/ThaiW3Setup -DestinationPath $zip
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          "$hash  ThaiW3Setup-$version.zip" | Out-File -Encoding ascii "$zip.sha256"
+          "zip=$zip" >> $env:GITHUB_OUTPUT
+          "sha256=$hash" >> $env:GITHUB_OUTPUT
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Scan with VirusTotal
+        id: virustotal
+        if: env.VT_API_KEY != ''
+        uses: crazy-max/ghaction-virustotal@v4
+        with:
+          vt_api_key: ${{ secrets.VT_API_KEY }}
+          files: |
+            ${{ steps.package.outputs.zip }}
+            dist/ThaiW3Setup/ThaiW3Setup.exe
+
+      - name: Release notes
+        run: |
+          $vt = "${{ steps.virustotal.outputs.analysis }}"
+          $lines = @(
+            "## ThaiW3Setup ${{ steps.package.outputs.version }}",
+            "",
+            "Download ThaiW3Setup-${{ steps.package.outputs.version }}.zip, extract the whole folder, then run ThaiW3Setup.exe.",
+            "",
+            "SHA256: ``${{ steps.package.outputs.sha256 }}``",
+            "",
+            "Built by GitHub Actions from commit ${{ github.sha }}."
+          )
+          if ($vt) {
+            $lines += ""
+            $lines += "VirusTotal:"
+            foreach ($item in $vt.Split(",")) {
+              $parts = $item.Split("=", 2)
+              $lines += "- [$(Split-Path $parts[0] -Leaf)]($($parts[1]))"
+            }
+          }
+          $lines | Out-File -Encoding utf8 dist/notes.md
+
+      - name: Upload build
+        uses: actions/upload-artifact@v4
+        with:
+          name: ThaiW3Setup-${{ steps.package.outputs.version }}
+          path: |
+            ${{ steps.package.outputs.zip }}
+            ${{ steps.package.outputs.zip }}.sha256
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: dist/notes.md
+          files: |
+            ${{ steps.package.outputs.zip }}
+            ${{ steps.package.outputs.zip }}.sha256

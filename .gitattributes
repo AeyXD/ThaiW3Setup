@@ -1,0 +1,5 @@
+* text=auto
+*.bundle binary
+*.gz binary
+*.ico binary
+*.bat text eol=crlf
