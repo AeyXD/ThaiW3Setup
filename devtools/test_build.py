@@ -14,7 +14,7 @@ tr = get_translations(progress=lambda f, m: None)
 print("translations", len(tr.thai), tr.source, round(time.time() - t0, 1), "s")
 for mode, slot in ((MODE_THAI, "tr"), (MODE_DOUBLE, "tr"), (MODE_THAI, "en")):
     t0 = time.time()
-    res = build_texts(g, tr.thai, InstallOptions(GAME, mode=mode, slot=slot))
+    res = build_texts(g, tr.thai, InstallOptions(GAME, mode=mode, slot=slot), by_text=tr.by_text)
     print(mode, slot, {k: len(v) for k, v in res.files.items()}, f"{res.percent:.2f}%", round(time.time() - t0, 1), "s")
     w = W3Strings.parse(res.files[f"{slot}.w3strings"], slot)
     print("  version", w.version, "strings", len(w.strings), "keys", len(w.keys))
