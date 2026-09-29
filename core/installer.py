@@ -142,6 +142,10 @@ def install(opts: InstallOptions, progress: ProgressFn = noop, confirm: ConfirmF
     text = build_texts(game, tr.thai, opts, scaled(progress, 0.45, 0.75), by_text=tr.by_text,
                        overrides=overrides)
     report.translated, report.total = text.translated, text.total
+    if text.skipped:
+        names = ", ".join(str(p.relative_to(game.path)) for p in text.skipped)
+        report.warnings.append(f"ข้ามไฟล์ข้อความของเกมที่อ่านไม่ได้ ({names}) ข้อความบางส่วนอาจไม่แปล"
+                               " แนะนำให้ใช้ Verify integrity of game files ใน Steam/GOG แล้วติดตั้งใหม่")
 
     progress(0.78, "เตรียมฟอนต์และซับ Storybook...")
     staging = Path(tempfile.mkdtemp(prefix="thaiw3_"))

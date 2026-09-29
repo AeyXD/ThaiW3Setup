@@ -145,8 +145,11 @@ class W3Strings:
         version, key1 = struct.unpack_from("<IH", data, 4)
         key2 = struct.unpack_from("<H", data, len(data) - 2)[0]
         full_key = (key1 << 16) | key2
-        if language and LANGUAGES.get(language, (None,))[0] == full_key:
-            lang = language
+        if language:
+            expected = LANGUAGES.get(language, (None,))[0]
+            # third-party tools rewrite the file with a foreign footer; the header half identifies it
+            ok = expected == full_key or (expected is not None and key1 == expected >> 16)
+            lang = language if ok else None
         else:
             lang = next((h for h, (k, _) in LANGUAGES.items() if k == full_key), None)
         if lang is None:
@@ -160,6 +163,8 @@ class W3Strings:
         for _ in range(n1):
             sid, off, slen = struct.unpack("<III", f.read(12))
             block1.append((sid ^ magic, off, slen))
+        if block1 and sum(sid >= 1 << 25 for sid, _o, _l in block1) * 2 > len(block1):
+            raise W3StringsError(f"string ids do not decode as {lang}")
         n2 = read_bit6(f)
         keys = {}
         for _ in range(n2):
