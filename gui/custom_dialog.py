@@ -8,9 +8,13 @@ import tkinter as tk
 import webbrowser
 from tkinter import messagebox, simpledialog, ttk
 
-from core.custom import cached_count, default_sheets, download_custom, parse_sheet_id, sheet_key, sheet_url
+from core.custom import (NAME_DOUBLE, NAME_THAI, cached_count, default_sheets, download_custom, is_name_tab,
+                         parse_sheet_id, sheet_key, sheet_url)
 
 ON, OFF = "☑", "☐"
+MODE_LABELS = {NAME_THAI: "\u0e44\u0e17\u0e22", NAME_DOUBLE: "2 \u0e20\u0e32\u0e29\u0e32"}
+MODE_HINT = ("\u0e04\u0e25\u0e34\u0e01\u0e0a\u0e48\u0e2d\u0e07 \u0e42\u0e2b\u0e21\u0e14 "
+             "\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e2a\u0e25\u0e31\u0e1a\u0e44\u0e17\u0e22/2 \u0e20\u0e32\u0e29\u0e32")
 
 
 class CustomSheetsDialog(tk.Toplevel):
@@ -39,12 +43,14 @@ class CustomSheetsDialog(tk.Toplevel):
                   text="* ถ้าข้อความซ้ำกัน ข้อความของไฟล์ที่อยู่ข้างบนจะถูกทับด้วยข้อความจากไฟล์ที่อยู่ข้างล่าง").grid(
             row=0, column=0, columnspan=2, sticky="w", pady=(0, 6))
 
-        cols = ("on", "sheet", "name", "count")
+        cols = ("on", "sheet", "name", "mode", "count")
         self.tree = ttk.Treeview(root, columns=cols, show="headings", selectmode="browse", height=8)
         for col, text, width, anchor in (("on", "เปิดใช้", 60, "center"), ("sheet", "ไฟล์ ID", 140, "w"),
                                           ("name", "คำอธิบาย", 260, "w"), ("count", "ข้อความ", 80, "e")):
             self.tree.heading(col, text=text)
             self.tree.column(col, width=width, anchor=anchor, stretch=col == "name")
+        self.tree.heading("mode", text="\u0e42\u0e2b\u0e21\u0e14")
+        self.tree.column("mode", width=70, anchor="center", stretch=False)
         self.tree.grid(row=1, column=0, sticky="nsew")
         self.tree.bind("<Button-1>", self._on_click)
         self.tree.bind("<space>", lambda _e: self.toggle(self.selected()))
@@ -67,7 +73,7 @@ class CustomSheetsDialog(tk.Toplevel):
         ttk.Button(bottom, text="ยกเลิก", command=self.destroy).pack(side="right")
         ttk.Button(bottom, text="อัปเดตทั้งหมด", command=self.update_all).pack(side="right", padx=(0, 4))
         ttk.Button(bottom, text="เลือกทั้งหมด", command=self.select_all).pack(side="right", padx=(0, 4))
-        self.status = tk.StringVar(value="คลิกช่อง เปิดใช้ เพื่อเปิด/ปิด  ดับเบิลคลิกเพื่อเปลี่ยนชื่อ")
+        self.status = tk.StringVar(value=MODE_HINT + "  " + "คลิกช่อง เปิดใช้ เพื่อเปิด/ปิด  ดับเบิลคลิกเพื่อเปลี่ยนชื่อ")
         ttk.Label(root, textvariable=self.status).grid(row=3, column=0, columnspan=2, sticky="w", pady=(6, 0))
 
     # ---------- list ----------
@@ -78,6 +84,7 @@ class CustomSheetsDialog(tk.Toplevel):
             short = s["sheet_id"][:10] + "..." + (f" / {s['tab']}" if s.get("tab") else "")
             self.tree.insert("", "end", iid=str(i), values=(
                 ON if s.get("enabled") else OFF, short, s.get("name") or s["sheet_id"],
+                MODE_LABELS.get(s.get("name_mode") or NAME_DOUBLE, "") if is_name_tab(s) else "",
                 f"{count:,}" if count is not None else "-"))
         if select is not None and 0 <= select < len(self.sheets):
             self.tree.selection_set(str(select))
@@ -88,17 +95,27 @@ class CustomSheetsDialog(tk.Toplevel):
         return int(sel[0]) if sel else None
 
     def _on_click(self, event):
-        if self.tree.identify_region(event.x, event.y) == "cell" and self.tree.identify_column(event.x) == "#1":
-            row = self.tree.identify_row(event.y)
-            if row:
-                self.toggle(int(row))
-                return "break"
+        if self.tree.identify_region(event.x, event.y) != "cell":
+            return None
+        row = self.tree.identify_row(event.y)
+        column = self.tree.identify_column(event.x)
+        if row and column == "#1":
+            self.toggle(int(row))
+            return "break"
+        if row and column == "#4" and is_name_tab(self.sheets[int(row)]):
+            self.toggle_mode(int(row))
+            return "break"
         return None
 
     def toggle(self, index: int | None):
         if index is None:
             return
         self.sheets[index]["enabled"] = not self.sheets[index].get("enabled")
+        self.refresh(index)
+
+    def toggle_mode(self, index: int):
+        s = self.sheets[index]
+        s["name_mode"] = NAME_THAI if (s.get("name_mode") or NAME_DOUBLE) == NAME_DOUBLE else NAME_DOUBLE
         self.refresh(index)
 
     def move(self, delta: int):
@@ -180,7 +197,7 @@ class CustomSheetsDialog(tk.Toplevel):
         if error:
             self.status.set(f"อัปเดตไม่สำเร็จ: {error}")
             return
-        _title, strings = result
+        strings = result.strings
         self.counts[sheet_key(sheet)] = len(strings)
         self.status.set(f"อัปเดตแล้ว {len(strings):,} ข้อความ")
         self.refresh(self.selected())
@@ -216,7 +233,7 @@ class CustomSheetsDialog(tk.Toplevel):
             self.status.set("")
             messagebox.showerror("เพิ่มคำแปลเสริม", f"เปิด sheet ไม่ได้:\n{error}", parent=self)
             return
-        title, strings = result
+        title, strings = result.title, result.strings
         self.sheets.append({"sheet_id": sheet_id, "name": title or sheet_id, "enabled": True})
         self.counts[sheet_id] = len(strings)
         self.status.set(f"เพิ่มแล้ว {len(strings):,} ข้อความ")

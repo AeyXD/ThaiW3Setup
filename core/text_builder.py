@@ -5,6 +5,7 @@ import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .custom import Overrides
 from .game_detect import GameInfo
 from .options import InstallOptions, MODE_DOUBLE, SLOT_TR
 from .progress import ProgressFn, noop
@@ -58,30 +59,32 @@ def combine(thai: str, english: str, thai_first: bool) -> str:
 
 
 def _thai_for(sid: int, en_text: str, thai: dict[int, str], by_text: dict[str, str] | None,
-              overrides: dict[int, str]) -> str | None:
-    th = overrides.get(sid) or thai.get(sid)
+              overrides: Overrides) -> str | None:
+    if sid in overrides.keep_english:
+        return en_text or None
+    th = overrides.strings.get(sid) or thai.get(sid)
     if not th and by_text and en_text.strip():
         th = by_text.get(normalize(en_text))
     return th
 
 
 def untranslated(game: GameInfo, thai: dict[int, str], by_text: dict[str, str] | None = None,
-                 overrides: dict[int, str] | None = None) -> dict[int, str]:
+                 overrides: Overrides | None = None) -> dict[int, str]:
     """English strings (id -> text) that build_texts would leave untranslated, ignoring empty ones."""
     english = _load_merged(game, "en", [])
     if english is None:
         raise RuntimeError("en.w3strings not found")
-    overrides = overrides or {}
+    overrides = overrides or Overrides()
     return {sid: text for sid, text in english.strings.items()
             if text.strip() and not _thai_for(sid, text, thai, by_text, overrides)}
 
 
 def build_texts(game: GameInfo, thai: dict[int, str], opts: InstallOptions,
                 progress: ProgressFn = noop, by_text: dict[str, str] | None = None,
-                overrides: dict[int, str] | None = None) -> TextResult:
+                overrides: Overrides | None = None) -> TextResult:
     """thai is keyed by string id; by_text (English -> Thai) fills ids thai does not cover;
     overrides (custom sheets, keyed by id) replace both."""
-    overrides = overrides or {}
+    overrides = overrides or Overrides()
     progress(0.0, "กำลังอ่านไฟล์ข้อความของเกม...")
     skipped: list[Path] = []
     english = _load_merged(game, "en", skipped)
@@ -113,7 +116,8 @@ def build_texts(game: GameInfo, thai: dict[int, str], opts: InstallOptions,
         if th and sid in english.strings:
             translated += 1
         if th:
-            out.strings[sid] = combine(th, en_text, opts.thai_first) if double and sid not in keyed else th
+            out.strings[sid] = (combine(th, en_text, opts.thai_first)
+                               if double and sid not in keyed and sid not in overrides.plain else th)
         else:
             out.strings[sid] = en_text
     out.keys.update(english.keys)

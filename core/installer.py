@@ -137,7 +137,7 @@ def install(opts: InstallOptions, progress: ProgressFn = noop, confirm: ConfirmF
     tr = get_translations(force_download=force_download, progress=scaled(progress, 0.0, 0.38))
     report.source, report.fetched = tr.source, tr.age_text
     overrides = merged_overrides(opts.custom_sheets, force_download, scaled(progress, 0.38, 0.45))
-    report.custom = len(overrides)
+    report.custom = len(overrides.strings)
 
     text = build_texts(game, tr.thai, opts, scaled(progress, 0.45, 0.75), by_text=tr.by_text,
                        overrides=overrides)

@@ -24,7 +24,8 @@ assert rows == [[1, "new", "", ""], [2, "done", "\u0e41\u0e1b\u0e25\u0e41\u0e25\
 # xlsx written by the exporter is readable as a custom sheet
 path = os.path.join(tmp, "u.xlsx")
 write_xlsx(path, rows)
-title, strings = parse_custom_xlsx(open(path, "rb").read())
+data = parse_custom_xlsx(open(path, "rb").read())
+title, strings = data.title, data.strings
 assert title.startswith("ThaiW3Setup") and strings == {2: "\u0e41\u0e1b\u0e25\u0e41\u0e25\u0e49\u0e27"}, strings
 
 # untranslated() agrees with build_texts

@@ -4,7 +4,7 @@ import json
 import logging
 from dataclasses import asdict, dataclass, field, fields
 
-from .custom import LEGACY_TABS, default_sheets, sheet_key
+from .custom import LEGACY_TABS, NAME_DOUBLE, NAME_MODES, default_sheets, is_name_tab, name_label, sheet_key
 from .paths import app_data_dir
 
 log = logging.getLogger(__name__)
@@ -66,6 +66,8 @@ class InstallOptions:
         if not isinstance(self.custom_sheets, list) or any(
                 not isinstance(s, dict) or not s.get("sheet_id") for s in self.custom_sheets):
             raise ValueError("invalid custom sheet list")
+        if any(s.get("name_mode", "") not in NAME_MODES for s in self.custom_sheets):
+            raise ValueError("invalid name mode")
         if not isinstance(self.known_default_sheets, list) or any(
                 not isinstance(s, str) for s in self.known_default_sheets):
             raise ValueError("invalid known default sheet list")
@@ -106,6 +108,11 @@ def _add_new_default_sheets(opts: InstallOptions) -> None:
     for s in opts.custom_sheets:
         if not s.get("tab") and s["sheet_id"] in LEGACY_TABS:
             s["tab"] = LEGACY_TABS[s["sheet_id"]]
+        if is_name_tab(s):
+            if s.get("name") == s["tab"]:
+                s["name"] = name_label(s["tab"])
+            if not s.get("name_mode"):
+                s["name_mode"] = NAME_DOUBLE
     have = {sheet_key(s) for s in opts.custom_sheets}
     known = {_legacy_key(k) for k in opts.known_default_sheets}
     for s in default_sheets():
