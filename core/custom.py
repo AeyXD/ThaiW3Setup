@@ -34,6 +34,9 @@ DEFAULT_SHEETS = [
     CustomSheet("1eDp6YF3kdx9FXc8dfMFhz72QbH9wYJfKRx2gwvD4Wcg", "ปรับปรุงการแปล"),
     CustomSheet("1FDNdc-p0VJfv3ksoIAhl554jOdpecE6zw6io9tl5jPo", "สุภาพกันหน่อย"),
     CustomSheet("19uVPHxzMBwCxpnjKqakNkBqxSOm2CH173L4wpwiUjS0", "ซับนรก"),
+    # "community additions": strings with no translation yet, see devtools/export_untranslated.py
+    CustomSheet("1kIj-WNi24iy3--NLHNzcIj5szOBXoxHJGdwRQNj0etk",
+                "\u0e04\u0e33\u0e41\u0e1b\u0e25\u0e40\u0e1e\u0e34\u0e48\u0e21\u0e40\u0e15\u0e34\u0e21\u0e08\u0e32\u0e01\u0e0a\u0e38\u0e21\u0e0a\u0e19", True),
 ]
 
 

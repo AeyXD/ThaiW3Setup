@@ -44,6 +44,12 @@
 - กด **บันทึก** แล้วกด **ติดตั้ง / อัปเดต** อีกครั้งเพื่อให้มีผลในเกม
 - command line: `ThaiW3Setup.exe custom` ดูรายการ และ `ThaiW3Setup.exe install --custom 1,3` เลือกไฟล์ที่จะเปิด
 
+## ช่วยแปลข้อความที่ยังไม่แปล
+
+ข้อความในเกมที่ยังไม่มีคำแปลไทยรวมไว้ใน [Google Sheet ข้อความที่ยังไม่แปล](https://docs.google.com/spreadsheets/d/1kIj-WNi24iy3--NLHNzcIj5szOBXoxHJGdwRQNj0etk)
+ใส่คำแปลในคอลัมน์ `TRANSLATE` (ถ้าไม่แน่ใจความหมาย เขียนหมายเหตุในคอลัมน์ `NOTE` หรือกด comment ได้)
+ชีตนี้เปิดใช้เป็นคำแปลเพิ่มเติมในโปรแกรมอยู่แล้ว คำแปลที่ใส่จะมีผลเมื่อกด **ติดตั้ง / อัปเดต** ครั้งถัดไป
+
 ## อัปเดตตัวโปรแกรม
 
 เมื่อเปิดโปรแกรม จะเช็กว่ามีเวอร์ชันใหม่ในหน้า Releases หรือไม่ ถ้ามีจะขึ้นแถบสีเหลืองด้านบน
@@ -133,6 +139,8 @@ build.bat offline         :: build โดยไม่ดาวน์โหลด
 - การเซ็นโค้ด: สมัคร [SignPath Foundation](https://signpath.org/) (ฟรีสำหรับโอเพนซอร์ส) แล้วตั้ง secret `SIGNPATH_API_TOKEN`
   และ variable `SIGNPATH_ORGANIZATION_ID` workflow จะส่งไฟล์ไปเซ็นก่อน zip ให้อัตโนมัติ
   ถ้าไม่ผ่าน ใช้ Certum Open Source Code Signing แทนได้ (เซ็นด้วย `signtool` ก่อนขั้นตอน Package)
+- อัปเดตชีตข้อความที่ยังไม่แปล: `python devtools/export_untranslated.py --sheet 1kIj-WNi24iy3--NLHNzcIj5szOBXoxHJGdwRQNj0etk`
+  (คำแปลและหมายเหตุที่คนใส่ไว้จะคงอยู่ ดูวิธีตั้งค่า Google OAuth ที่หัวไฟล์สคริปต์)
 
 ## เครดิต
 

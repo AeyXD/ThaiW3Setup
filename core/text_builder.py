@@ -55,6 +55,25 @@ def combine(thai: str, english: str, thai_first: bool) -> str:
     return f"{first}  [{second}]"
 
 
+def _thai_for(sid: int, en_text: str, thai: dict[int, str], by_text: dict[str, str] | None,
+              overrides: dict[int, str]) -> str | None:
+    th = overrides.get(sid) or thai.get(sid)
+    if not th and by_text and en_text.strip():
+        th = by_text.get(normalize(en_text))
+    return th
+
+
+def untranslated(game: GameInfo, thai: dict[int, str], by_text: dict[str, str] | None = None,
+                 overrides: dict[int, str] | None = None) -> dict[int, str]:
+    """English strings (id -> text) that build_texts would leave untranslated, ignoring empty ones."""
+    english = _load_merged(game, "en", [])
+    if english is None:
+        raise RuntimeError("en.w3strings not found")
+    overrides = overrides or {}
+    return {sid: text for sid, text in english.strings.items()
+            if text.strip() and not _thai_for(sid, text, thai, by_text, overrides)}
+
+
 def build_texts(game: GameInfo, thai: dict[int, str], opts: InstallOptions,
                 progress: ProgressFn = noop, by_text: dict[str, str] | None = None,
                 overrides: dict[int, str] | None = None) -> TextResult:
@@ -88,9 +107,7 @@ def build_texts(game: GameInfo, thai: dict[int, str], opts: InstallOptions,
         en_text = english.strings.get(sid)
         if en_text is None:
             en_text = slot.strings.get(sid, "") if slot is not None else ""
-        th = overrides.get(sid) or thai.get(sid)
-        if not th and by_text and en_text.strip():
-            th = by_text.get(normalize(en_text))
+        th = _thai_for(sid, en_text, thai, by_text, overrides)
         if th and sid in english.strings:
             translated += 1
         if th:
