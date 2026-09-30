@@ -116,6 +116,9 @@ def install(opts: InstallOptions, progress: ProgressFn = noop, confirm: ConfirmF
     game = identify(opts.game_path)
     if not game.supported:
         raise RuntimeError(f"ไม่รองรับเกมในโฟลเดอร์นี้: {game.label}")
+    log.info("game %s version %s", game.path, game.version or "?")
+    if game.stale_content:
+        log.warning("leftover 4.x folders: %s", ", ".join(game.stale_content))
     report = InstallReport()
 
     try:

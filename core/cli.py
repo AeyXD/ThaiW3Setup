@@ -62,7 +62,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "detect":
         for g in find_games():
-            print(f"{g.path}  [{g.store or '-'}] {g.edition}")
+            print(f"{g.path}  [{g.store or '-'}] {g.edition} {g.version}".rstrip())
+            if g.stale_content:
+                print(f"  ! leftover 4.x folders: {', '.join(g.stale_content)}")
         return 0
     if args.cmd == "check-update":
         from .update import check_for_update

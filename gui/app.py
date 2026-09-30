@@ -52,6 +52,7 @@ class App(tk.Tk):
         style.configure("Bold.TLabel", font=UI_BOLD)
         style.configure("Ok.TLabel", foreground="#1a7f37")
         style.configure("Bad.TLabel", foreground="#c62828")
+        style.configure("Warn.TLabel", foreground="#b26a00")
         style.configure("Big.TButton", font=UI_BOLD, padding=(16, 6))
 
         self.opts = load_options()
@@ -109,6 +110,8 @@ class App(tk.Tk):
         self.lbl_edition.grid(row=1, column=0, columnspan=2, sticky="w", pady=(4, 0))
         self.lbl_installed = ttk.Label(game, text="")
         self.lbl_installed.grid(row=2, column=0, columnspan=2, sticky="w")
+        self.lbl_notes = ttk.Label(game, text="", style="Warn.TLabel")
+        self.lbl_notes.grid(row=3, column=0, columnspan=2, sticky="w")
 
         body = ttk.Frame(root)
         body.grid(row=3, column=0, sticky="nsew", pady=8)
@@ -345,11 +348,14 @@ class App(tk.Tk):
         if not path:
             self.lbl_edition.configure(text="ยังไม่ได้เลือกโฟลเดอร์เกม", style="Bad.TLabel")
             self.lbl_installed.configure(text="")
+            self.lbl_notes.configure(text="")
             self.btn_install.configure(state="disabled")
             return
         game = identify(path)
         ok = game.supported
-        self.lbl_edition.configure(text=("✔ " if ok else "✖ ") + game.label, style="Ok.TLabel" if ok else "Bad.TLabel")
+        label = game.label + (f" (v{game.version})" if game.version else "")
+        self.lbl_edition.configure(text=("✔ " if ok else "✖ ") + label, style="Ok.TLabel" if ok else "Bad.TLabel")
+        self.lbl_notes.configure(text="\n".join("⚠ " + n for n in game.notes))
         self.btn_install.configure(state="normal" if ok and not self.busy else "disabled")
         st = status(game) if ok else None
         if st and st.installed:

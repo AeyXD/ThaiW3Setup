@@ -1,6 +1,7 @@
 """Locate The Witcher 3 installs (Steam, GOG, Epic) and identify the edition."""
 from __future__ import annotations
 
+import ctypes
 import json
 import logging
 import os
@@ -31,6 +32,8 @@ class GameInfo:
     edition: str
     store: str = ""
     notes: list[str] = field(default_factory=list)
+    version: str = ""
+    stale_content: list[str] = field(default_factory=list)
 
     @property
     def supported(self) -> bool:
@@ -58,7 +61,8 @@ class GameInfo:
         files = []
         content = self.path / "content"
         if content.is_dir():
-            dirs = sorted((d for d in content.iterdir() if d.is_dir() and d.name.startswith("content")),
+            dirs = sorted((d for d in content.iterdir() if d.is_dir() and d.name.startswith("content")
+                           and d.name not in self.stale_content),
                           key=lambda d: int(re.sub(r"\D", "", d.name) or 0))
             files += [d / name for d in dirs if (d / name).exists()]
         dlc = self.path / "dlc"
@@ -70,6 +74,49 @@ class GameInfo:
         return files
 
 
+def exe_version(path: Path) -> str:
+    """File version of an exe as "a.b.c.d", or "" when unavailable."""
+    try:
+        ver = ctypes.windll.version
+        size = ver.GetFileVersionInfoSizeW(str(path), None)
+        if not size:
+            return ""
+        buf = ctypes.create_string_buffer(size)
+        if not ver.GetFileVersionInfoW(str(path), 0, size, buf):
+            return ""
+        ptr, length = ctypes.c_void_p(), ctypes.c_uint()
+        if not ver.VerQueryValueW(buf, "\\", ctypes.byref(ptr), ctypes.byref(length)):
+            return ""
+        ms, ls = ctypes.cast(ptr, ctypes.POINTER(ctypes.c_uint32 * 13)).contents[2:4]
+        return f"{ms >> 16}.{ms & 0xFFFF}.{ls >> 16}.{ls & 0xFFFF}"
+    except (AttributeError, OSError):
+        return ""
+
+
+def _launcher_remastered(p: Path) -> bool:
+    cfg = p / "launcher-configuration.json"
+    if not cfg.exists():
+        return False
+    try:
+        data = json.loads(cfg.read_text(encoding="utf-8-sig"))
+        return any(e.get("name") == "remasteredEdition" for e in data.get("editions", []))
+    except (OSError, ValueError, AttributeError) as exc:
+        log.warning("cannot read %s: %s", cfg, exc)
+        return False
+
+
+def _split_content_dirs(p: Path) -> list[str]:
+    """content1, content2, ... : the 4.x layout; 5.x ships everything in content0."""
+    content = p / "content"
+    dirs = [d.name for d in content.iterdir() if d.is_dir() and re.fullmatch(r"content[1-9]\d*", d.name)]
+    return sorted(dirs, key=lambda n: int(n[7:]))
+
+
+def stale_note(dirs: list[str]) -> str:
+    names = dirs[0] if len(dirs) == 1 else f"{dirs[0]}-{dirs[-1]}"
+    return f"พบโฟลเดอร์ content\\{names} ที่ค้างจากเวอร์ชัน 4.x ลบทิ้งได้ (ห้ามลบ content0)"
+
+
 def identify(path: Path | str, store: str = "") -> GameInfo:
     p = Path(path)
     exe_dx12 = p / "bin" / "x64_dx12" / "witcher3.exe"
@@ -78,21 +125,25 @@ def identify(path: Path | str, store: str = "") -> GameInfo:
     if not content0.is_dir() or not (exe_dx12.exists() or exe_dx11.exists()):
         return GameInfo(p, EDITION_UNKNOWN, store)
 
-    remastered = False
-    cfg = p / "launcher-configuration.json"
-    if cfg.exists():
-        try:
-            data = json.loads(cfg.read_text(encoding="utf-8-sig"))
-            remastered = any(e.get("name") == "remasteredEdition" for e in data.get("editions", []))
-        except (OSError, ValueError) as exc:
-            log.warning("cannot read %s: %s", cfg, exc)
-    has_split_content = (p / "content" / "content1").is_dir()
+    version = exe_version(exe_dx12 if exe_dx12.exists() else exe_dx11)
+    split = _split_content_dirs(p)
+    major = int(version.split(".")[0]) if version else 0
+    if major >= 5:
+        edition = EDITION_REMASTERED
+    elif major == 4:
+        edition = EDITION_NEXTGEN
+    elif major:
+        edition = EDITION_CLASSIC
+    elif _launcher_remastered(p) and not split:
+        edition = EDITION_REMASTERED
+    else:
+        edition = EDITION_NEXTGEN if exe_dx12.exists() else EDITION_CLASSIC
 
-    if remastered and not has_split_content:
-        return GameInfo(p, EDITION_REMASTERED, store)
-    if exe_dx12.exists():
-        return GameInfo(p, EDITION_NEXTGEN, store)
-    return GameInfo(p, EDITION_CLASSIC, store)
+    info = GameInfo(p, edition, store, version=version)
+    if edition == EDITION_REMASTERED and split:
+        info.stale_content = split
+        info.notes.append(stale_note(split))
+    return info
 
 
 def _reg_value(root, key: str, name: str) -> str | None:
