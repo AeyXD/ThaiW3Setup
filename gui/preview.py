@@ -7,7 +7,6 @@ from core.assets import font_files
 from core.options import MODE_DOUBLE, InstallOptions
 from core.swf_font import EM, Font, best_font, load_fonts, render_line, text_width
 
-SPEAKER_TH = "เกรอลท์"
 SPEAKER_EN = "Geralt"
 # Zero-width spaces mark word breaks for wrapping; they are not drawn.
 LINE_TH = ("\u0e2b\u0e21\u0e32\u0e1b\u0e48\u0e32\u200b\u0e44\u0e21\u0e48\u200b\u0e25\u0e48\u0e32\u200b"
@@ -142,10 +141,10 @@ def _subtitle_lines(opts: InstallOptions, scale: float, max_width: float | None)
             rows.append((_row(font, line, px), px))
 
     if opts.mode == MODE_DOUBLE and not opts.thai_first:
-        add([(SPEAKER_TH + ": ", speaker_color), (LINE_EN, c1)], s1)
+        add([(SPEAKER_EN + ": ", speaker_color), (LINE_EN, c1)], s1)
         add([(f"[{LINE_TH}]", c2)], s2)
     else:
-        add([(SPEAKER_TH + ": ", speaker_color), (thai, c1)], s1)
+        add([(SPEAKER_EN + ": ", speaker_color), (thai, c1)], s1)
         if opts.mode == MODE_DOUBLE:
             add([(english, c2)], s2)
     return rows
