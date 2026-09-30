@@ -15,10 +15,12 @@ import tkinter as tk
 from tkinter import ttk
 
 from core import APP_TITLE, __version__
+from core.assets import help_image
 from core.game_detect import find_games, identify
 from core.installer import install, status, uninstall
 from core.options import FONTS, MODE_DOUBLE, MODE_THAI, SLOT_EN, SLOT_TR, load_options, save_options
 from core.paths import app_data_dir
+from gui.notice_dialog import show_notice
 
 log = logging.getLogger(__name__)
 
@@ -26,6 +28,13 @@ UI_FONT = ("Leelawadee UI", 10)
 UI_BOLD = ("Leelawadee UI", 10, "bold")
 UI_TITLE = ("Leelawadee UI", 15, "bold")
 PREVIEW_SIZE = (620, 150)
+
+T_UPGRADE_NOTICE = ("\u0e2a\u0e33\u0e2b\u0e23\u0e31\u0e1a\u0e15\u0e31\u0e27\u0e40\u0e01\u0e21\u0e17\u0e35\u0e48\u0e2d\u0e31\u0e1b\u0e40\u0e27\u0e2d\u0e23\u0e4c\u0e0a\u0e31\u0e19\u0e08\u0e32\u0e01 Classic / Next-gen "
+                    "\u0e43\u0e2b\u0e49\u0e25\u0e1a mod \u0e41\u0e1b\u0e25\u0e40\u0e01\u0e48\u0e32\u0e01\u0e48\u0e2d\u0e19\u0e25\u0e07 mod \u0e15\u0e31\u0e27\u0e19\u0e35\u0e49")
+T_DONE = "\u0e15\u0e34\u0e14\u0e15\u0e31\u0e49\u0e07\u0e40\u0e2a\u0e23\u0e47\u0e08\u0e41\u0e25\u0e49\u0e27"
+T_DONE_NOTICE = (f"{T_DONE} \u0e16\u0e49\u0e32\u0e20\u0e32\u0e29\u0e32\u0e43\u0e19\u0e40\u0e01\u0e21\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e40\u0e1b\u0e25\u0e35\u0e48\u0e22\u0e19 "
+                 "\u0e43\u0e2b\u0e49\u0e40\u0e02\u0e49\u0e32 \u0e15\u0e31\u0e49\u0e07\u0e04\u0e48\u0e32 > \u0e20\u0e32\u0e29\u0e32 > \u0e44\u0e17\u0e22")
+T_SLOT_EN_HINT = "\u0e43\u0e19\u0e40\u0e01\u0e21\u0e43\u0e2b\u0e49\u0e15\u0e31\u0e49\u0e07\u0e20\u0e32\u0e29\u0e32\u0e02\u0e49\u0e2d\u0e04\u0e27\u0e32\u0e21\u0e40\u0e1b\u0e47\u0e19 English"
 
 
 class App(tk.Tk):
@@ -73,6 +82,8 @@ class App(tk.Tk):
         self.after(50, self.detect_games)
         self.after(100, self.poll_events)
         self.after(1500, lambda: self.check_update(manual=False))
+        if not self.opts.hide_upgrade_notice:
+            self.after(300, self.show_upgrade_notice)
 
     # ---------- layout ----------
     def _build(self):
@@ -469,18 +480,28 @@ class App(tk.Tk):
             pass
         self.after(100, self.poll_events)
 
+    def show_upgrade_notice(self):
+        if show_notice(self, APP_TITLE, T_UPGRADE_NOTICE):
+            self.opts.hide_upgrade_notice = True
+            save_options(self.opts)
+
     def on_installed(self, report):
-        slot_hint = ("ในเกมให้ไปที่ ตัวเลือก > ภาษา > ภาษาข้อความ แล้วเลือก \"ไทย (Thai)\""
-                     if self.opts.slot == SLOT_TR else "ในเกมให้ตั้งภาษาข้อความเป็น English")
-        lines = [f"ติดตั้งเสร็จแล้ว แปลแล้ว {report.percent:.2f}% ({report.translated:,}/{report.total:,} ข้อความ)",
-                 f"คำแปลจาก: {report.source} ({report.fetched})"]
+        lines = [f"\u0e41\u0e1b\u0e25\u0e41\u0e25\u0e49\u0e27 {report.percent:.2f}% ({report.translated:,}/{report.total:,} \u0e02\u0e49\u0e2d\u0e04\u0e27\u0e32\u0e21)",
+                 f"\u0e04\u0e33\u0e41\u0e1b\u0e25\u0e08\u0e32\u0e01: {report.source} ({report.fetched})"]
         if report.custom:
-            lines.append(f"คำแปลเสริมที่เปิดใช้: {report.custom:,} ข้อความ")
-        lines += ["", slot_hint]
-        if report.warnings:
-            lines += ["", "ข้อควรทราบ:"] + [f"- {w}" for w in report.warnings]
-        self.v_status.set(lines[0])
-        messagebox.showinfo(APP_TITLE, "\n".join(lines), parent=self)
+            lines.append(f"\u0e04\u0e33\u0e41\u0e1b\u0e25\u0e40\u0e2a\u0e23\u0e34\u0e21\u0e17\u0e35\u0e48\u0e40\u0e1b\u0e34\u0e14\u0e43\u0e0a\u0e49: {report.custom:,} \u0e02\u0e49\u0e2d\u0e04\u0e27\u0e32\u0e21")
+        warnings = ["\u0e02\u0e49\u0e2d\u0e04\u0e27\u0e23\u0e17\u0e23\u0e32\u0e1a:"] + [f"- {w}" for w in report.warnings] if report.warnings else []
+        self.v_status.set(f"{T_DONE}  {lines[0]}")
+        if self.opts.hide_done_notice:
+            if warnings:
+                messagebox.showwarning(APP_TITLE, "\n".join(warnings), parent=self)
+            return
+        thai_slot = self.opts.slot == SLOT_TR
+        head = T_DONE_NOTICE if thai_slot else f"{T_DONE}\n{T_SLOT_EN_HINT}"
+        message = "\n".join([head, ""] + lines + ([""] + warnings if warnings else []))
+        if show_notice(self, APP_TITLE, message, help_image("game_language_thai") if thai_slot else None):
+            self.opts.hide_done_notice = True
+            save_options(self.opts)
 
 
 def log_path() -> Path:

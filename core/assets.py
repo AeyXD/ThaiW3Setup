@@ -22,6 +22,10 @@ def layout_background(name: str) -> Path:
     return assets_dir() / "layout_bg" / f"{name}.jpg"
 
 
+def help_image(name: str) -> Path:
+    return assets_dir() / "help" / f"{name}.jpg"
+
+
 def font_files(font: str) -> list[BundleFile]:
     files = [f for f in read_bundle(font_bundle(font)) if f.path == FONT_PATH]
     if not files:
