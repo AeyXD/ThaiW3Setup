@@ -7,3 +7,4 @@ packaging/version_info.txt
 google_client.json
 google_token.json
 client_secret*.json
+.wrangler/
