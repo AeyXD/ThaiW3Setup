@@ -166,7 +166,9 @@ def install(opts: InstallOptions, progress: ProgressFn = noop, confirm: ConfirmF
             progress(0.85, "ปรับ script สีและขนาดซับ...")
             try:
                 scripts = build_scripts(game.script_modules, ScriptOptions(
-                    opts.color1, opts.color2, opts.size1, opts.size2, opts.speaker_colors))
+                    opts.color1, opts.color2, opts.size1, opts.size2, opts.speaker_colors,
+                    opts.sub_x, opts.sub_y, opts.sub_width, opts.dialog_x, opts.dialog_y,
+                    opts.choice_x, opts.choice_y, opts.choice_scale))
                 target = staging / MOD_SCRIPT / "content" / MODULES_REL
                 target.mkdir(parents=True)
                 for name, data in scripts.items():

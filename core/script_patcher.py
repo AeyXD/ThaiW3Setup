@@ -110,6 +110,117 @@ SUB_COLOR = """\
 		// mod thai
 """
 
+# "ScaleOnly" modules are never positioned by the engine, so the offset is applied
+# on top of the position the flash module was laid out at (captured once).
+PLACE_FN = """\
+	// mod thai
+	private var m_off_x			: float;
+	private var m_off_y			: float;
+	private var m_base_x		: float;
+	private var m_base_y		: float;
+	private var m_base_set		: bool;
+	default m_off_x = {off_x};
+	default m_off_y = {off_y};
+
+	private function ModThaiPlace( flashModule : CScriptedFlashSprite )
+	{{
+		if ( !m_base_set )
+		{{
+			m_base_x = flashModule.GetX();
+			m_base_y = flashModule.GetY();
+			m_base_set = true;
+		}}
+		flashModule.SetX( m_base_x + curResolutionWidth * m_off_x / 100.0 );
+		flashModule.SetY( m_base_y + curResolutionHeight * m_off_y / 100.0 );
+	}}
+	// mod thai
+
+"""
+
+PLACE_RETURN = """\
+		// mod thai
+		if ( super.UpdateScale( scale, flashModule ) )
+		{
+			ModThaiPlace( flashModule );
+			return true;
+		}
+		ModThaiPlace( flashModule );
+		return false;
+		// mod thai
+"""
+
+SUB_WIDTH = """\
+		// mod thai
+		m_fxUpdateWidthSFF.InvokeSelfOneArg( FlashArgNumber( theGame.GetUIHorizontalFrameScale() * m_width_pct / 100.0 ) );
+		// mod thai
+"""
+
+VARS_WIDTH = """\
+	private var m_width_pct		: float;
+	default m_width_pct = {width};
+"""
+
+# The dialogue line and the choice list are separate children of hud_dialog.redswf.
+DIALOG_PLACE_FN = """\
+	// mod thai
+	private var m_line_x		: float;
+	private var m_line_y		: float;
+	private var m_choice_x		: float;
+	private var m_choice_y		: float;
+	private var m_line_bx		: float;
+	private var m_line_by		: float;
+	private var m_choice_bx		: float;
+	private var m_choice_by		: float;
+	private var m_choice_pct	: float;
+	private var m_choice_bsx	: float;
+	private var m_choice_bsy	: float;
+	private var m_base_set		: bool;
+	default m_line_x = {line_x};
+	default m_line_y = {line_y};
+	default m_choice_x = {choice_x};
+	default m_choice_y = {choice_y};
+	default m_choice_pct = {choice_scale};
+
+	private function ModThaiPlace( flashModule : CScriptedFlashSprite )
+	{{
+		var line	: CScriptedFlashSprite;
+		var choices	: CScriptedFlashSprite;
+
+		line = flashModule.GetChildFlashSprite( "mcSubtitlesContainer" );
+		choices = flashModule.GetChildFlashSprite( "mcOptionContainer" );
+		if ( !line || !choices )
+		{{
+			return;
+		}}
+		if ( !m_base_set )
+		{{
+			m_line_bx = line.GetX();
+			m_line_by = line.GetY();
+			m_choice_bx = choices.GetX();
+			m_choice_by = choices.GetY();
+			m_choice_bsx = choices.GetXScale();
+			m_choice_bsy = choices.GetYScale();
+			m_base_set = true;
+		}}
+		line.SetX( m_line_bx + curResolutionWidth * m_line_x / 100.0 );
+		line.SetY( m_line_by + curResolutionHeight * m_line_y / 100.0 );
+		choices.SetX( m_choice_bx + curResolutionWidth * m_choice_x / 100.0 );
+		choices.SetY( m_choice_by + curResolutionHeight * m_choice_y / 100.0 );
+		choices.SetXScale( m_choice_bsx * m_choice_pct / 100.0 );
+		choices.SetYScale( m_choice_bsy * m_choice_pct / 100.0 );
+	}}
+
+	protected function UpdateScale( scale : float, flashModule : CScriptedFlashSprite ) : bool
+	{{
+{place_return}	}}
+	// mod thai
+
+"""
+
+
+def _num(value: float) -> str:
+    return f"{float(value):.1f}"
+
 
 class PatchError(Exception):
     pass
@@ -132,6 +243,15 @@ class ScriptOptions:
     size1: int = 28
     size2: int = 28
     speaker_colors: bool = True
+    # offsets in percent of the screen, relative to the game's own layout
+    sub_x: float = 0.0
+    sub_y: float = 0.0
+    sub_width: int = 100
+    dialog_x: float = 0.0
+    dialog_y: float = 0.0
+    choice_x: float = 0.0
+    choice_y: float = 0.0
+    choice_scale: int = 100
 
 
 def _edits(name: str, o: ScriptOptions) -> list[Edit]:
@@ -140,6 +260,11 @@ def _edits(name: str, o: ScriptOptions) -> list[Edit]:
     if name == "hudModuleDialog.ws":
         edits = [
             Edit("before", r"^\s*protected var lastSetChoices\s*:", colors + sizes + VARS_END),
+            Edit("before", r"^\s*private var subtitleScale\s*:\s*int;",
+                 DIALOG_PLACE_FN.format(line_x=_num(o.dialog_x), line_y=_num(o.dialog_y),
+                                        choice_x=_num(o.choice_x), choice_y=_num(o.choice_y),
+                                        choice_scale=_num(o.choice_scale),
+                                        place_return=PLACE_RETURN)),
             Edit("sub", r"IntToString\( 27 \+ subtitleScale \)",
                  replacement="IntToString( 27 + subtitleScale + (m_size1 - m_size_default) )", count=2),
             Edit("before", r"^\s*m_fxSentenceSetSFF\.InvokeSelfOneArg\( FlashArgString\( text \) \);", DIALOG_LINES),
@@ -164,7 +289,14 @@ def _edits(name: str, o: ScriptOptions) -> list[Edit]:
         ]
     if name == "hudModuleSubtitles.ws":
         edits = [
-            Edit("after", r"^\s*private var m_fxUpdateWidthSFF\s*:\s*CScriptedFlashFunction;", "\n" + colors + sizes + VARS_END.rstrip("\n") + "\n"),
+            Edit("after", r"^\s*private var m_fxUpdateWidthSFF\s*:\s*CScriptedFlashFunction;",
+                 "\n" + colors + sizes + VARS_WIDTH.format(width=_num(o.sub_width)) + VARS_END.rstrip("\n") + "\n"),
+            Edit("before", r"^\s*protected function UpdateScale\(",
+                 PLACE_FN.format(off_x=_num(o.sub_x), off_y=_num(o.sub_y))),
+            Edit("replace_line",
+                 r"^\s*m_fxUpdateWidthSFF\.InvokeSelfOneArg\( FlashArgNumber\( theGame\.GetUIHorizontalFrameScale\(\) \) \);",
+                 SUB_WIDTH),
+            Edit("replace_line", r"^\s*return super\.UpdateScale\( scale, flashModule \);", PLACE_RETURN),
             Edit("after", r"^\s*event\s+OnSubtitleAdded\(", "{\n" + SUB_SPLIT, replacement="{"),
             Edit("sub", r"IntToString\( 26 \+ subScale \)",
                  replacement="IntToString( 26 + subScale + (m_size1 - m_size_default) )", count=2),

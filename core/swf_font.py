@@ -164,6 +164,10 @@ def best_font(fonts: list[Font], sample: str) -> Font:
     return max(fonts, key=lambda f: (sum(1 for c in sample if ord(c) in f.glyphs), len(f.glyphs)))
 
 
+def text_width(font: Font, text: str, px: int) -> float:
+    return sum(font.advances[font.glyphs[ord(c)]] if ord(c) in font.glyphs else EM // 3 for c in text) * px / EM
+
+
 def render_line(font: Font, text: str, px: int, color: tuple[int, int, int], scale: int = 3):
     """Render text as an RGBA Pillow image; px is the font size in pixels."""
     from PIL import Image, ImageChops, ImageDraw

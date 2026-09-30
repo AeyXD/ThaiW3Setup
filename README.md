@@ -7,6 +7,7 @@
 - ข้อความในเกมเป็นภาษาไทย (แปลแล้วประมาณ 97.8%) พร้อมฟอนต์ไทย 6 แบบ
 - ซับสองภาษา ไทย + อังกฤษ เลือกได้ว่าจะให้ภาษาไหนอยู่บรรทัดแรก
 - ปรับสีและขนาดซับแต่ละบรรทัดได้ และให้ชื่อผู้พูดแสดงเป็นสีได้ มีหน้าตัวอย่างที่ใช้ฟอนต์จริงของเกม
+- ย้ายตำแหน่งซับระหว่างเล่น ซับฉากสนทนา และกล่องตัวเลือกบทสนทนาได้อิสระแยกกัน และปรับความกว้างกล่องซับได้ โดยลากในภาพจำลองจอก่อนติดตั้ง (ปุ่ม ปรับตำแหน่ง...)
 - ซับคัตซีน Storybook ภาษาไทย
 - ปรับแต่งคำแปลด้วย sheet เสริม (เหมือนใน w3tu) เปิด/ปิดและเรียงลำดับได้ หรือเพิ่ม sheet ของตัวเอง
 - ดาวน์โหลดคำแปลล่าสุดจาก Google Sheets ของทีมแปลทุกครั้งที่ติดตั้ง ถ้าออฟไลน์จะใช้คำแปลที่มากับโปรแกรม
@@ -105,6 +106,7 @@ Windows จึงอาจขึ้นเตือนได้
 ```
 ThaiW3Setup.exe detect
 ThaiW3Setup.exe install --font Sarabun --mode double --color1 #FFFFFF --color2 #A0A0A0 --size2 24
+ThaiW3Setup.exe install --sub-y -10 --sub-width 120 --dialog-y -8 --choice-x -10 --choice-y 5 --choice-scale 120
 ThaiW3Setup.exe status
 ThaiW3Setup.exe uninstall
 ```
@@ -147,4 +149,5 @@ build.bat offline         :: build โดยไม่ดาวน์โหลด
 - คำแปลภาษาไทย ฟอนต์ และซับ Storybook: ทีมแปล w3tu / Kuntoon และผู้ร่วมแปลทุกคนใน Google Sheets
 - คำแปลส่วนเติม: ผู้ร่วมแปลใน [Google Sheet ของกลุ่มนักแปล The Witcher 3 ภาษาไทย](https://docs.google.com/spreadsheets/d/1Ar5MVSc4Mdr7YAFssOmTJcJ9IyHrtxUZxt649-DhnA4)
 - patch ซับสองภาษาต้นฉบับ: svvv
+- ภาพพื้นหลังในหน้าต่างปรับตำแหน่งซับ: MILOGAME_AVIF HDR ([อัลบั้ม Zonerama](https://eu.zonerama.com/PrestigiousCap4934/Album/16612460))
 - The Witcher 3: Wild Hunt © CD PROJEKT S.A. โปรแกรมนี้เป็นผลงานของแฟนเกม ไม่เกี่ยวข้องกับ CD PROJEKT RED

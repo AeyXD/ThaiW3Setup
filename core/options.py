@@ -24,6 +24,11 @@ MODE_DOUBLE = "double"
 SLOT_TR = "tr"
 SLOT_EN = "en"
 
+OFFSET_LIMIT = 100
+WIDTH_RANGE = (50, 150)
+SCALE_RANGE = (50, 250)
+LAYOUT_BGS = ("photo1", "photo2", "gradient")
+
 
 @dataclass
 class InstallOptions:
@@ -38,13 +43,29 @@ class InstallOptions:
     speaker_colors: bool = True
     storybook: bool = True
     subtitle_style: bool = True
+    # HUD offsets in percent of the screen from the game's layout, see gui/hud_layout_dialog.py
+    sub_x: float = 0.0
+    sub_y: float = 0.0
+    sub_width: int = 100
+    dialog_x: float = 0.0
+    dialog_y: float = 0.0
+    choice_x: float = 0.0
+    choice_y: float = 0.0
+    choice_scale: int = 100
+    # background of the layout preview only, not used by the installer
+    layout_bg: str = "photo1"
     slot: str = SLOT_TR
     custom_sheets: list[dict] = field(default_factory=default_sheets)
+    # default sheet ids already offered to the user; newer defaults get appended once
+    known_default_sheets: list[str] = field(default_factory=lambda: [s["sheet_id"] for s in default_sheets()])
 
     def validate(self) -> None:
         if not isinstance(self.custom_sheets, list) or any(
                 not isinstance(s, dict) or not s.get("sheet_id") for s in self.custom_sheets):
             raise ValueError("invalid custom sheet list")
+        if not isinstance(self.known_default_sheets, list) or any(
+                not isinstance(s, str) for s in self.known_default_sheets):
+            raise ValueError("invalid known default sheet list")
         if self.font not in FONTS:
             raise ValueError(f"unknown font {self.font}")
         if self.mode not in (MODE_THAI, MODE_DOUBLE):
@@ -57,10 +78,28 @@ class InstallOptions:
         for s in (self.size1, self.size2):
             if not 16 <= int(s) <= 48:
                 raise ValueError(f"font size {s} out of range 16-48")
+        for v in (self.sub_x, self.sub_y, self.dialog_x, self.dialog_y, self.choice_x, self.choice_y):
+            if not isinstance(v, (int, float)) or not -OFFSET_LIMIT <= v <= OFFSET_LIMIT:
+                raise ValueError(f"HUD offset {v} out of range -{OFFSET_LIMIT}-{OFFSET_LIMIT}")
+        if self.layout_bg not in LAYOUT_BGS:
+            raise ValueError(f"unknown layout background {self.layout_bg}")
+        if not isinstance(self.sub_width, int) or not WIDTH_RANGE[0] <= self.sub_width <= WIDTH_RANGE[1]:
+            raise ValueError(f"subtitle width {self.sub_width} out of range {WIDTH_RANGE[0]}-{WIDTH_RANGE[1]}")
+        if not isinstance(self.choice_scale, int) or not SCALE_RANGE[0] <= self.choice_scale <= SCALE_RANGE[1]:
+            raise ValueError(f"choice box scale {self.choice_scale} out of range {SCALE_RANGE[0]}-{SCALE_RANGE[1]}")
 
 
 def settings_path():
     return app_data_dir() / "settings.json"
+
+
+def _add_new_default_sheets(opts: InstallOptions) -> None:
+    have = {s["sheet_id"] for s in opts.custom_sheets}
+    known = set(opts.known_default_sheets)
+    for s in default_sheets():
+        if s["sheet_id"] not in known and s["sheet_id"] not in have:
+            opts.custom_sheets.append(s)
+    opts.known_default_sheets = sorted(known | {s["sheet_id"] for s in default_sheets()})
 
 
 def load_options() -> InstallOptions:
@@ -73,7 +112,10 @@ def load_options() -> InstallOptions:
             for k, v in data.items():
                 if k in known:
                     setattr(opts, k, v)
+            if "known_default_sheets" not in data:
+                opts.known_default_sheets = [s.get("sheet_id") for s in opts.custom_sheets if isinstance(s, dict)]
             opts.validate()
+            _add_new_default_sheets(opts)
         except (OSError, ValueError, TypeError) as exc:
             log.warning("settings reset: %s", exc)
             opts = InstallOptions()

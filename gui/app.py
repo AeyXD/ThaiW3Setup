@@ -132,10 +132,10 @@ class App(tk.Tk):
         self.lbl_custom.pack(side="left", padx=(6, 0))
         self.update_custom_label()
 
-        right = ttk.LabelFrame(body, text="สีและขนาดซับ", padding=8)
+        right = ttk.LabelFrame(body, text="\u0e2a\u0e35 \u0e02\u0e19\u0e32\u0e14 \u0e41\u0e25\u0e30\u0e15\u0e33\u0e41\u0e2b\u0e19\u0e48\u0e07\u0e0b\u0e31\u0e1a", padding=8)
         right.grid(row=0, column=1, sticky="nsew", padx=(4, 0))
         right.columnconfigure(1, weight=1)
-        ttk.Checkbutton(right, text="ปรับสีและขนาดซับ (แก้ script ใน mods)", variable=self.v_style,
+        ttk.Checkbutton(right, text="\u0e1b\u0e23\u0e31\u0e1a\u0e2a\u0e35 \u0e02\u0e19\u0e32\u0e14 \u0e41\u0e25\u0e30\u0e15\u0e33\u0e41\u0e2b\u0e19\u0e48\u0e07\u0e0b\u0e31\u0e1a (\u0e41\u0e01\u0e49 script \u0e43\u0e19 mods)", variable=self.v_style,
                         command=self.update_states).grid(row=0, column=0, columnspan=3, sticky="w")
         self.style_widgets = []
         for row, (label, cvar, svar) in enumerate((("บรรทัดที่ 1", self.v_color1, self.v_size1),
@@ -158,7 +158,16 @@ class App(tk.Tk):
         self.chk_speaker = ttk.Checkbutton(right, text="ชื่อผู้พูดเป็นสี", variable=self.v_speaker)
         self.chk_speaker.grid(row=5, column=0, columnspan=3, sticky="w", pady=(8, 0))
         self.style_widgets.append(self.chk_speaker)
-        ttk.Button(right, text="คืนค่าเริ่มต้น", command=self.reset_style).grid(row=6, column=0, columnspan=3,
+        layout = ttk.Frame(right)
+        layout.grid(row=6, column=0, columnspan=3, sticky="w", pady=(8, 0))
+        self.btn_layout = ttk.Button(layout, text="\u0e1b\u0e23\u0e31\u0e1a\u0e15\u0e33\u0e41\u0e2b\u0e19\u0e48\u0e07...",
+                                     command=self.open_layout, width=16)
+        self.btn_layout.pack(side="left")
+        self.lbl_layout = ttk.Label(layout, text="")
+        self.lbl_layout.pack(side="left", padx=(6, 0))
+        self.style_widgets.append(self.btn_layout)
+        self.update_layout_label()
+        ttk.Button(right, text="คืนค่าเริ่มต้น", command=self.reset_style).grid(row=7, column=0, columnspan=3,
                                                                            sticky="w", pady=(8, 0))
         self.v_mode.trace_add("write", lambda *_: self.update_states())
 
@@ -208,6 +217,26 @@ class App(tk.Tk):
             self.update_custom_label()
         CustomSheetsDialog(self, self.opts.custom_sheets, on_save)
 
+    def update_layout_label(self):
+        o = self.opts
+        if (o.sub_x, o.sub_y, o.sub_width, o.dialog_x, o.dialog_y, o.choice_x, o.choice_y, o.choice_scale) == (0, 0, 100, 0, 0, 0, 0, 100):
+            text = "\u0e04\u0e48\u0e32\u0e40\u0e14\u0e34\u0e21"
+        else:
+            text = "\u0e1b\u0e23\u0e31\u0e1a\u0e41\u0e25\u0e49\u0e27"
+        self.lbl_layout.configure(text=text)
+
+    def open_layout(self):
+        from gui.hud_layout_dialog import HudLayoutDialog
+
+        def on_save(values):
+            if "size1" in values:
+                self.v_size1.set(values["size1"])
+                self.v_size2.set(values["size2"])
+            self.opts = replace(self.current_options(), **values)
+            save_options(self.opts)
+            self.update_layout_label()
+        HudLayoutDialog(self, self.current_options(), on_save)
+
     def update_states(self):
         state = "normal" if self.v_style.get() else "disabled"
         for w in self.style_widgets:
@@ -231,6 +260,9 @@ class App(tk.Tk):
         self.v_size1.set(28)
         self.v_size2.set(28)
         self.v_speaker.set(True)
+        self.opts = replace(self.opts, sub_x=0.0, sub_y=0.0, sub_width=100, dialog_x=0.0, dialog_y=0.0,
+                            choice_x=0.0, choice_y=0.0, choice_scale=100)
+        self.update_layout_label()
 
     def schedule_preview(self):
         if self._preview_job:

@@ -47,6 +47,14 @@ def main(argv: list[str] | None = None) -> int:
     inst.add_argument("--no-storybook", action="store_true")
     inst.add_argument("--no-subtitle-style", action="store_true")
     inst.add_argument("--slot", choices=["tr", "en"])
+    inst.add_argument("--sub-x", type=float, help="subtitle offset, percent of screen width")
+    inst.add_argument("--sub-y", type=float, help="subtitle offset, percent of screen height")
+    inst.add_argument("--sub-width", type=int, help="subtitle box width, percent of default (50-150)")
+    inst.add_argument("--dialog-x", type=float, help="dialogue line offset, percent of screen width")
+    inst.add_argument("--dialog-y", type=float, help="dialogue line offset, percent of screen height")
+    inst.add_argument("--choice-x", type=float, help="dialogue choices offset, percent of screen width")
+    inst.add_argument("--choice-y", type=float, help="dialogue choices offset, percent of screen height")
+    inst.add_argument("--choice-scale", type=int, help="dialogue choices size, percent of default (50-250)")
     inst.add_argument("--custom", metavar="N,N", help="enable exactly these custom sheets (numbers from 'custom', 0 = none)")
     inst.add_argument("--refresh", action="store_true", help="force re-download of translations")
     inst.add_argument("--yes", action="store_true", help="remove old w3tu mods without asking")
@@ -84,7 +92,10 @@ def main(argv: list[str] | None = None) -> int:
     opts = load_options()
     opts.game_path = game_path
     overrides = {"font": args.font, "mode": args.mode, "color1": args.color1, "color2": args.color2,
-                 "size1": args.size1, "size2": args.size2, "slot": args.slot}
+                 "size1": args.size1, "size2": args.size2, "slot": args.slot,
+                 "sub_x": args.sub_x, "sub_y": args.sub_y, "sub_width": args.sub_width,
+                 "dialog_x": args.dialog_x, "dialog_y": args.dialog_y,
+                 "choice_x": args.choice_x, "choice_y": args.choice_y, "choice_scale": args.choice_scale}
     for key, value in overrides.items():
         if value is not None:
             setattr(opts, key, value)
