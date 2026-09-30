@@ -90,8 +90,6 @@ def write_bit6(out: bytearray, c: int) -> None:
                 val |= 64
             else:
                 val |= 128
-        if val == 128:
-            raise W3StringsError(f"cannot encode bit6 value {c}")
         out.append(val & 0xFF)
 
 
