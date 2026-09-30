@@ -35,6 +35,7 @@ T_UPGRADE_NOTICE = ("\u0e2a\u0e33\u0e2b\u0e23\u0e31\u0e1a\u0e15\u0e31\u0e27\u0e4
 T_DONE = "\u0e15\u0e34\u0e14\u0e15\u0e31\u0e49\u0e07\u0e40\u0e2a\u0e23\u0e47\u0e08\u0e41\u0e25\u0e49\u0e27"
 T_DONE_NOTICE = (f"{T_DONE} \u0e16\u0e49\u0e32\u0e20\u0e32\u0e29\u0e32\u0e43\u0e19\u0e40\u0e01\u0e21\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e40\u0e1b\u0e25\u0e35\u0e48\u0e22\u0e19 "
                  "\u0e43\u0e2b\u0e49\u0e40\u0e02\u0e49\u0e32 \u0e15\u0e31\u0e49\u0e07\u0e04\u0e48\u0e32 > \u0e20\u0e32\u0e29\u0e32 > \u0e44\u0e17\u0e22")
+T_REPORT_BUTTON = "\u0e2a\u0e48\u0e07\u0e23\u0e32\u0e22\u0e07\u0e32\u0e19\u0e1b\u0e31\u0e0d\u0e2b\u0e32..."
 T_SLOT_EN_HINT = "\u0e43\u0e19\u0e40\u0e01\u0e21\u0e43\u0e2b\u0e49\u0e15\u0e31\u0e49\u0e07\u0e20\u0e32\u0e29\u0e32\u0e02\u0e49\u0e2d\u0e04\u0e27\u0e32\u0e21\u0e40\u0e1b\u0e47\u0e19 English"
 
 
@@ -205,8 +206,10 @@ class App(tk.Tk):
         self.btn_uninstall.grid(row=2, column=2, padx=3)
         ttk.Button(bottom, text="เปิดโฟลเดอร์ mods", command=self.open_mods).grid(row=2, column=3, padx=3)
         ttk.Button(bottom, text="ปิด", command=self.destroy).grid(row=2, column=4, padx=(3, 0))
-        ttk.Button(bottom, text="ตรวจสอบอัปเดต", command=lambda: self.check_update(manual=True)).grid(
-            row=2, column=0, sticky="w")
+        left = ttk.Frame(bottom)
+        left.grid(row=2, column=0, sticky="w")
+        ttk.Button(left, text="ตรวจสอบอัปเดต", command=lambda: self.check_update(manual=True)).pack(side="left")
+        ttk.Button(left, text=T_REPORT_BUTTON, command=self.open_report).pack(side="left", padx=(4, 0))
         self.update_states()
 
     # ---------- helpers ----------
@@ -222,6 +225,11 @@ class App(tk.Tk):
         sheets = self.opts.custom_sheets
         on = sum(1 for s in sheets if s.get("enabled"))
         self.lbl_custom.configure(text=f"เปิดใช้ {on} จาก {len(sheets)} ไฟล์")
+
+    def open_report(self):
+        from gui.report_dialog import ReportDialog
+
+        ReportDialog(self, self.v_game.get().strip())
 
     def open_custom(self):
         from gui.custom_dialog import CustomSheetsDialog
