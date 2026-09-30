@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import gzip
+import hashlib
 import io
 import json
 import logging
@@ -25,6 +26,22 @@ class CustomSheet:
     sheet_id: str
     name: str
     enabled: bool = False
+    # worksheet title; empty means the first worksheet
+    tab: str = ""
+    gid: int | None = None
+
+
+COMMUNITY_ID = "1kIj-WNi24iy3--NLHNzcIj5szOBXoxHJGdwRQNj0etk"
+UNTRANSLATED_TAB = "Untranslated"
+TAB_CHARACTERS = "\u0e0a\u0e37\u0e48\u0e2d\u0e15\u0e31\u0e27\u0e25\u0e30\u0e04\u0e23"
+TAB_PLACES = "\u0e0a\u0e37\u0e48\u0e2d\u0e40\u0e21\u0e37\u0e2d\u0e07"
+TAB_QUESTS = "\u0e0a\u0e37\u0e48\u0e2d\u0e40\u0e04\u0e27\u0e2a"
+TAB_SKILLS = "\u0e0a\u0e37\u0e48\u0e2d\u0e2a\u0e01\u0e34\u0e25"
+NAME_TABS = (TAB_CHARACTERS, TAB_PLACES, TAB_QUESTS, TAB_SKILLS)
+NAME_GIDS = {TAB_CHARACTERS: 1219926511, TAB_PLACES: 796210995, TAB_QUESTS: 1268129566,
+             TAB_SKILLS: 1710767002}
+# entries saved before tabs existed read the first worksheet, which was this one
+LEGACY_TABS = {COMMUNITY_ID: UNTRANSLATED_TAB}
 
 
 # Order matters: sheets lower in the list override those above for the same id.
@@ -35,9 +52,17 @@ DEFAULT_SHEETS = [
     CustomSheet("1FDNdc-p0VJfv3ksoIAhl554jOdpecE6zw6io9tl5jPo", "สุภาพกันหน่อย"),
     CustomSheet("19uVPHxzMBwCxpnjKqakNkBqxSOm2CH173L4wpwiUjS0", "ซับนรก"),
     # "community additions": strings with no translation yet, see devtools/export_untranslated.py
-    CustomSheet("1kIj-WNi24iy3--NLHNzcIj5szOBXoxHJGdwRQNj0etk",
-                "\u0e04\u0e33\u0e41\u0e1b\u0e25\u0e40\u0e1e\u0e34\u0e48\u0e21\u0e40\u0e15\u0e34\u0e21\u0e08\u0e32\u0e01\u0e0a\u0e38\u0e21\u0e0a\u0e19", True),
+    CustomSheet(COMMUNITY_ID,
+                "\u0e04\u0e33\u0e41\u0e1b\u0e25\u0e40\u0e1e\u0e34\u0e48\u0e21\u0e40\u0e15\u0e34\u0e21\u0e08\u0e32\u0e01\u0e0a\u0e38\u0e21\u0e0a\u0e19", True,
+                UNTRANSLATED_TAB, 0),
+    # proper names shown as "English (Thai)", see devtools/export_names.py
+    *(CustomSheet(COMMUNITY_ID, tab, False, tab, NAME_GIDS.get(tab)) for tab in NAME_TABS),
 ]
+
+
+def sheet_key(sheet: dict) -> str:
+    tab = sheet.get("tab") or ""
+    return f"{sheet['sheet_id']}#{tab}" if tab else sheet["sheet_id"]
 
 
 def default_sheets() -> list[dict]:
@@ -52,16 +77,31 @@ def parse_sheet_id(text: str) -> str | None:
     return text if ID_PATTERN.match(text) else None
 
 
-def sheet_url(sheet_id: str) -> str:
-    return SHEET_URL.format(id=sheet_id)
+def sheet_url(sheet_id: str, gid: int | None = None) -> str:
+    url = SHEET_URL.format(id=sheet_id)
+    return f"{url}/edit#gid={gid}" if gid is not None else url
 
 
-def parse_custom_xlsx(data: bytes) -> tuple[str, dict[int, str]]:
-    """First worksheet: a title row, a header row with ID and TRANSLATE, then data rows."""
+def _ids(cell: str) -> list[int]:
+    """One id, or several separated by commas (one row per name covering all its string ids)."""
+    out = []
+    for part in cell.split(","):
+        try:
+            out.append(int(float(part)))
+        except ValueError:
+            pass
+    return out
+
+
+def parse_custom_xlsx(data: bytes, tab: str = "") -> tuple[str, dict[int, str]]:
+    """Worksheet ``tab`` (or the first): a title row, a header row with ID and TRANSLATE, then data rows."""
     import openpyxl
 
     wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
-    ws = wb.worksheets[0]
+    if tab and tab not in wb.sheetnames:
+        wb.close()
+        raise ValueError(f"\u0e44\u0e21\u0e48\u0e1e\u0e1a\u0e41\u0e17\u0e47\u0e1a \"{tab}\" \u0e43\u0e19 sheet")
+    ws = wb[tab] if tab else wb.worksheets[0]
     title, id_col, tr_col = "", None, None
     out: dict[int, str] = {}
     for i, row in enumerate(ws.iter_rows(values_only=True)):
@@ -77,24 +117,27 @@ def parse_custom_xlsx(data: bytes) -> tuple[str, dict[int, str]]:
             continue
         if len(cells) <= max(id_col, tr_col):
             continue
-        try:
-            sid = int(float(cells[id_col]))
-        except ValueError:
-            continue
         if cells[tr_col]:
-            out[sid] = _cell_text(row[tr_col])
+            for sid in _ids(cells[id_col]):
+                out[sid] = _cell_text(row[tr_col])
     wb.close()
     if id_col is None:
         raise ValueError("ไม่พบหัวตาราง ID / TRANSLATE ในแท็บแรกของ sheet")
     return title, out
 
 
-def _cache_path(sheet_id: str):
-    return cache_dir() / f"custom_{sheet_id}.json.gz"
+def _file_stem(sheet_id: str, tab: str) -> str:
+    if not tab or LEGACY_TABS.get(sheet_id) == tab:
+        return sheet_id
+    return f"{sheet_id}__{hashlib.sha1(tab.encode('utf-8')).hexdigest()[:8]}"
 
 
-def _bundled_path(sheet_id: str):
-    return assets_dir() / "custom" / f"{sheet_id}.json.gz"
+def _cache_path(sheet_id: str, tab: str = ""):
+    return cache_dir() / f"custom_{_file_stem(sheet_id, tab)}.json.gz"
+
+
+def _bundled_path(sheet_id: str, tab: str = ""):
+    return assets_dir() / "custom" / f"{_file_stem(sheet_id, tab)}.json.gz"
 
 
 def save_custom(path, title: str, strings: dict[int, str], fetched_at: float) -> None:
@@ -110,15 +153,25 @@ def load_custom(path) -> tuple[str, dict[int, str], float]:
     return payload.get("title", ""), {int(k): v for k, v in payload["strings"].items()}, float(payload["fetched_at"])
 
 
-def download_custom(sheet_id: str, progress: ProgressFn = noop) -> tuple[str, dict[int, str]]:
+def _fetch(sheet_id: str, progress: ProgressFn, pool: dict[str, bytes] | None) -> bytes:
+    """The xlsx export holds every tab, so tabs of one sheet share a download through ``pool``."""
+    if pool is not None and sheet_id in pool:
+        return pool[sheet_id]
     data = _download(EXPORT_URL.format(id=sheet_id), progress)
-    title, strings = parse_custom_xlsx(data)
-    save_custom(_cache_path(sheet_id), title, strings, time.time())
+    if pool is not None:
+        pool[sheet_id] = data
+    return data
+
+
+def download_custom(sheet_id: str, tab: str = "", progress: ProgressFn = noop,
+                    pool: dict[str, bytes] | None = None) -> tuple[str, dict[int, str]]:
+    title, strings = parse_custom_xlsx(_fetch(sheet_id, progress, pool), tab)
+    save_custom(_cache_path(sheet_id, tab), title, strings, time.time())
     return title, strings
 
 
-def cached_count(sheet_id: str) -> int | None:
-    for path in (_cache_path(sheet_id), _bundled_path(sheet_id)):
+def cached_count(sheet_id: str, tab: str = "") -> int | None:
+    for path in (_cache_path(sheet_id, tab), _bundled_path(sheet_id, tab)):
         if path.exists():
             try:
                 return len(load_custom(path)[1])
@@ -128,8 +181,9 @@ def cached_count(sheet_id: str) -> int | None:
 
 
 def get_custom(sheet_id: str, force_download: bool = False, allow_online: bool = True,
-               progress: ProgressFn = noop) -> dict[int, str]:
-    cache = _cache_path(sheet_id)
+               progress: ProgressFn = noop, tab: str = "",
+               pool: dict[str, bytes] | None = None) -> dict[int, str]:
+    cache = _cache_path(sheet_id, tab)
     if cache.exists() and not force_download:
         try:
             _title, strings, ts = load_custom(cache)
@@ -139,10 +193,10 @@ def get_custom(sheet_id: str, force_download: bool = False, allow_online: bool =
             log.warning("custom cache %s unreadable: %s", sheet_id, exc)
     if allow_online:
         try:
-            return download_custom(sheet_id, progress)[1]
+            return download_custom(sheet_id, tab, progress, pool)[1]
         except Exception as exc:  # network errors come in many types
-            log.warning("custom sheet %s download failed: %s", sheet_id, exc)
-    for path in (cache, _bundled_path(sheet_id)):
+            log.warning("custom sheet %s %s download failed: %s", sheet_id, tab, exc)
+    for path in (cache, _bundled_path(sheet_id, tab)):
         if path.exists():
             try:
                 return load_custom(path)[1]
@@ -157,17 +211,20 @@ def merged_overrides(sheets: list[dict], force_download: bool = False,
     """Merge enabled sheets top to bottom; later sheets win."""
     enabled = [s for s in sheets if s.get("enabled")]
     out: dict[int, str] = {}
+    pool: dict[str, bytes] = {}
     for i, s in enumerate(enabled):
         progress(i / max(1, len(enabled)), f"คำแปลเสริม: {s.get('name') or s['sheet_id']}")
         out.update(get_custom(s["sheet_id"], force_download,
-                              progress=scaled(progress, i / len(enabled), (i + 1) / len(enabled))))
+                              progress=scaled(progress, i / len(enabled), (i + 1) / len(enabled)),
+                              tab=s.get("tab") or "", pool=pool))
     progress(1.0, "โหลดคำแปลเสริมแล้ว")
     return out
 
 
 def export_defaults() -> None:
     """Snapshot the default sheets into assets/custom for offline installs."""
+    pool: dict[str, bytes] = {}
     for s in DEFAULT_SHEETS:
-        title, strings = parse_custom_xlsx(_download(EXPORT_URL.format(id=s.sheet_id), noop))
-        save_custom(_bundled_path(s.sheet_id), title, strings, time.time())
-        print(f"custom {s.sheet_id}: {len(strings):,} strings")
+        title, strings = parse_custom_xlsx(_fetch(s.sheet_id, noop, pool), s.tab)
+        save_custom(_bundled_path(s.sheet_id, s.tab), title, strings, time.time())
+        print(f"custom {sheet_key(asdict(s))}: {len(strings):,} strings")

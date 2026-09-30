@@ -4,7 +4,7 @@ import json
 import logging
 from dataclasses import asdict, dataclass, field, fields
 
-from .custom import default_sheets
+from .custom import LEGACY_TABS, default_sheets, sheet_key
 from .paths import app_data_dir
 
 log = logging.getLogger(__name__)
@@ -56,8 +56,8 @@ class InstallOptions:
     layout_bg: str = "photo1"
     slot: str = SLOT_TR
     custom_sheets: list[dict] = field(default_factory=default_sheets)
-    # default sheet ids already offered to the user; newer defaults get appended once
-    known_default_sheets: list[str] = field(default_factory=lambda: [s["sheet_id"] for s in default_sheets()])
+    # default sheet keys (see core.custom.sheet_key) already offered; newer defaults get appended once
+    known_default_sheets: list[str] = field(default_factory=lambda: [sheet_key(s) for s in default_sheets()])
 
     def validate(self) -> None:
         if not isinstance(self.custom_sheets, list) or any(
@@ -93,13 +93,20 @@ def settings_path():
     return app_data_dir() / "settings.json"
 
 
+def _legacy_key(key: str) -> str:
+    return f"{key}#{LEGACY_TABS[key]}" if key in LEGACY_TABS else key
+
+
 def _add_new_default_sheets(opts: InstallOptions) -> None:
-    have = {s["sheet_id"] for s in opts.custom_sheets}
-    known = set(opts.known_default_sheets)
+    for s in opts.custom_sheets:
+        if not s.get("tab") and s["sheet_id"] in LEGACY_TABS:
+            s["tab"] = LEGACY_TABS[s["sheet_id"]]
+    have = {sheet_key(s) for s in opts.custom_sheets}
+    known = {_legacy_key(k) for k in opts.known_default_sheets}
     for s in default_sheets():
-        if s["sheet_id"] not in known and s["sheet_id"] not in have:
+        if sheet_key(s) not in known and sheet_key(s) not in have:
             opts.custom_sheets.append(s)
-    opts.known_default_sheets = sorted(known | {s["sheet_id"] for s in default_sheets()})
+    opts.known_default_sheets = sorted(known | {sheet_key(s) for s in default_sheets()})
 
 
 def load_options() -> InstallOptions:
@@ -113,7 +120,8 @@ def load_options() -> InstallOptions:
                 if k in known:
                     setattr(opts, k, v)
             if "known_default_sheets" not in data:
-                opts.known_default_sheets = [s.get("sheet_id") for s in opts.custom_sheets if isinstance(s, dict)]
+                opts.known_default_sheets = [s.get("sheet_id") for s in opts.custom_sheets
+                                             if isinstance(s, dict) and s.get("sheet_id")]
             opts.validate()
             _add_new_default_sheets(opts)
         except (OSError, ValueError, TypeError) as exc:

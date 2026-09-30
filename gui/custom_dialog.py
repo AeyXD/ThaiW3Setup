@@ -8,7 +8,7 @@ import tkinter as tk
 import webbrowser
 from tkinter import messagebox, simpledialog, ttk
 
-from core.custom import cached_count, default_sheets, download_custom, parse_sheet_id, sheet_url
+from core.custom import cached_count, default_sheets, download_custom, parse_sheet_id, sheet_key, sheet_url
 
 ON, OFF = "☑", "☐"
 
@@ -22,7 +22,7 @@ class CustomSheetsDialog(tk.Toplevel):
         self.minsize(640, 360)
         self.sheets = copy.deepcopy(sheets)
         self.on_save = on_save
-        self.counts = {s["sheet_id"]: cached_count(s["sheet_id"]) for s in self.sheets}
+        self.counts = {sheet_key(s): cached_count(s["sheet_id"], s.get("tab") or "") for s in self.sheets}
         self.events: queue.Queue = queue.Queue()
         self.busy = 0
         self._build()
@@ -74,8 +74,8 @@ class CustomSheetsDialog(tk.Toplevel):
     def refresh(self, select: int | None = None):
         self.tree.delete(*self.tree.get_children())
         for i, s in enumerate(self.sheets):
-            count = self.counts.get(s["sheet_id"])
-            short = s["sheet_id"][:10] + "..."
+            count = self.counts.get(sheet_key(s))
+            short = s["sheet_id"][:10] + "..." + (f" / {s['tab']}" if s.get("tab") else "")
             self.tree.insert("", "end", iid=str(i), values=(
                 ON if s.get("enabled") else OFF, short, s.get("name") or s["sheet_id"],
                 f"{count:,}" if count is not None else "-"))
@@ -117,7 +117,7 @@ class CustomSheetsDialog(tk.Toplevel):
     def view(self):
         i = self.selected()
         if i is not None:
-            webbrowser.open(sheet_url(self.sheets[i]["sheet_id"]))
+            webbrowser.open(sheet_url(self.sheets[i]["sheet_id"], self.sheets[i].get("gid")))
 
     def rename(self):
         i = self.selected()
@@ -141,52 +141,58 @@ class CustomSheetsDialog(tk.Toplevel):
     def reset(self):
         if messagebox.askyesno("คืนค่าเริ่มต้น", "คืนรายการคำแปลเสริมเป็นค่าเริ่มต้นหรือไม่?", parent=self):
             self.sheets = default_sheets()
-            self.counts.update({s["sheet_id"]: cached_count(s["sheet_id"]) for s in self.sheets})
+            self.counts.update({sheet_key(s): cached_count(s["sheet_id"], s.get("tab") or "")
+                                for s in self.sheets})
             self.refresh(0)
 
     # ---------- downloads ----------
-    def _run(self, sheet_id: str, message: str, on_done):
-        self.busy += 1
+    def _run(self, sheets: list[dict], message: str, on_done):
+        """Download in one thread so tabs of the same sheet share a single download."""
+        self.busy += len(sheets)
         self.status.set(message)
         self.configure(cursor="watch")
+        sheets = copy.deepcopy(sheets)
 
         def work():
-            try:
-                self.events.put((on_done, sheet_id, download_custom(sheet_id), None))
-            except Exception as exc:
-                self.events.put((on_done, sheet_id, None, exc))
+            pool: dict[str, bytes] = {}
+            for s in sheets:
+                try:
+                    result = download_custom(s["sheet_id"], s.get("tab") or "", pool=pool)
+                    self.events.put((on_done, s, result, None))
+                except Exception as exc:
+                    self.events.put((on_done, s, None, exc))
         threading.Thread(target=work, daemon=True).start()
 
     def _poll(self):
         try:
             while True:
-                on_done, sheet_id, result, error = self.events.get_nowait()
+                on_done, sheet, result, error = self.events.get_nowait()
                 self.busy -= 1
                 if self.busy == 0:
                     self.configure(cursor="")
-                on_done(sheet_id, result, error)
+                on_done(sheet, result, error)
         except queue.Empty:
             pass
         if self.winfo_exists():
             self.after(100, self._poll)
 
-    def _updated(self, sheet_id, result, error):
+    def _updated(self, sheet, result, error):
         if error:
             self.status.set(f"อัปเดตไม่สำเร็จ: {error}")
             return
         _title, strings = result
-        self.counts[sheet_id] = len(strings)
+        self.counts[sheet_key(sheet)] = len(strings)
         self.status.set(f"อัปเดตแล้ว {len(strings):,} ข้อความ")
         self.refresh(self.selected())
 
     def update_selected(self):
         i = self.selected()
         if i is not None:
-            self._run(self.sheets[i]["sheet_id"], "กำลังอัปเดต...", self._updated)
+            self._run([self.sheets[i]], "กำลังอัปเดต...", self._updated)
 
     def update_all(self):
-        for s in self.sheets:
-            self._run(s["sheet_id"], "กำลังอัปเดตทั้งหมด...", self._updated)
+        if self.sheets:
+            self._run(self.sheets, "กำลังอัปเดตทั้งหมด...", self._updated)
 
     def add(self):
         text = simpledialog.askstring(
@@ -199,12 +205,13 @@ class CustomSheetsDialog(tk.Toplevel):
         if not sheet_id:
             messagebox.showerror("เพิ่มคำแปลเสริม", "ลิงก์หรือ ID ไม่ถูกต้อง", parent=self)
             return
-        if any(s["sheet_id"] == sheet_id for s in self.sheets):
+        if any(sheet_key(s) == sheet_id for s in self.sheets):
             messagebox.showinfo("เพิ่มคำแปลเสริม", "มี sheet นี้ในรายการแล้ว", parent=self)
             return
-        self._run(sheet_id, "กำลังตรวจ sheet...", self._added)
+        self._run([{"sheet_id": sheet_id}], "กำลังตรวจ sheet...", self._added)
 
-    def _added(self, sheet_id, result, error):
+    def _added(self, sheet, result, error):
+        sheet_id = sheet["sheet_id"]
         if error:
             self.status.set("")
             messagebox.showerror("เพิ่มคำแปลเสริม", f"เปิด sheet ไม่ได้:\n{error}", parent=self)

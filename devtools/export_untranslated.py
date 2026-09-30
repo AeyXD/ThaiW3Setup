@@ -21,7 +21,7 @@ import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core.custom import default_sheets, merged_overrides, parse_sheet_id
+from core.custom import UNTRANSLATED_TAB as TAB, default_sheets, merged_overrides, parse_sheet_id, sheet_key
 from core.game_detect import identify
 from core.options import load_options
 from core.paths import app_data_dir
@@ -73,7 +73,7 @@ def write_xlsx(path: str, rows: list[list]) -> None:
 
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "Untranslated"
+    ws.title = TAB
     ws.append([_title()])
     ws.append(HEADER)
     for row in rows:
@@ -146,7 +146,9 @@ def main():
     if not game.supported:
         sys.exit(f"unsupported game folder: {game.label}")
     tr = get_translations()
-    sheets = [s for s in default_sheets() if s["sheet_id"] != sheet_id]
+    # the name tabs of the same sheet still count as translations
+    skip = {sheet_id, f"{sheet_id}#{TAB}"}
+    sheets = [s for s in default_sheets() if sheet_key(s) not in skip]
     pending = untranslated(game, tr.thai, tr.by_text, merged_overrides(sheets))
     print(f"{len(pending):,} untranslated strings")
 
@@ -156,12 +158,12 @@ def main():
         gc = _client()
         if sheet_id:
             sh = gc.open_by_key(sheet_id)
-            ws = sh.sheet1
+            ws = next((w for w in sh.worksheets() if w.title == TAB), sh.sheet1)
             existing = _existing_rows(ws)
         else:
             sh = gc.create(SPREADSHEET_NAME)
             ws = sh.sheet1
-            ws.update_title("Untranslated")
+            ws.update_title(TAB)
 
     rows = build_rows(pending, existing)
     kept = sum(1 for r in rows if r[2].strip())

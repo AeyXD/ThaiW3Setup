@@ -6,7 +6,7 @@ import sys
 from dataclasses import fields
 
 from . import __version__
-from .custom import cached_count
+from .custom import cached_count, sheet_key
 from .game_detect import find_games, identify
 from .installer import install, status, uninstall
 from .options import FONTS, InstallOptions, load_options, save_options
@@ -74,8 +74,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.cmd == "custom":
         for i, s in enumerate(load_options().custom_sheets, 1):
-            count = cached_count(s["sheet_id"])
-            print(f"{i}. [{'x' if s.get('enabled') else ' '}] {s.get('name', '')}  {s['sheet_id']}"
+            count = cached_count(s["sheet_id"], s.get("tab") or "")
+            print(f"{i}. [{'x' if s.get('enabled') else ' '}] {s.get('name', '')}  {sheet_key(s)}"
                   f"  ({count if count is not None else '-'} strings)")
         return 0
 

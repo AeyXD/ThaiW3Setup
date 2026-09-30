@@ -48,7 +48,9 @@ def _load_merged(game: GameInfo, language: str, skipped: list[Path]) -> W3String
 
 
 def combine(thai: str, english: str, thai_first: bool) -> str:
-    if not english.strip() or english.strip() == thai.strip():
+    # names from the custom name tabs already read "English (Thai)"
+    en = english.strip()
+    if not en or thai.strip() == en or thai.startswith(en + " ("):
         return thai
     first, second = (thai, english) if thai_first else (english, thai)
     first = first.replace("  [", " [")
