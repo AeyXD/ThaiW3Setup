@@ -55,8 +55,8 @@ class InstallOptions:
     # background of the layout preview only, not used by the installer
     layout_bg: str = "photo1"
     # "don't show again" on the startup and install-finished notices
-    hide_upgrade_notice: bool = False
-    hide_done_notice: bool = False
+    hide_upgrade_notice_v2: bool = False
+    hide_done_notice_v2: bool = False
     slot: str = SLOT_TR
     custom_sheets: list[dict] = field(default_factory=default_sheets)
     # default sheet keys (see core.custom.sheet_key) already offered; newer defaults get appended once
@@ -86,7 +86,7 @@ class InstallOptions:
         for v in (self.sub_x, self.sub_y, self.dialog_x, self.dialog_y, self.choice_x, self.choice_y):
             if not isinstance(v, (int, float)) or not -OFFSET_LIMIT <= v <= OFFSET_LIMIT:
                 raise ValueError(f"HUD offset {v} out of range -{OFFSET_LIMIT}-{OFFSET_LIMIT}")
-        if not isinstance(self.hide_upgrade_notice, bool) or not isinstance(self.hide_done_notice, bool):
+        if not isinstance(self.hide_upgrade_notice_v2, bool) or not isinstance(self.hide_done_notice_v2, bool):
             raise ValueError("notice flags must be true/false")
         if self.layout_bg not in LAYOUT_BGS:
             raise ValueError(f"unknown layout background {self.layout_bg}")

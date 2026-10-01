@@ -14,6 +14,9 @@ T_DONT_SHOW = "\u0e44\u0e21\u0e48\u0e15\u0e49\u0e2d\u0e07\u0e41\u0e2a\u0e14\u0e0
 T_OK = "\u0e15\u0e01\u0e25\u0e07"
 IMAGE_MAX_W = 640
 TEXT_W = 620
+MESSAGE_BOLD = ("Leelawadee UI", 10, "bold")
+WARNING_FONT = ("Leelawadee UI", 13, "bold")
+WARNING_COLOR = "#c62828"
 
 
 def _photo(path: Path) -> ImageTk.PhotoImage | None:
@@ -28,7 +31,8 @@ def _photo(path: Path) -> ImageTk.PhotoImage | None:
 
 
 class NoticeDialog(tk.Toplevel):
-    def __init__(self, parent, title: str, message: str, image: Path | None = None):
+    def __init__(self, parent, title: str, message: str, image: Path | None = None, bold: bool = False,
+                 warning: str | None = None):
         super().__init__(parent)
         self.title(title)
         self.transient(parent)
@@ -37,7 +41,13 @@ class NoticeDialog(tk.Toplevel):
 
         root = ttk.Frame(self, padding=14)
         root.pack(fill="both", expand=True)
-        ttk.Label(root, text=message, wraplength=TEXT_W, justify="left").pack(anchor="w")
+        label = ttk.Label(root, text=message, wraplength=TEXT_W, justify="left")
+        if bold:
+            label.configure(font=MESSAGE_BOLD)
+        label.pack(anchor="w")
+        if warning:
+            ttk.Label(root, text=warning, wraplength=TEXT_W, justify="left", font=WARNING_FONT,
+                      foreground=WARNING_COLOR).pack(anchor="w", pady=(10, 0))
         self.photo = _photo(image) if image else None
         if self.photo is not None:
             ttk.Label(root, image=self.photo, relief="solid", borderwidth=1).pack(pady=(10, 0))
@@ -58,9 +68,10 @@ class NoticeDialog(tk.Toplevel):
         self.grab_set()
 
 
-def show_notice(parent, title: str, message: str, image: Path | None = None) -> bool:
+def show_notice(parent, title: str, message: str, image: Path | None = None, bold: bool = False,
+                warning: str | None = None) -> bool:
     """Show the notice and wait; True when the user ticked "don't show again"."""
-    dialog = NoticeDialog(parent, title, message, image)
+    dialog = NoticeDialog(parent, title, message, image, bold, warning)
     hide = dialog.v_hide
     parent.wait_window(dialog)
     return bool(hide.get())

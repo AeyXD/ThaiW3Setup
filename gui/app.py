@@ -31,7 +31,12 @@ PREVIEW_SIZE = (620, 150)
 
 T_UPGRADE_NOTICE = ("\u0e2a\u0e33\u0e2b\u0e23\u0e31\u0e1a\u0e15\u0e31\u0e27\u0e40\u0e01\u0e21\u0e17\u0e35\u0e48\u0e2d\u0e31\u0e1b\u0e40\u0e27\u0e2d\u0e23\u0e4c\u0e0a\u0e31\u0e19\u0e08\u0e32\u0e01 Classic / Next-gen "
                     "\u0e43\u0e2b\u0e49\u0e25\u0e1a mod \u0e41\u0e1b\u0e25\u0e40\u0e01\u0e48\u0e32 \u0e41\u0e25\u0e30 \u0e0b\u0e48\u0e2d\u0e21\u0e44\u0e1f\u0e25\u0e4c\u0e40\u0e01\u0e21 "
-                    "\u0e01\u0e48\u0e2d\u0e19\u0e25\u0e07 mod \u0e15\u0e31\u0e27\u0e19\u0e35\u0e49")
+                    "\u0e01\u0e48\u0e2d\u0e19\u0e25\u0e07 mod \u0e15\u0e31\u0e27\u0e19\u0e35\u0e49 "
+                    "\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e2b\u0e25\u0e35\u0e01\u0e40\u0e25\u0e35\u0e48\u0e22\u0e07 font \u0e44\u0e17\u0e22\u0e44\u0e21\u0e48\u0e17\u0e33\u0e07\u0e32\u0e19 "
+                    "\u0e2b\u0e23\u0e37\u0e2d\u0e40\u0e1e\u0e35\u0e49\u0e22\u0e19")
+T_ONEDRIVE_WARNING = ("\u0e02\u0e49\u0e2d\u0e04\u0e27\u0e23\u0e17\u0e23\u0e32\u0e1a : \u0e42\u0e1b\u0e23\u0e14\u0e40\u0e0a\u0e47\u0e04\u0e41\u0e25\u0e30\u0e1b\u0e34\u0e14 OneDrive "
+                      "\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e2b\u0e25\u0e35\u0e01\u0e40\u0e25\u0e35\u0e48\u0e22\u0e07\u0e1b\u0e31\u0e0d\u0e2b\u0e32\u0e40\u0e0b\u0e1f\u0e2b\u0e32\u0e22/\u0e40\u0e0b\u0e1f\u0e44\u0e21\u0e48\u0e44\u0e14\u0e49 "
+                      "\u0e41\u0e25\u0e30 error \u0e2d\u0e37\u0e48\u0e19 \u0e46 \u0e17\u0e35\u0e48\u0e40\u0e01\u0e35\u0e48\u0e22\u0e27\u0e02\u0e49\u0e2d\u0e07\u0e01\u0e31\u0e1a Documents")
 T_DONE = "\u0e15\u0e34\u0e14\u0e15\u0e31\u0e49\u0e07\u0e40\u0e2a\u0e23\u0e47\u0e08\u0e41\u0e25\u0e49\u0e27"
 T_DONE_NOTICE = (f"{T_DONE} \u0e16\u0e49\u0e32\u0e20\u0e32\u0e29\u0e32\u0e43\u0e19\u0e40\u0e01\u0e21\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e40\u0e1b\u0e25\u0e35\u0e48\u0e22\u0e19 "
                  "\u0e43\u0e2b\u0e49\u0e40\u0e02\u0e49\u0e32 \u0e15\u0e31\u0e49\u0e07\u0e04\u0e48\u0e32 > \u0e20\u0e32\u0e29\u0e32 > \u0e44\u0e17\u0e22")
@@ -85,7 +90,7 @@ class App(tk.Tk):
         self.after(50, self.detect_games)
         self.after(100, self.poll_events)
         self.after(1500, lambda: self.check_update(manual=False))
-        if not self.opts.hide_upgrade_notice:
+        if not self.opts.hide_upgrade_notice_v2:
             self.after(300, self.show_upgrade_notice)
 
     # ---------- layout ----------
@@ -496,8 +501,8 @@ class App(tk.Tk):
         self.after(100, self.poll_events)
 
     def show_upgrade_notice(self):
-        if show_notice(self, APP_TITLE, T_UPGRADE_NOTICE):
-            self.opts.hide_upgrade_notice = True
+        if show_notice(self, APP_TITLE, T_UPGRADE_NOTICE, bold=True, warning=T_ONEDRIVE_WARNING):
+            self.opts.hide_upgrade_notice_v2 = True
             save_options(self.opts)
 
     def on_installed(self, report):
@@ -507,15 +512,16 @@ class App(tk.Tk):
             lines.append(f"\u0e04\u0e33\u0e41\u0e1b\u0e25\u0e40\u0e2a\u0e23\u0e34\u0e21\u0e17\u0e35\u0e48\u0e40\u0e1b\u0e34\u0e14\u0e43\u0e0a\u0e49: {report.custom:,} \u0e02\u0e49\u0e2d\u0e04\u0e27\u0e32\u0e21")
         warnings = ["\u0e02\u0e49\u0e2d\u0e04\u0e27\u0e23\u0e17\u0e23\u0e32\u0e1a:"] + [f"- {w}" for w in report.warnings] if report.warnings else []
         self.v_status.set(f"{T_DONE}  {lines[0]}")
-        if self.opts.hide_done_notice:
+        if self.opts.hide_done_notice_v2:
             if warnings:
                 messagebox.showwarning(APP_TITLE, "\n".join(warnings), parent=self)
             return
         thai_slot = self.opts.slot == SLOT_TR
         head = T_DONE_NOTICE if thai_slot else f"{T_DONE}\n{T_SLOT_EN_HINT}"
         message = "\n".join([head, ""] + lines + ([""] + warnings if warnings else []))
-        if show_notice(self, APP_TITLE, message, help_image("game_language_thai") if thai_slot else None):
-            self.opts.hide_done_notice = True
+        if show_notice(self, APP_TITLE, message, help_image("game_language_thai") if thai_slot else None,
+                       warning=T_ONEDRIVE_WARNING):
+            self.opts.hide_done_notice_v2 = True
             save_options(self.opts)
 
 
