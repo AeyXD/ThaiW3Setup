@@ -1,11 +1,12 @@
 """Write packaging/version_info.txt for PyInstaller from core.__version__."""
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from core import APP_NAME, __version__  # noqa: E402
 
-parts = [int(p) for p in __version__.split(".")] + [0] * 4
+parts = [int(p) for p in re.findall(r"\d+", __version__)] + [0] * 4
 ver = tuple(parts[:4])
 
 TEMPLATE = f"""VSVersionInfo(
