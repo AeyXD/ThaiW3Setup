@@ -13,8 +13,11 @@ from core.custom import (NAME_DOUBLE, NAME_THAI, cached_stats, default_sheets, d
 
 ON, OFF = "☑", "☐"
 MODE_LABELS = {NAME_THAI: "\u0e44\u0e17\u0e22", NAME_DOUBLE: "2 \u0e20\u0e32\u0e29\u0e32"}
+# dropdown entries spell out what each mode shows in game
+MODE_CHOICES = {NAME_THAI: "\u0e44\u0e17\u0e22: \u0e40\u0e22\u0e19\u0e40\u0e19\u0e40\u0e1f\u0e2d\u0e23\u0e4c",
+                NAME_DOUBLE: "2 \u0e20\u0e32\u0e29\u0e32: Yennefer (\u0e40\u0e22\u0e19\u0e40\u0e19\u0e40\u0e1f\u0e2d\u0e23\u0e4c)"}
 MODE_HINT = ("\u0e04\u0e25\u0e34\u0e01\u0e0a\u0e48\u0e2d\u0e07 \u0e42\u0e2b\u0e21\u0e14 "
-             "\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e2a\u0e25\u0e31\u0e1a\u0e44\u0e17\u0e22/2 \u0e20\u0e32\u0e29\u0e32")
+             "\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e44\u0e17\u0e22/2 \u0e20\u0e32\u0e29\u0e32")
 
 
 class CustomSheetsDialog(tk.Toplevel):
@@ -51,7 +54,8 @@ class CustomSheetsDialog(tk.Toplevel):
             self.tree.heading(col, text=text)
             self.tree.column(col, width=width, anchor=anchor, stretch=col == "name")
         self.tree.heading("mode", text="\u0e42\u0e2b\u0e21\u0e14")
-        self.tree.column("mode", width=70, anchor="center", stretch=False)
+        self.tree.column("mode", width=80, anchor="center", stretch=False)
+        self.mode_editor: ttk.Combobox | None = None
         self.tree.grid(row=1, column=0, sticky="nsew")
         self.tree.bind("<Button-1>", self._on_click)
         self.tree.bind("<space>", lambda _e: self.toggle(self.selected()))
@@ -79,13 +83,14 @@ class CustomSheetsDialog(tk.Toplevel):
 
     # ---------- list ----------
     def refresh(self, select: int | None = None):
+        self._close_mode_editor()
         self.tree.delete(*self.tree.get_children())
         for i, s in enumerate(self.sheets):
             count, percent = self.counts.get(sheet_key(s), (None, None))
             short = s["sheet_id"][:10] + "..." + (f" / {s['tab']}" if s.get("tab") else "")
             self.tree.insert("", "end", iid=str(i), values=(
                 ON if s.get("enabled") else OFF, short, s.get("name") or s["sheet_id"],
-                MODE_LABELS.get(s.get("name_mode") or NAME_DOUBLE, "") if is_name_tab(s) else "",
+                MODE_LABELS.get(s.get("name_mode") or NAME_DOUBLE, "") + " ▾" if is_name_tab(s) else "",
                 f"{count:,}" if count is not None else "-",
                 f"{percent:.0%}" if percent is not None else "-"))
         if select is not None and 0 <= select < len(self.sheets):
@@ -97,6 +102,7 @@ class CustomSheetsDialog(tk.Toplevel):
         return int(sel[0]) if sel else None
 
     def _on_click(self, event):
+        self._close_mode_editor()
         if self.tree.identify_region(event.x, event.y) != "cell":
             return None
         row = self.tree.identify_row(event.y)
@@ -105,7 +111,8 @@ class CustomSheetsDialog(tk.Toplevel):
             self.toggle(int(row))
             return "break"
         if row and column == "#4" and is_name_tab(self.sheets[int(row)]):
-            self.toggle_mode(int(row))
+            self.tree.selection_set(row)
+            self.edit_mode(int(row))
             return "break"
         return None
 
@@ -115,10 +122,31 @@ class CustomSheetsDialog(tk.Toplevel):
         self.sheets[index]["enabled"] = not self.sheets[index].get("enabled")
         self.refresh(index)
 
-    def toggle_mode(self, index: int):
+    def edit_mode(self, index: int):
+        """Drop-down over the mode cell of a name tab."""
+        bbox = self.tree.bbox(str(index), "mode")
+        if not bbox:
+            return
+        x, y, width, height = bbox
         s = self.sheets[index]
-        s["name_mode"] = NAME_THAI if (s.get("name_mode") or NAME_DOUBLE) == NAME_DOUBLE else NAME_DOUBLE
-        self.refresh(index)
+        combo = ttk.Combobox(self.tree, values=list(MODE_CHOICES.values()), state="readonly", width=24)
+        combo.set(MODE_CHOICES[s.get("name_mode") or NAME_DOUBLE])
+        combo.place(x=x, y=y, height=height)
+        self.mode_editor = combo
+
+        def chosen(_event):
+            s["name_mode"] = next(k for k, v in MODE_CHOICES.items() if v == combo.get())
+            self.refresh(index)
+
+        combo.bind("<<ComboboxSelected>>", chosen)
+        combo.bind("<Escape>", lambda _e: self._close_mode_editor())
+        combo.focus_set()
+        combo.after(50, lambda: combo.winfo_exists() and combo.event_generate("<Down>"))
+
+    def _close_mode_editor(self):
+        if self.mode_editor is not None:
+            self.mode_editor.destroy()
+            self.mode_editor = None
 
     def move(self, delta: int):
         i = self.selected()
