@@ -203,3 +203,156 @@ def render_line(font: Font, text: str, px: int, color: tuple[int, int, int], sca
     img = Image.new("RGBA", alpha.size, color + (0,))
     img.putalpha(alpha)
     return img
+
+
+EMPTY_SHAPE = b"\x10\x00"  # one fill bit, no line bits, end-of-shape record
+EMPTY_RECT = b"\x00"
+# CR2W wrapper of fonts_en.redswf: u32 sizes that move with the embedded SWF
+CR2W_FILE_SIZES = (24, 28)
+CR2W_EXPORT_SIZE = 385
+CR2W_SWF_SIZE = 597
+
+
+def _rect_len(data: bytes, pos: int) -> int:
+    return (5 + 4 * (data[pos] >> 3) + 7) // 8
+
+
+@dataclass
+class _Font3:
+    head: bytes
+    flags: int
+    codes: list[int]
+    shapes: list[bytes]
+    metrics: bytes
+    advances: list[int]
+    bounds: list[bytes]
+    kerning: bytes
+
+    def put(self, code: int, shape: bytes, advance: int, bounds: bytes) -> None:
+        """Set the glyph of code, inserting it in code order when the font lacks it."""
+        if code in self.codes:
+            at = self.codes.index(code)
+        else:
+            at = next((i for i, c in enumerate(self.codes) if c > code), len(self.codes))
+            for seq, value in ((self.codes, code), (self.shapes, b""), (self.advances, 0), (self.bounds, b"")):
+                seq.insert(at, value)
+        self.shapes[at] = shape
+        if self.flags & 0x80:
+            self.advances[at], self.bounds[at] = advance, bounds
+
+    def glyph(self, code: int) -> tuple[bytes, int, bytes]:
+        at = self.codes.index(code)
+        return self.shapes[at], self.advances[at], self.bounds[at]
+
+
+def _read_font3(d: bytes) -> _Font3:
+    flags, nl = d[2], d[4]
+    p = 5 + nl
+    n = struct.unpack_from("<H", d, p)[0]
+    table = p + 2
+    fmt, size = ("<I", 4) if flags & 0x08 else ("<H", 2)
+    offsets = [struct.unpack_from(fmt, d, table + i * size)[0] for i in range(n + 1)]
+    shapes = [d[table + offsets[i]:table + offsets[i + 1]] for i in range(n)]
+    p = table + offsets[n]
+    if not flags & 0x04:
+        raise ValueError("DefineFont3 without wide codes")
+    codes = list(struct.unpack_from(f"<{n}H", d, p))
+    p += 2 * n
+    metrics, advances, bounds = b"", [0] * n, [b""] * n
+    if flags & 0x80:
+        metrics = d[p:p + 6]
+        p += 6
+        advances = list(struct.unpack_from(f"<{n}h", d, p))
+        p += 2 * n
+        bounds = []
+        for _ in range(n):
+            ln = _rect_len(d, p)
+            bounds.append(d[p:p + ln])
+            p += ln
+    return _Font3(d[:5 + nl], flags, codes, shapes, metrics, advances, bounds, d[p:])
+
+
+def _write_font3(f: _Font3) -> bytes:
+    n, flags = len(f.codes), f.flags
+    wide = bool(flags & 0x08)
+    if not wide and (n + 1) * 2 + sum(map(len, f.shapes)) > 0xFFFF:
+        wide = True
+        flags |= 0x08
+    fmt, size = ("<I", 4) if wide else ("<H", 2)
+    pos, table = (n + 1) * size, []
+    for s in f.shapes:
+        table.append(struct.pack(fmt, pos))
+        pos += len(s)
+    table.append(struct.pack(fmt, pos))
+    layout = b""
+    if flags & 0x80:
+        layout = f.metrics + struct.pack(f"<{n}h", *f.advances) + b"".join(f.bounds) + f.kerning  # kerning uses codes
+    head = f.head[:2] + bytes([flags]) + f.head[3:] + struct.pack("<H", n)
+    return head + b"".join(table) + b"".join(f.shapes) + struct.pack(f"<{n}H", *f.codes) + layout
+
+
+def _add_glyph_font3(d: bytes, code: int) -> bytes | None:
+    """DefineFont3 tag body with an empty zero-width glyph for code, None when it already has one."""
+    f = _read_font3(d)
+    if code in f.codes:
+        return None
+    f.put(code, EMPTY_SHAPE, 0, EMPTY_RECT)
+    return _write_font3(f)
+
+
+def _alias_glyphs_font3(d: bytes, aliases: dict[int, int]) -> bytes | None:
+    """DefineFont3 tag body where each alias code draws its target glyph, None when nothing changes."""
+    f = _read_font3(d)
+    changed = False
+    for code, target in aliases.items():
+        if target in f.codes and (code not in f.codes or f.glyph(code) != f.glyph(target)):
+            f.put(code, *f.glyph(target))
+            changed = True
+    return _write_font3(f) if changed else None
+
+
+def add_empty_glyph(redswf: bytes, code: int) -> bytes:
+    """fonts_en.redswf with an empty zero-width glyph for code added to every DefineFont3 missing it."""
+    return _edit_fonts(redswf, lambda d: _add_glyph_font3(d, code))
+
+
+def alias_glyphs(redswf: bytes, aliases: dict[int, int]) -> bytes:
+    """fonts_en.redswf where each alias code is drawn with its target glyph in every DefineFont3."""
+    return _edit_fonts(redswf, lambda d: _alias_glyphs_font3(d, aliases))
+
+
+def _edit_fonts(redswf: bytes, edit) -> bytes:
+    at = redswf.find(b"FWS")
+    if at < 0 or at != CR2W_SWF_SIZE + 4:
+        raise ValueError("not an uncompressed fonts redswf")
+    swf_len = struct.unpack_from("<I", redswf, at + 4)[0]
+    swf = redswf[at:at + swf_len]
+    nbits = swf[8] >> 3
+    p = 8 + (5 + 4 * nbits + 7) // 8 + 4
+    out = [swf[8:p]]
+    changed = False
+    while p + 2 <= len(swf):
+        code_len = struct.unpack_from("<H", swf, p)[0]
+        tag, ln, hp = code_len >> 6, code_len & 0x3F, p + 2
+        if ln == 0x3F:
+            ln = struct.unpack_from("<I", swf, hp)[0]
+            hp += 4
+        body = swf[hp:hp + ln]
+        new = edit(body) if tag == 75 else None
+        if new is None:
+            out.append(swf[p:hp + ln])
+        else:
+            out.append(struct.pack("<HI", (tag << 6) | 0x3F, len(new)) + new)
+            changed = True
+        p = hp + ln
+        if tag == 0:
+            break
+    if not changed:
+        return redswf
+    body = b"".join(out)
+    new_swf = swf[:4] + struct.pack("<I", len(body) + 8) + body
+    delta = len(new_swf) - swf_len
+    head = bytearray(redswf[:at])
+    for off in CR2W_FILE_SIZES + (CR2W_EXPORT_SIZE, CR2W_SWF_SIZE):
+        struct.pack_into("<I", head, off, struct.unpack_from("<I", head, off)[0] + delta)
+    return bytes(head) + new_swf + redswf[at + swf_len:]

@@ -86,6 +86,7 @@ class App(tk.Tk):
         self.v_speaker = tk.BooleanVar(value=self.opts.speaker_colors)
         self.v_storybook = tk.BooleanVar(value=self.opts.storybook)
         self.v_logo = tk.BooleanVar(value=self.opts.thai_logo)
+        self.v_wrap = tk.BooleanVar(value=self.opts.thai_wrap)
         self.v_style = tk.BooleanVar(value=self.opts.subtitle_style)
         self.v_slot = tk.StringVar(value=self.opts.slot)
         self.v_refresh = tk.BooleanVar(value=False)
@@ -153,16 +154,18 @@ class App(tk.Tk):
             row=4, column=0, columnspan=2, sticky="w", pady=(6, 0))
         ttk.Checkbutton(left, text="โลโก้ภาษาไทยในเมนูหลัก", variable=self.v_logo).grid(
             row=5, column=0, columnspan=2, sticky="w")
-        ttk.Label(left, text="ช่องภาษาในเกม", style="Bold.TLabel").grid(row=6, column=0, columnspan=2, sticky="w",
+        ttk.Checkbutton(left, text="ตัดคำภาษาไทย (จัดบรรทัดข้อความยาว)", variable=self.v_wrap).grid(
+            row=6, column=0, columnspan=2, sticky="w")
+        ttk.Label(left, text="ช่องภาษาในเกม", style="Bold.TLabel").grid(row=7, column=0, columnspan=2, sticky="w",
                                                                        pady=(8, 0))
         ttk.Radiobutton(left, text="แทน Turkish (เมนูแสดงเป็น \"ไทย\") - แนะนำ", variable=self.v_slot,
-                        value=SLOT_TR).grid(row=7, column=0, columnspan=2, sticky="w")
+                        value=SLOT_TR).grid(row=8, column=0, columnspan=2, sticky="w")
         ttk.Radiobutton(left, text="แทนภาษาอังกฤษ", variable=self.v_slot, value=SLOT_EN).grid(
-            row=8, column=0, columnspan=2, sticky="w")
+            row=9, column=0, columnspan=2, sticky="w")
         ttk.Checkbutton(left, text="ดาวน์โหลดคำแปลล่าสุดทุกครั้ง", variable=self.v_refresh).grid(
-            row=9, column=0, columnspan=2, sticky="w", pady=(8, 0))
+            row=10, column=0, columnspan=2, sticky="w", pady=(8, 0))
         custom = ttk.Frame(left)
-        custom.grid(row=10, column=0, columnspan=2, sticky="w", pady=(6, 0))
+        custom.grid(row=11, column=0, columnspan=2, sticky="w", pady=(6, 0))
         ttk.Button(custom, text="ปรับแต่งคำแปล...", command=self.open_custom).pack(side="left")
         self.lbl_custom = ttk.Label(custom, text="")
         self.lbl_custom.pack(side="left", padx=(6, 0))
@@ -273,7 +276,7 @@ class App(tk.Tk):
                        thai_first=self.v_thai_first.get(), color1=self.v_color1.get(), color2=self.v_color2.get(),
                        size1=int(self.v_size1.get()), size2=int(self.v_size2.get()),
                        speaker_colors=self.v_speaker.get(), storybook=self.v_storybook.get(),
-                       thai_logo=self.v_logo.get(), subtitle_style=self.v_style.get(), slot=self.v_slot.get())
+                       thai_logo=self.v_logo.get(), thai_wrap=self.v_wrap.get(), subtitle_style=self.v_style.get(), slot=self.v_slot.get())
 
     def update_custom_label(self):
         sheets = self.opts.custom_sheets

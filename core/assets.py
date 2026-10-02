@@ -6,8 +6,12 @@ from pathlib import Path
 from .bundle import BundleFile, read_bundle, write_bundle
 from .metastore import BundleLayout, build_metastore
 from .paths import assets_dir
+from .swf_font import add_empty_glyph, alias_glyphs
+from .thai_wrap import BREAK
 
 FONT_PATH = "gameplay\\gui_new\\swf\\witcher3\\fonts_en.redswf"
+# the Turkish slot's case mapping turns i into İ and I into ı; Thai text never needs either
+TURKISH_I = {0x130: ord("I"), 0x131: ord("i")}
 
 
 def font_bundle(font: str) -> Path:
@@ -27,7 +31,8 @@ def help_image(name: str) -> Path:
 
 
 def font_files(font: str) -> list[BundleFile]:
-    files = [f for f in read_bundle(font_bundle(font)) if f.path == FONT_PATH]
+    files = [BundleFile(f.path, alias_glyphs(add_empty_glyph(f.data, ord(BREAK)), TURKISH_I))
+             for f in read_bundle(font_bundle(font)) if f.path == FONT_PATH]
     if not files:
         raise RuntimeError(f"ฟอนต์ {font} ไม่มีไฟล์ {FONT_PATH}")
     return files

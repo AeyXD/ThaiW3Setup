@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from .game_detect import GameInfo
 from .options import InstallOptions, MODE_DOUBLE, SLOT_TR
 from .progress import ProgressFn, noop
 from .sheet import normalize
+from .thai_wrap import THAI_RUN, ThaiWrapper, load_words
 from .w3strings import VERSION_UTF16, VERSION_UTF8, W3Strings, W3StringsError
 
 log = logging.getLogger(__name__)
@@ -21,6 +23,7 @@ THAI_LABEL = "ไทย (Thai)"
 # so a trailing Thai vowel/tone mark gets a no-break space after it.
 THAI_MARKS = frozenset("\u0e31\u0e34\u0e35\u0e36\u0e37\u0e38\u0e39\u0e3a\u0e47\u0e48\u0e49\u0e4a\u0e4b\u0e4c\u0e4d\u0e4e")
 NBSP = "\u00a0"
+MULTILINE = re.compile(r"<\s*br\s*/?\s*>", re.IGNORECASE)
 
 
 def guard_trailing_mark(text: str) -> str:
@@ -64,6 +67,10 @@ def combine(thai: str, english: str, thai_first: bool) -> str:
         return thai
     first, second = (thai, english) if thai_first else (english, thai)
     first = first.replace("  [", " [")
+    # the subtitle scripts turn "  [" into a line break; other screens (journal, bestiary,
+    # descriptions) need it written out, which multi-line texts can take
+    if MULTILINE.search(thai) or MULTILINE.search(english):
+        return f"{first}<br><br>[{second}]"
     return f"{first}  [{second}]"
 
 
@@ -100,6 +107,13 @@ def coverage(game: GameInfo, thai: dict[int, str], by_text: dict[str, str] | Non
     return translated, len(english.strings.keys() - overrides.excluded)
 
 
+def _wrapper(overrides: Overrides) -> ThaiWrapper:
+    """Word segmenter; Thai names from the custom name tabs are kept whole."""
+    wrapper = ThaiWrapper(load_words())
+    wrapper.add_words(run for sid in overrides.plain for run in THAI_RUN.findall(overrides.strings.get(sid, "")))
+    return wrapper
+
+
 def build_texts(game: GameInfo, thai: dict[int, str], opts: InstallOptions,
                 progress: ProgressFn = noop, by_text: dict[str, str] | None = None,
                 overrides: Overrides | None = None) -> TextResult:
@@ -128,6 +142,7 @@ def build_texts(game: GameInfo, thai: dict[int, str], opts: InstallOptions,
 
     out = W3Strings(language=opts.slot, version=version)
     double = opts.mode == MODE_DOUBLE
+    wrap = _wrapper(overrides).wrap if opts.thai_wrap else (lambda text: text)
     translated = 0
     for sid in ids:
         en_text = english.strings.get(sid)
@@ -137,9 +152,9 @@ def build_texts(game: GameInfo, thai: dict[int, str], opts: InstallOptions,
         if sid in english.strings and overrides.counted(sid, bool(th)):
             translated += 1
         if th:
-            out.strings[sid] = guard_trailing_mark(
+            out.strings[sid] = guard_trailing_mark(wrap(
                 combine(th, en_text, opts.thai_first)
-                if double and sid not in keyed and sid not in overrides.plain else th)
+                if double and sid not in keyed and sid not in overrides.plain else th))
         else:
             out.strings[sid] = en_text
     out.keys.update(english.keys)
