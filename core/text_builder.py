@@ -142,7 +142,7 @@ def build_texts(game: GameInfo, thai: dict[int, str], opts: InstallOptions,
 
     out = W3Strings(language=opts.slot, version=version)
     double = opts.mode == MODE_DOUBLE
-    wrap = _wrapper(overrides).wrap if opts.thai_wrap else (lambda text: text)
+    wrap = _wrapper(overrides).wrap
     translated = 0
     for sid in ids:
         en_text = english.strings.get(sid)
