@@ -17,6 +17,15 @@ log = logging.getLogger(__name__)
 LANGUAGE_NAME_ID = 1084967  # "Turkish" entry in the language list
 THAI_LABEL = "ไทย (Thai)"
 
+# Scaleform skips a zero-width mark at the right edge of a right-aligned text field,
+# so a trailing Thai vowel/tone mark gets a no-break space after it.
+THAI_MARKS = frozenset("\u0e31\u0e34\u0e35\u0e36\u0e37\u0e38\u0e39\u0e3a\u0e47\u0e48\u0e49\u0e4a\u0e4b\u0e4c\u0e4d\u0e4e")
+NBSP = "\u00a0"
+
+
+def guard_trailing_mark(text: str) -> str:
+    return text + NBSP if text and text[-1] in THAI_MARKS else text
+
 
 @dataclass
 class TextResult:
@@ -128,8 +137,9 @@ def build_texts(game: GameInfo, thai: dict[int, str], opts: InstallOptions,
         if sid in english.strings and overrides.counted(sid, bool(th)):
             translated += 1
         if th:
-            out.strings[sid] = (combine(th, en_text, opts.thai_first)
-                               if double and sid not in keyed and sid not in overrides.plain else th)
+            out.strings[sid] = guard_trailing_mark(
+                combine(th, en_text, opts.thai_first)
+                if double and sid not in keyed and sid not in overrides.plain else th)
         else:
             out.strings[sid] = en_text
     out.keys.update(english.keys)
