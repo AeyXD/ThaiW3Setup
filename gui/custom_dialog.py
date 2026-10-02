@@ -8,8 +8,8 @@ import tkinter as tk
 import webbrowser
 from tkinter import messagebox, simpledialog, ttk
 
-from core.custom import (NAME_DOUBLE, NAME_THAI, cached_count, default_sheets, download_custom, is_name_tab,
-                         parse_sheet_id, sheet_key, sheet_url)
+from core.custom import (NAME_DOUBLE, NAME_THAI, cached_stats, default_sheets, download_custom, is_name_tab,
+                         parse_sheet_id, progress_of, sheet_key, sheet_url)
 
 ON, OFF = "☑", "☐"
 MODE_LABELS = {NAME_THAI: "\u0e44\u0e17\u0e22", NAME_DOUBLE: "2 \u0e20\u0e32\u0e29\u0e32"}
@@ -26,7 +26,7 @@ class CustomSheetsDialog(tk.Toplevel):
         self.minsize(640, 360)
         self.sheets = copy.deepcopy(sheets)
         self.on_save = on_save
-        self.counts = {sheet_key(s): cached_count(s["sheet_id"], s.get("tab") or "") for s in self.sheets}
+        self.counts = {sheet_key(s): cached_stats(s["sheet_id"], s.get("tab") or "") for s in self.sheets}
         self.events: queue.Queue = queue.Queue()
         self.busy = 0
         self._build()
@@ -43,10 +43,11 @@ class CustomSheetsDialog(tk.Toplevel):
                   text="* ถ้าข้อความซ้ำกัน ข้อความของไฟล์ที่อยู่ข้างบนจะถูกทับด้วยข้อความจากไฟล์ที่อยู่ข้างล่าง").grid(
             row=0, column=0, columnspan=2, sticky="w", pady=(0, 6))
 
-        cols = ("on", "sheet", "name", "mode", "count")
+        cols = ("on", "sheet", "name", "mode", "count", "percent")
         self.tree = ttk.Treeview(root, columns=cols, show="headings", selectmode="browse", height=8)
         for col, text, width, anchor in (("on", "เปิดใช้", 60, "center"), ("sheet", "ไฟล์ ID", 140, "w"),
-                                          ("name", "คำอธิบาย", 260, "w"), ("count", "ข้อความ", 80, "e")):
+                                          ("name", "คำอธิบาย", 260, "w"), ("count", "ข้อความ", 80, "e"),
+                                          ("percent", "แปลแล้ว", 70, "e")):
             self.tree.heading(col, text=text)
             self.tree.column(col, width=width, anchor=anchor, stretch=col == "name")
         self.tree.heading("mode", text="\u0e42\u0e2b\u0e21\u0e14")
@@ -80,12 +81,13 @@ class CustomSheetsDialog(tk.Toplevel):
     def refresh(self, select: int | None = None):
         self.tree.delete(*self.tree.get_children())
         for i, s in enumerate(self.sheets):
-            count = self.counts.get(sheet_key(s))
+            count, percent = self.counts.get(sheet_key(s), (None, None))
             short = s["sheet_id"][:10] + "..." + (f" / {s['tab']}" if s.get("tab") else "")
             self.tree.insert("", "end", iid=str(i), values=(
                 ON if s.get("enabled") else OFF, short, s.get("name") or s["sheet_id"],
                 MODE_LABELS.get(s.get("name_mode") or NAME_DOUBLE, "") if is_name_tab(s) else "",
-                f"{count:,}" if count is not None else "-"))
+                f"{count:,}" if count is not None else "-",
+                f"{percent:.0%}" if percent is not None else "-"))
         if select is not None and 0 <= select < len(self.sheets):
             self.tree.selection_set(str(select))
             self.tree.see(str(select))
@@ -158,7 +160,7 @@ class CustomSheetsDialog(tk.Toplevel):
     def reset(self):
         if messagebox.askyesno("คืนค่าเริ่มต้น", "คืนรายการคำแปลเสริมเป็นค่าเริ่มต้นหรือไม่?", parent=self):
             self.sheets = default_sheets()
-            self.counts.update({sheet_key(s): cached_count(s["sheet_id"], s.get("tab") or "")
+            self.counts.update({sheet_key(s): cached_stats(s["sheet_id"], s.get("tab") or "")
                                 for s in self.sheets})
             self.refresh(0)
 
@@ -198,7 +200,7 @@ class CustomSheetsDialog(tk.Toplevel):
             self.status.set(f"อัปเดตไม่สำเร็จ: {error}")
             return
         strings = result.strings
-        self.counts[sheet_key(sheet)] = len(strings)
+        self.counts[sheet_key(sheet)] = len(strings), progress_of(result)
         self.status.set(f"อัปเดตแล้ว {len(strings):,} ข้อความ")
         self.refresh(self.selected())
 
@@ -235,7 +237,7 @@ class CustomSheetsDialog(tk.Toplevel):
             return
         title, strings = result.title, result.strings
         self.sheets.append({"sheet_id": sheet_id, "name": title or sheet_id, "enabled": True})
-        self.counts[sheet_id] = len(strings)
+        self.counts[sheet_id] = len(strings), progress_of(result)
         self.status.set(f"เพิ่มแล้ว {len(strings):,} ข้อความ")
         self.refresh(len(self.sheets) - 1)
 

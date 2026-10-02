@@ -1,6 +1,7 @@
 """Optional id-keyed "custom translation" sheets layered over the main translation (as in w3tu)."""
 from __future__ import annotations
 
+import colorsys
 import gzip
 import hashlib
 import io
@@ -42,9 +43,13 @@ NAME_MODES = ("", NAME_THAI, NAME_DOUBLE)
 class CustomData:
     title: str
     strings: dict[int, str]
-    # THAI column and every id listed in the tab, filled or not (empty for sheets without a THAI column)
+    # THAI column (empty for sheets without one) and every id listed in the tab, filled or not
     thai: dict[int, str] = field(default_factory=dict)
     ids: list[int] = field(default_factory=list)
+    # ids whose TRANSLATE cell is filled green: checked by the community, including ones left untranslated on purpose
+    done: list[int] = field(default_factory=list)
+    # ids whose TRANSLATE cell has any other colour than green, yellow or white: left out of the progress
+    skipped: list[int] = field(default_factory=list)
 
 
 @dataclass
@@ -127,6 +132,29 @@ def _ids(cell: str) -> list[int]:
     return out
 
 
+FILL_NONE, FILL_GREEN, FILL_OTHER = "none", "green", "other"
+
+
+def _fill_kind(cell) -> str:
+    """FILL_NONE for no fill, white or yellow; FILL_GREEN; FILL_OTHER for any other colour (grey, orange, blue...)."""
+    fill = getattr(cell, "fill", None)
+    if fill is None or not fill.fill_type or fill.fgColor is None:
+        return FILL_NONE
+    if fill.fgColor.type != "rgb":
+        return FILL_OTHER
+    try:
+        rgb = str(fill.fgColor.rgb)[-6:]
+        h, s, v = colorsys.rgb_to_hsv(*(int(rgb[i:i + 2], 16) / 255 for i in (0, 2, 4)))
+    except ValueError:
+        return FILL_OTHER
+    if s < 0.1:
+        return FILL_NONE if v >= 0.95 else FILL_OTHER
+    hue = h * 360
+    if 40 <= hue < 70:
+        return FILL_NONE
+    return FILL_GREEN if 70 <= hue < 170 else FILL_OTHER
+
+
 def parse_custom_xlsx(data: bytes, tab: str = "") -> CustomData:
     """Worksheet ``tab`` (or the first): a title row, a header row with ID and TRANSLATE (and optionally
     THAI), then data rows."""
@@ -139,7 +167,8 @@ def parse_custom_xlsx(data: bytes, tab: str = "") -> CustomData:
     ws = wb[tab] if tab else wb.worksheets[0]
     title, id_col, tr_col, th_col = "", None, None, None
     out = CustomData("", {})
-    for i, row in enumerate(ws.iter_rows(values_only=True)):
+    for i, styled in enumerate(ws.iter_rows()):
+        row = [c.value for c in styled]
         cells = [_cell_text(c).strip() for c in row]
         if id_col is None:
             if i == 0 and cells:
@@ -154,11 +183,15 @@ def parse_custom_xlsx(data: bytes, tab: str = "") -> CustomData:
         if len(cells) <= id_col:
             continue
         ids = _ids(cells[id_col])
-        if th_col is not None:
-            out.ids.extend(ids)
-            if len(cells) > th_col and cells[th_col]:
-                for sid in ids:
-                    out.thai[sid] = cells[th_col]
+        out.ids.extend(ids)
+        kind = _fill_kind(styled[tr_col]) if len(styled) > tr_col else FILL_NONE
+        if kind == FILL_GREEN:
+            out.done.extend(ids)
+        elif kind == FILL_OTHER:
+            out.skipped.extend(ids)
+        if th_col is not None and len(cells) > th_col and cells[th_col]:
+            for sid in ids:
+                out.thai[sid] = cells[th_col]
         if len(cells) > tr_col and cells[tr_col]:
             for sid in ids:
                 out.strings[sid] = _cell_text(row[tr_col])
@@ -189,7 +222,7 @@ def save_custom(path, data: CustomData, fetched_at: float) -> None:
         json.dump({"title": data.title, "fetched_at": fetched_at,
                    "strings": {str(k): v for k, v in data.strings.items()},
                    "thai": {str(k): v for k, v in data.thai.items()},
-                   "ids": data.ids}, fh, ensure_ascii=False)
+                   "ids": data.ids, "done": data.done, "skipped": data.skipped}, fh, ensure_ascii=False)
 
 
 def load_custom(path) -> tuple[CustomData, float, bool]:
@@ -198,7 +231,8 @@ def load_custom(path) -> tuple[CustomData, float, bool]:
         payload = json.load(fh)
     data = CustomData(payload.get("title", ""), {int(k): v for k, v in payload["strings"].items()},
                       {int(k): v for k, v in payload.get("thai", {}).items()},
-                      [int(k) for k in payload.get("ids", [])])
+                      [int(k) for k in payload.get("ids", [])], [int(k) for k in payload.get("done", [])],
+                      [int(k) for k in payload.get("skipped", [])])
     return data, float(payload["fetched_at"]), "ids" in payload
 
 
@@ -219,14 +253,29 @@ def download_custom(sheet_id: str, tab: str = "", progress: ProgressFn = noop,
     return data
 
 
-def cached_count(sheet_id: str, tab: str = "") -> int | None:
+def progress_of(data: CustomData) -> float | None:
+    """Share of the ids listed in the tab that are done; None when the ids are unknown. In a tab that marks
+    rows green only green rows are done and rows of other colours (not yellow or white) are left out;
+    otherwise every id with a translation counts."""
+    ids = set(data.ids)
+    if data.done:
+        ids -= set(data.skipped)
+    if not ids:
+        return None
+    done = set(data.done) if data.done else set(data.strings)
+    return len(ids & done) / len(ids)
+
+
+def cached_stats(sheet_id: str, tab: str = "") -> tuple[int | None, float | None]:
+    """(translated strings, progress_of) from the cache or the bundled snapshot."""
     for path in (_cache_path(sheet_id, tab), _bundled_path(sheet_id, tab)):
         if path.exists():
             try:
-                return len(load_custom(path)[0].strings)
+                data = load_custom(path)[0]
+                return len(data.strings), progress_of(data)
             except (OSError, ValueError, KeyError):
                 pass
-    return None
+    return None, None
 
 
 def get_custom_data(sheet_id: str, force_download: bool = False, allow_online: bool = True,

@@ -8,7 +8,7 @@ os.environ["APPDATA"] = tmp  # keep the settings test away from the real profile
 from core import custom
 from core.custom import (COMMUNITY_ID, NAME_DOUBLE, NAME_TABS, NAME_THAI, TAB_CHARACTERS, TAB_QUESTS, TAB_SKILLS,
                          UNTRANSLATED_TAB, CustomData, Overrides, _cache_path, default_sheets, is_name_tab,
-                         merged_overrides, name_label, parse_custom_xlsx, save_custom, sheet_key)
+                         merged_overrides, name_label, parse_custom_xlsx, progress_of, save_custom, sheet_key)
 from core.options import load_options, settings_path
 from core.text_builder import _thai_for, combine
 from export_names import build_tabs, classify, looks_like_name, skill_keys, write_xlsx
@@ -31,6 +31,43 @@ assert chars.strings == {1: f"Yennefer ({YEN_TH})", 2: f"Yennefer ({YEN_TH})"}, 
 assert chars.thai == {1: YEN_TH, 2: YEN_TH} and chars.ids == [1, 2, 3], chars
 quests = parse_custom_xlsx(data, TAB_QUESTS)
 assert quests.strings == {} and quests.ids == [9], quests
+assert progress_of(chars) == 2 / 3 and progress_of(quests) == 0, (progress_of(chars), progress_of(quests))
+assert progress_of(parse_custom_xlsx(data, NAME_TABS[1])) is None
+
+# sheets without a THAI column list their ids too, so untranslated rows count against the progress
+plain = openpyxl.Workbook()
+plain.active.append(["title"])
+plain.active.append(["ID", "TRANSLATE"])
+plain.active.append([5, "TH"])
+plain.active.append([6, None])
+plain_path = os.path.join(tmp, "plain.xlsx")
+plain.save(plain_path)
+plain_data = parse_custom_xlsx(open(plain_path, "rb").read())
+assert plain_data.ids == [5, 6] and plain_data.strings == {5: "TH"} and progress_of(plain_data) == 0.5, plain_data
+
+# a tab that marks rows green: green rows are done (even left blank on purpose), yellow / white / unfilled
+# rows are not, rows of any other colour are left out
+from openpyxl.styles import PatternFill
+green = openpyxl.Workbook()
+gws = green.active
+gws.append(["title"])
+gws.append(["ID", "ENGLISH", "TRANSLATE"])
+colors = [("FF00FF00", "TH"), ("FFB7E1CD", None), ("FFFFFF00", "TH?"), ("FFFFF2CC", None), ("FFFFFFFF", None),
+          (None, None), ("FF999999", None), ("FFFF9900", "TH?"), ("FF9FC5E8", "TH"), ("FFFF0000", None)]
+for sid, (color, text) in enumerate(colors, 1):
+    gws.append([sid, f"en{sid}", text])
+    if color:
+        gws[f"C{sid + 2}"].fill = PatternFill("solid", fgColor=color)
+green_path = os.path.join(tmp, "green.xlsx")
+green.save(green_path)
+green_data = parse_custom_xlsx(open(green_path, "rb").read())
+assert green_data.done == [1, 2] and green_data.skipped == [7, 8, 9, 10], green_data
+assert progress_of(green_data) == 2 / 6, progress_of(green_data)
+from pathlib import Path
+green_cache = Path(tmp) / "green.json.gz"
+save_custom(green_cache, green_data, 0)
+cached = custom.load_custom(green_cache)[0]
+assert cached.done == [1, 2] and cached.skipped == [7, 8, 9, 10], cached
 try:
     parse_custom_xlsx(data, "missing")
     raise AssertionError("missing tab accepted")
