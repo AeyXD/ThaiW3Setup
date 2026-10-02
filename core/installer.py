@@ -18,7 +18,7 @@ from .assets import font_files, storybook_files, write_mod_content
 from .bundle import BundleError
 from .custom import merged_overrides
 from .game_detect import GameInfo, identify
-from .glossary_layout import LayoutError, glossary_files
+from .panel_layout import LayoutError, panel_files
 from .logo import LogoError, logo_files
 from .options import SLOT_EN, InstallOptions
 from .progress import ProgressFn, noop, scaled
@@ -290,10 +290,10 @@ def _build_mods(game: GameInfo, opts: InstallOptions, staging: Path, report: Ins
 
     gui_files = font_files(opts.font)
     try:
-        gui_files += glossary_files(game.content0, scaled(progress, 0.78, 0.8))
+        gui_files += panel_files(game.content0, scaled(progress, 0.78, 0.8))
     except (LayoutError, BundleError, OSError) as exc:
-        log.warning("glossary layout skipped: %s", exc)
-        report.warnings.append("ไฟล์หน้าบันทึกของเกมเวอร์ชันนี้ไม่ตรงกับที่รองรับ จึงข้ามการจัดข้อความชิดซ้าย"
+        log.warning("panel layout skipped: %s", exc)
+        report.warnings.append("ไฟล์หน้าภารกิจ/บันทึกของเกมเวอร์ชันนี้ไม่ตรงกับที่รองรับ จึงข้ามการจัดรูปแบบข้อความ"
                                " (ข้อความภาษาไทยยังใช้งานได้ปกติ)")
     write_mod_content(staging / MOD_FONT / "content", gui_files)
     report.mods.append(MOD_FONT)
