@@ -23,6 +23,9 @@ MAGIC = "ThaiW3Setup report"
 MAX_BYTES = 200 * 1024
 LOG_LINES = 80
 STRING_LANGS = ("tr", "en")
+CONTACT_MAX = 200
+# right after "created:", inside the first lines the Worker reads into metadata
+CONTACT_LINE = 3
 
 
 def report_url() -> str:
@@ -143,16 +146,19 @@ def _log_tail(path: Path, lines: int) -> str:
         return "(no log)"
 
 
-def build_report(game_path: str, note: str = "") -> str:
+def format_contact(kind: str, value: str) -> str:
+    """One "kind: value" line for the report header, or "" when no contact was given."""
+    value = re.sub(r"\s+", " ", value).strip()
+    if not value:
+        return ""
+    kind = re.sub(r"\s+", " ", kind).strip()
+    return (f"{kind}: {value}" if kind else value)[:CONTACT_MAX]
+
+
+def collect_details(game_path: str) -> str:
+    """The slow part of a report (scans the game folder, takes seconds); does not depend on note or contact."""
     game = identify(game_path) if game_path else None
-    lines = [MAGIC,
-             f"app: {__version__}",
-             f"created: {datetime.now().astimezone().isoformat(timespec='seconds')}",
-             f"windows: {platform.platform()}",
-             f"documents: {documents_dir()}"]
-    if note.strip():
-        lines += ["", "[user note]", note.strip()]
-    lines.append("")
+    lines: list[str] = []
     if game is None:
         lines.append("game: (no folder selected)")
     else:
@@ -184,11 +190,32 @@ def build_report(game_path: str, note: str = "") -> str:
         except OSError as exc:
             lines.append(f"(unreadable: {exc})")
     lines += ["", "[install.log]", _log_tail(app_data_dir() / "install.log", LOG_LINES)]
-    text = _redact("\n".join(lines))
+    return _redact("\n".join(lines))
+
+
+def compose_report(details: str, note: str = "", contact: str = "") -> str:
+    """Header, note and contact around details from collect_details; cheap enough to run on every keystroke."""
+    lines = [MAGIC,
+             f"app: {__version__}",
+             f"created: {datetime.now().astimezone().isoformat(timespec='seconds')}",
+             f"windows: {platform.platform()}",
+             f"documents: {documents_dir()}"]
+    if note.strip():
+        lines += ["", "[user note]", note.strip()]
+    lines.append("")
+    text = _redact("\n".join(lines)) + "\n" + details
+    if contact:
+        # added after _redact: an e-mail or handle may contain the Windows user name
+        head = text.split("\n", CONTACT_LINE)
+        text = "\n".join(head[:CONTACT_LINE] + [f"contact: {contact}"] + head[CONTACT_LINE:])
     data = text.encode("utf-8")
     if len(data) > MAX_BYTES:
         text = data[:MAX_BYTES].decode("utf-8", errors="ignore") + "\n(truncated)"
     return text
+
+
+def build_report(game_path: str, note: str = "", contact: str = "") -> str:
+    return compose_report(collect_details(game_path), note, contact)
 
 
 def send_report(text: str, timeout: float = 30) -> str:

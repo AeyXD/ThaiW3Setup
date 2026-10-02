@@ -4,7 +4,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from pathlib import Path
 from core import report
-from core.report import MAGIC, build_report, send_report
+from core.report import MAGIC, build_report, collect_details, compose_report, format_contact, send_report
 
 GAME = r"D:\SteamLibrary\steamapps\common\The Witcher 3"
 
@@ -14,6 +14,30 @@ for part in ("app:", "game version:", "[install status]", "[conflicts]", "[mods]
     assert part in text, part
 assert str(Path.home()).lower() not in text.lower(), "home path leaked"
 assert "custom_sheets" not in text
+assert "\ncontact:" not in text
+
+# contact is added after redaction, so a handle containing the Windows user name survives
+import getpass
+contact = format_contact("Email", f"  {getpass.getuser()}@example.com\n  ")
+assert contact == f"Email: {getpass.getuser()}@example.com", contact
+assert format_contact("LINE", " \n ") == ""
+assert len(format_contact("other", "x" * 500)) == 200
+lines = build_report(GAME, "note", contact).splitlines()
+assert f"contact: {contact}" in lines[:40], lines[:6]
+assert lines[2].startswith("created:") and lines[3] == f"contact: {contact}", lines[:6]
+
+# the dialog collects details once and composes on every keystroke; same text as build_report
+import time
+details = collect_details(GAME)
+drop_created = lambda t: [l for l in t.splitlines() if not l.startswith("created:")]
+assert drop_created(compose_report(details, "note", contact)) == drop_created(build_report(GAME, "note", contact))
+assert drop_created(compose_report(details)) == drop_created(build_report(GAME))
+t0 = time.perf_counter()
+for i in range(20):
+    compose_report(details, "note " * i, contact)
+per_call = (time.perf_counter() - t0) / 20
+assert per_call < 0.05, f"compose_report took {per_call * 1000:.1f} ms"
+print(f"compose_report {per_call * 1000:.2f} ms per call")
 
 # another mod shipping tr.w3strings is reported as a conflict
 game = Path(tempfile.mkdtemp())

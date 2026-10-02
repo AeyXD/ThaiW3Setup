@@ -68,6 +68,7 @@ async function receive(request: Request, env: Env): Promise<Response> {
       id,
       app: field(report, "app"),
       game: field(report, "game version"),
+      contact: field(report, "contact"),
       country,
     },
   });
@@ -141,16 +142,21 @@ async function listReports(env: Env): Promise<Response> {
 
   const rows = objects.slice(0, LIST_LIMIT).map((o) => {
     const m = o.customMetadata ?? {};
-    return `<tr><td>${esc(o.uploaded.toISOString().replace("T", " ").slice(0, 19))}</td>`
+    const contact = m.contact ?? "";
+    return `<tr${contact ? ' class="contact"' : ""}><td>${esc(o.uploaded.toISOString().replace("T", " ").slice(0, 19))}</td>`
       + `<td><a href="/r/${encodeURIComponent(o.key)}">${esc(m.id ?? o.key)}</a></td>`
+      + `<td>${esc(contact)}</td>`
       + `<td>${esc(m.app ?? "")}</td><td>${esc(m.game ?? "")}</td><td>${esc(m.country ?? "")}</td>`
       + `<td>${(o.size / 1024).toFixed(1)} KB</td></tr>`;
   });
+  const waiting = objects.slice(0, LIST_LIMIT).filter((o) => o.customMetadata?.contact).length;
   const html = `<!doctype html><meta charset="utf-8"><title>ThaiW3Setup reports</title>
 <style>body{font:14px system-ui,sans-serif;margin:24px}table{border-collapse:collapse}
-td,th{border:1px solid #ccc;padding:4px 8px;text-align:left}th{background:#f3f3f3}</style>
-<h1>ThaiW3Setup reports</h1><p>${objects.length} reports (newest ${Math.min(objects.length, LIST_LIMIT)} shown, times in UTC)</p>
-<table><tr><th>received</th><th>id</th><th>app</th><th>game</th><th>country</th><th>size</th></tr>${rows.join("")}</table>`;
+td,th{border:1px solid #ccc;padding:4px 8px;text-align:left}th{background:#f3f3f3}
+tr.contact td{background:#fff6d5;font-weight:600}</style>
+<h1>ThaiW3Setup reports</h1><p>${objects.length} reports (newest ${Math.min(objects.length, LIST_LIMIT)} shown, times in UTC),
+${waiting} asking to be contacted (highlighted)</p>
+<table><tr><th>received</th><th>id</th><th>contact</th><th>app</th><th>game</th><th>country</th><th>size</th></tr>${rows.join("")}</table>`;
   return new Response(html, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
 }
 

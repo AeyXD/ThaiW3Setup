@@ -7,7 +7,7 @@ import threading
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-from core.report import build_report, report_url, send_report
+from core.report import collect_details, compose_report, format_contact, report_url, send_report
 
 log = logging.getLogger(__name__)
 
@@ -34,7 +34,21 @@ T_COPIED = "\u0e04\u0e31\u0e14\u0e25\u0e2d\u0e01\u0e23\u0e32\u0e22\u0e07\u0e32\u
 T_OFFLINE = ("\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e40\u0e1b\u0e34\u0e14\u0e23\u0e30\u0e1a\u0e1a\u0e2a\u0e48\u0e07"
              "\u0e23\u0e32\u0e22\u0e07\u0e32\u0e19 \u0e01\u0e14 \u0e04\u0e31\u0e14\u0e25\u0e2d\u0e01 "
              "\u0e41\u0e25\u0e49\u0e27\u0e27\u0e32\u0e07\u0e2a\u0e48\u0e07\u0e43\u0e19\u0e01\u0e25\u0e38\u0e48\u0e21\u0e41\u0e17\u0e19")
+T_CONTACT_TITLE = "ต้องการให้เราติดต่อกลับไหม?"
+T_CONTACT_WANT = "ต้องการให้ผู้พัฒนาติดต่อกลับ"
+T_CONTACT_KIND = "ช่องทาง"
+T_CONTACT_HINT = "ใส่ชื่อผู้ใช้ ลิงก์โปรไฟล์ หรืออีเมล ใช้ติดต่อเรื่องรายงานนี้เท่านั้น"
+T_CONTACT_MISSING = "ยังไม่ได้ใส่ช่องทางติดต่อ\nส่งรายงานโดยไม่ให้ติดต่อกลับหรือไม่?"
+T_CONTACT_REPLY = "เราจะติดต่อกลับทาง"
+T_SHOW_PREVIEW = "▸ ดูข้อมูลที่จะส่ง"
+T_HIDE_PREVIEW = "▾ ซ่อนข้อมูลที่จะส่ง"
+CONTACT_KINDS = ("Facebook", "Discord", "LINE", "Email", "อื่น ๆ")
+CONTACT_OTHER = "other"
+T_COLLECTING = "กำลังรวบรวมข้อมูลเกม..."
 TEXT_W = 600
+PREVIEW_ROW = 5
+REFRESH_MS = 250
+POLL_MS = 100
 
 
 class ReportDialog(tk.Toplevel):
@@ -42,22 +56,46 @@ class ReportDialog(tk.Toplevel):
         super().__init__(parent)
         self.title(T_TITLE)
         self.transient(parent)
-        self.minsize(640, 420)
+        self.minsize(640, 1)
         self.game_path = game_path
         self.events: queue.Queue = queue.Queue()
+        style = ttk.Style(self)
+        style.configure("Contact.TLabelframe.Label", font=("Leelawadee UI", 12, "bold"), foreground="#1a5fb4")
+        style.configure("Hint.TLabel", font=("Leelawadee UI", 9), foreground="#666666")
 
         root = ttk.Frame(self, padding=12)
         root.pack(fill="both", expand=True)
         root.columnconfigure(0, weight=1)
-        root.rowconfigure(4, weight=1)
+        self.root_frame = root
         ttk.Label(root, text=T_INTRO, wraplength=TEXT_W, justify="left").grid(row=0, column=0, sticky="w")
-        ttk.Label(root, text=T_NOTE).grid(row=1, column=0, sticky="w", pady=(10, 2))
+
+        contact = ttk.LabelFrame(root, text=T_CONTACT_TITLE, style="Contact.TLabelframe", padding=10)
+        contact.grid(row=1, column=0, sticky="ew", pady=(10, 0))
+        contact.columnconfigure(2, weight=1)
+        self.v_want = tk.BooleanVar(value=False)
+        self.v_kind = tk.StringVar(value=CONTACT_KINDS[0])
+        self.v_contact = tk.StringVar()
+        ttk.Checkbutton(contact, text=T_CONTACT_WANT, variable=self.v_want, command=self.update_contact).grid(
+            row=0, column=0, columnspan=3, sticky="w")
+        ttk.Label(contact, text=T_CONTACT_KIND).grid(row=1, column=0, sticky="w", pady=(6, 0))
+        self.cb_kind = ttk.Combobox(contact, textvariable=self.v_kind, values=CONTACT_KINDS, width=10)
+        self.cb_kind.grid(row=1, column=1, sticky="w", padx=(6, 6), pady=(6, 0))
+        self.cb_kind.bind("<<ComboboxSelected>>", lambda _e: self.schedule_refresh())
+        self.ent_contact = ttk.Entry(contact, textvariable=self.v_contact, font=("Leelawadee UI", 10))
+        self.ent_contact.grid(row=1, column=2, sticky="ew", pady=(6, 0))
+        self.ent_contact.bind("<KeyRelease>", lambda _e: self.schedule_refresh())
+        ttk.Label(contact, text=T_CONTACT_HINT, style="Hint.TLabel").grid(row=2, column=0, columnspan=3, sticky="w",
+                                                                         pady=(4, 0))
+
+        ttk.Label(root, text=T_NOTE).grid(row=2, column=0, sticky="w", pady=(10, 2))
         self.note = tk.Text(root, height=3, wrap="word", font=("Leelawadee UI", 10))
-        self.note.grid(row=2, column=0, sticky="ew")
+        self.note.grid(row=3, column=0, sticky="ew")
         self.note.bind("<KeyRelease>", lambda _e: self.schedule_refresh())
 
+        self.btn_preview = ttk.Button(root, text=T_SHOW_PREVIEW, command=self.toggle_preview)
+        self.btn_preview.grid(row=4, column=0, sticky="w", pady=(10, 0))
         frame = ttk.Frame(root)
-        frame.grid(row=4, column=0, sticky="nsew", pady=(10, 0))
+        self.preview_frame = frame
         frame.columnconfigure(0, weight=1)
         frame.rowconfigure(0, weight=1)
         self.preview = tk.Text(frame, height=18, wrap="none", font=("Consolas", 9))
@@ -69,35 +107,93 @@ class ReportDialog(tk.Toplevel):
         self.preview.configure(yscrollcommand=ys.set, xscrollcommand=xs.set)
 
         bottom = ttk.Frame(root)
-        bottom.grid(row=5, column=0, sticky="ew", pady=(10, 0))
+        bottom.grid(row=PREVIEW_ROW + 1, column=0, sticky="ew", pady=(10, 0))
         self.status = tk.StringVar(value="" if report_url() else T_OFFLINE)
         ttk.Label(bottom, textvariable=self.status).pack(side="left")
         ttk.Button(bottom, text=T_CLOSE, command=self.destroy).pack(side="right")
-        ttk.Button(bottom, text=T_COPY, command=self.copy).pack(side="right", padx=(0, 4))
+        self.btn_copy = ttk.Button(bottom, text=T_COPY, command=self.copy)
+        self.btn_copy.pack(side="right", padx=(0, 4))
         self.btn_send = ttk.Button(bottom, text=T_SEND, style="Big.TButton", command=self.send)
         self.btn_send.pack(side="right", padx=(0, 4))
-        if not report_url():
-            self.btn_send.state(["disabled"])
+        self.btn_send.state(["disabled"])
+        self.btn_copy.state(["disabled"])
 
         self._refresh_job = None
         self.text = ""
-        self.refresh()
+        self.details: str | None = None
+        self.update_contact()
         self.bind("<Escape>", lambda _e: self.destroy())
         self.grab_set()
         self.note.focus_set()
+        self.collect()
+        self.after(POLL_MS, self._poll)
+
+    def collect(self):
+        self.status.set(T_COLLECTING)
+        game_path = self.game_path
+
+        def work():
+            try:
+                self.events.put(("details", collect_details(game_path)))
+            except Exception as exc:  # a broken game folder must not block sending the note
+                log.exception("collecting report details failed")
+                self.events.put(("details_error", str(exc)))
+        threading.Thread(target=work, daemon=True).start()
 
     def schedule_refresh(self):
         if self._refresh_job:
             self.after_cancel(self._refresh_job)
-        self._refresh_job = self.after(600, self.refresh)
+        self._refresh_job = self.after(REFRESH_MS, self.refresh)
+
+    def contact(self) -> str:
+        if not self.v_want.get():
+            return ""
+        kind = self.v_kind.get()
+        return format_contact(CONTACT_OTHER if kind == CONTACT_KINDS[-1] else kind, self.v_contact.get())
+
+    def update_contact(self):
+        want = self.v_want.get()
+        self.cb_kind.configure(state="readonly" if want else "disabled")
+        self.ent_contact.configure(state="normal" if want else "disabled")
+        if want:
+            self.ent_contact.focus_set()
+        self.schedule_refresh()
+
+    def toggle_preview(self):
+        if self.preview_frame.winfo_ismapped():
+            self.preview_frame.grid_remove()
+            self.root_frame.rowconfigure(PREVIEW_ROW, weight=0)
+            self.btn_preview.configure(text=T_SHOW_PREVIEW)
+        else:
+            self.preview_frame.grid(row=PREVIEW_ROW, column=0, sticky="nsew", pady=(6, 0))
+            self.root_frame.rowconfigure(PREVIEW_ROW, weight=1)
+            self.btn_preview.configure(text=T_HIDE_PREVIEW)
+            self.show_preview()
+        self.geometry("")
 
     def refresh(self):
         self._refresh_job = None
-        self.text = build_report(self.game_path, self.note.get("1.0", "end"))
+        if self.details is None:
+            return
+        self.text = compose_report(self.details, self.note.get("1.0", "end"), self.contact())
+        if self.preview_frame.winfo_ismapped():
+            self.show_preview()
+
+    def show_preview(self):
+        top = self.preview.yview()[0]
         self.preview.configure(state="normal")
         self.preview.delete("1.0", "end")
-        self.preview.insert("1.0", self.text)
+        self.preview.insert("1.0", self.text or T_COLLECTING)
         self.preview.configure(state="disabled")
+        self.preview.yview_moveto(top)
+
+    def on_details(self, details: str):
+        self.details = details
+        self.status.set("" if report_url() else T_OFFLINE)
+        self.btn_copy.state(["!disabled"])
+        if report_url():
+            self.btn_send.state(["!disabled"])
+        self.refresh()
 
     def _clip(self, value: str):
         self.clipboard_clear()
@@ -110,6 +206,11 @@ class ReportDialog(tk.Toplevel):
 
     def send(self):
         self.refresh()
+        if self.v_want.get() and not self.contact():
+            if not messagebox.askyesno(T_TITLE, T_CONTACT_MISSING, parent=self):
+                self.ent_contact.focus_set()
+                return
+        self.sent_contact = self.contact()
         self.btn_send.state(["disabled"])
         self.status.set(T_SENDING)
         text = self.text
@@ -121,20 +222,33 @@ class ReportDialog(tk.Toplevel):
                 log.warning("report upload failed: %s", exc)
                 self.events.put(("error", str(exc)))
         threading.Thread(target=work, daemon=True).start()
-        self.after(200, self._poll)
 
     def _poll(self):
         try:
-            kind, value = self.events.get_nowait()
+            if not self.winfo_exists():
+                return
+        except tk.TclError:
+            return
+        try:
+            while True:
+                self._handle(*self.events.get_nowait())
         except queue.Empty:
-            if self.winfo_exists():
-                self.after(200, self._poll)
+            pass
+        self.after(POLL_MS, self._poll)
+
+    def _handle(self, kind: str, value: str):
+        if kind == "details":
+            self.on_details(value)
+            return
+        if kind == "details_error":
+            self.on_details(f"(collecting game details failed: {value})")
             return
         self.btn_send.state(["!disabled"])
         if kind == "ok":
             self._clip(value)
             self.status.set(f"{T_SENT} {value}")
-            messagebox.showinfo(T_TITLE, f"{T_SENT} {value}\n{T_SENT_HINT}", parent=self)
+            reply = f"\n{T_CONTACT_REPLY} {self.sent_contact}" if self.sent_contact else ""
+            messagebox.showinfo(T_TITLE, f"{T_SENT} {value}\n{T_SENT_HINT}{reply}", parent=self)
         else:
             self._clip(self.text)
             self.status.set("")
