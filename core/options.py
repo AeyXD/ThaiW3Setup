@@ -43,6 +43,7 @@ class InstallOptions:
     speaker_colors: bool = True
     storybook: bool = True
     subtitle_style: bool = True
+    thai_logo: bool = False
     # HUD offsets in percent of the screen from the game's layout, see gui/hud_layout_dialog.py
     sub_x: float = 0.0
     sub_y: float = 0.0

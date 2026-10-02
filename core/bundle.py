@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import struct
 import zlib
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 
 MAGIC = b"POTATO70"
@@ -99,6 +100,30 @@ def read_bundle(path) -> list[BundleFile]:
             comp = struct.unpack_from("<I", e, 316)[0]
             files.append(BundleFile(name, _unpack(blob[off:off + zsz], usz, comp)))
     return files
+
+
+def iter_bundle(path, want: Callable[[str, int], bool]) -> Iterator[BundleFile]:
+    """Files of a bundle for which ``want(path, size)`` is true, read one at a time."""
+    with open(path, "rb") as fh:
+        head = fh.read(HEADER_SIZE)
+        if head[:8] != MAGIC:
+            raise BundleError(f"{path}: not a POTATO70 bundle")
+        toc_size = struct.unpack_from("<I", head, 16)[0]
+        version = struct.unpack_from("<H", head, 20)[0]
+        toc = fh.read(toc_size)
+        entry = V5_ENTRY if version >= 5 else V3_ENTRY
+        for i in range(toc_size // entry):
+            e = toc[i * entry:(i + 1) * entry]
+            name = e[:256].split(b"\0")[0].decode("latin-1")
+            if version >= 5:
+                off, usz, zsz, _crc, comp = struct.unpack_from("<QIIII", e, 272)
+            else:
+                usz, zsz, off = struct.unpack_from("<III", e, 276)
+                comp = struct.unpack_from("<I", e, 316)[0]
+            if not want(name, usz):
+                continue
+            fh.seek(off)
+            yield BundleFile(name, _unpack(fh.read(zsz), usz, comp))
 
 
 def _unpack(z: bytes, size: int, comp: int) -> bytes:

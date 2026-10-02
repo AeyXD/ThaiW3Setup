@@ -15,8 +15,10 @@ from typing import Callable
 
 from . import __version__
 from .assets import font_files, storybook_files, write_mod_content
+from .bundle import BundleError
 from .custom import merged_overrides
 from .game_detect import GameInfo, identify
+from .logo import LogoError, logo_files
 from .options import SLOT_EN, InstallOptions
 from .progress import ProgressFn, noop, scaled
 from .script_patcher import MODULES_REL, SCRIPT_FILES, PatchError, ScriptOptions, build_scripts
@@ -30,7 +32,8 @@ MOD_TEXT = "modThaiText"
 MOD_FONT = "modThaiFont"
 MOD_STORY = "modThaiStoryBook"
 MOD_SCRIPT = "modThaiDoubleSub"
-OUR_MODS = (MOD_TEXT, MOD_FONT, MOD_STORY, MOD_SCRIPT)
+MOD_LOGO = "modThaiLogo"
+OUR_MODS = (MOD_TEXT, MOD_FONT, MOD_STORY, MOD_SCRIPT, MOD_LOGO)
 MANIFEST = "thai_manifest.json"
 LEGACY_PATTERN = re.compile(r"^modkuntoonw3thai", re.IGNORECASE)
 # ThaiLanguage Remastered 5.0 on Nexus ships modThaiLanguage plus its own modThaiFont (same name as ours)
@@ -296,6 +299,17 @@ def _build_mods(game: GameInfo, opts: InstallOptions, staging: Path, report: Ins
         except PatchError as exc:
             log.warning("script patch skipped: %s", exc)
             report.warnings.append("script ของเกมเวอร์ชันนี้ไม่ตรงกับที่รองรับ จึงข้ามการปรับสี/ขนาดซับ"
+                                   " (ข้อความภาษาไทยยังใช้งานได้ปกติ)")
+
+    if opts.thai_logo:
+        try:
+            files = logo_files(game.content0, scaled(progress, 0.87, 0.9))
+            progress(0.9, "บีบอัดไฟล์เมนูที่มีโลโก้ภาษาไทย...")
+            write_mod_content(staging / MOD_LOGO / "content", files)
+            report.mods.append(MOD_LOGO)
+        except (LogoError, BundleError, OSError) as exc:
+            log.warning("thai logo skipped: %s", exc)
+            report.warnings.append("ไฟล์เมนูของเกมเวอร์ชันนี้ไม่ตรงกับที่รองรับ จึงข้ามการเปลี่ยนโลโก้เป็นภาษาไทย"
                                    " (ข้อความภาษาไทยยังใช้งานได้ปกติ)")
 
     manifest = {

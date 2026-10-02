@@ -35,6 +35,8 @@ def _add_style_args(inst: argparse.ArgumentParser) -> None:
     inst.add_argument("--size2", type=int)
     inst.add_argument("--no-speaker-colors", action="store_true")
     inst.add_argument("--no-storybook", action="store_true")
+    inst.add_argument("--thai-logo", action=argparse.BooleanOptionalAction,
+                      help="Thai game logo on the main menu and start screen")
     inst.add_argument("--no-subtitle-style", action="store_true")
     inst.add_argument("--slot", choices=["tr", "en"])
     inst.add_argument("--sub-x", type=float, help="subtitle offset, percent of screen width")
@@ -124,7 +126,8 @@ def main(argv: list[str] | None = None) -> int:
                  "size1": args.size1, "size2": args.size2, "slot": args.slot,
                  "sub_x": args.sub_x, "sub_y": args.sub_y, "sub_width": args.sub_width,
                  "dialog_x": args.dialog_x, "dialog_y": args.dialog_y,
-                 "choice_x": args.choice_x, "choice_y": args.choice_y, "choice_scale": args.choice_scale}
+                 "choice_x": args.choice_x, "choice_y": args.choice_y, "choice_scale": args.choice_scale,
+                 "thai_logo": args.thai_logo}
     for key, value in overrides.items():
         if value is not None:
             setattr(opts, key, value)
