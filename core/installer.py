@@ -18,6 +18,7 @@ from .assets import font_files, storybook_files, write_mod_content
 from .bundle import BundleError
 from .custom import merged_overrides
 from .game_detect import GameInfo, identify
+from .glossary_layout import LayoutError, glossary_files
 from .logo import LogoError, logo_files
 from .options import SLOT_EN, InstallOptions
 from .progress import ProgressFn, noop, scaled
@@ -187,7 +188,22 @@ def _check_writable(mods_dir: Path) -> None:
     probe.unlink()
 
 
+def _check_not_in_use(game: GameInfo) -> None:
+    """Fail before deleting anything when the running game still holds one of our files."""
+    for name in OUR_MODS:
+        for path in (game.mods_dir / name).rglob("*"):
+            if not path.is_file():
+                continue
+            try:
+                with open(path, "ab"):
+                    pass
+            except PermissionError as exc:
+                raise RuntimeError(f"ไฟล์ {path.name} ใน {name} ถูกโปรแกรมอื่นเปิดอยู่ (เช่นตัวเกม)\n"
+                                   "ให้ปิดเกมก่อนแล้วกดติดตั้งอีกครั้ง") from exc
+
+
 def _remove_our_mods(game: GameInfo) -> None:
+    _check_not_in_use(game)
     for name in OUR_MODS:
         target = game.mods_dir / name
         if target.exists():
@@ -272,7 +288,14 @@ def _build_mods(game: GameInfo, opts: InstallOptions, staging: Path, report: Ins
         (staging / MOD_TEXT / "content" / name).write_bytes(data)
     report.mods.append(MOD_TEXT)
 
-    write_mod_content(staging / MOD_FONT / "content", font_files(opts.font))
+    gui_files = font_files(opts.font)
+    try:
+        gui_files += glossary_files(game.content0, scaled(progress, 0.78, 0.8))
+    except (LayoutError, BundleError, OSError) as exc:
+        log.warning("glossary layout skipped: %s", exc)
+        report.warnings.append("ไฟล์หน้าบันทึกของเกมเวอร์ชันนี้ไม่ตรงกับที่รองรับ จึงข้ามการจัดข้อความชิดซ้าย"
+                               " (ข้อความภาษาไทยยังใช้งานได้ปกติ)")
+    write_mod_content(staging / MOD_FONT / "content", gui_files)
     report.mods.append(MOD_FONT)
 
     if opts.storybook:
