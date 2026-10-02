@@ -63,7 +63,7 @@ def main(argv: list[str] | None = None) -> int:
     inst.add_argument("--choice-scale", type=int, help="dialogue choices size, percent of default (50-250)")
     inst.add_argument("--custom", metavar="N,N", help="enable exactly these custom sheets (numbers from 'custom', 0 = none)")
     inst.add_argument("--refresh", action="store_true", help="force re-download of translations")
-    inst.add_argument("--yes", action="store_true", help="remove old w3tu mods without asking")
+    inst.add_argument("--yes", action="store_true", help="remove old w3tu mods and move other Thai mods to mods_disabled without asking")
     args = p.parse_args(argv)
 
     if args.cmd == "detect":
@@ -71,6 +71,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{g.path}  [{g.store or '-'}] {g.edition} {g.version}".rstrip())
             if g.stale_content:
                 print(f"  ! leftover 4.x folders: {', '.join(g.stale_content)}")
+            if g.loose_content:
+                print(f"  ! mod files loose in content: {', '.join(g.loose_content)}")
         return 0
     if args.cmd == "check-update":
         from .update import check_for_update

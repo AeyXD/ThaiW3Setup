@@ -1,6 +1,7 @@
 """Install / uninstall / status for the Thai mod. Only touches mods/modThai*."""
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -18,7 +19,7 @@ from .custom import merged_overrides
 from .game_detect import GameInfo, identify
 from .options import InstallOptions
 from .progress import ProgressFn, noop, scaled
-from .script_patcher import MODULES_REL, PatchError, ScriptOptions, build_scripts
+from .script_patcher import MODULES_REL, SCRIPT_FILES, PatchError, ScriptOptions, build_scripts
 from .sheet import get_translations
 from .text_builder import build_texts, coverage
 from .w3strings import W3Strings
@@ -32,6 +33,9 @@ MOD_SCRIPT = "modThaiDoubleSub"
 OUR_MODS = (MOD_TEXT, MOD_FONT, MOD_STORY, MOD_SCRIPT)
 MANIFEST = "thai_manifest.json"
 LEGACY_PATTERN = re.compile(r"^modkuntoonw3thai", re.IGNORECASE)
+# ThaiLanguage Remastered 5.0 on Nexus ships modThaiLanguage plus its own modThaiFont (same name as ours)
+FOREIGN_THAI_PATTERN = re.compile(r"^modThaiLanguage$", re.IGNORECASE)
+DISABLED_DIR = "mods_disabled"
 THAI_CHARS = re.compile("[\u0e00-\u0e7f]")
 
 ConfirmFn = Callable[[str], bool]
@@ -61,12 +65,84 @@ class Status:
     percent: float = 0.0
     mods: list[str] = field(default_factory=list)
     legacy_mods: list[str] = field(default_factory=list)
+    foreign_mods: list[str] = field(default_factory=list)
+    modified: list[str] = field(default_factory=list)
 
 
 def legacy_mods(game: GameInfo) -> list[Path]:
     if not game.mods_dir.is_dir():
         return []
     return [p for p in game.mods_dir.iterdir() if p.is_dir() and LEGACY_PATTERN.match(p.name)]
+
+
+def _other_mods(game: GameInfo) -> list[Path]:
+    if not game.mods_dir.is_dir():
+        return []
+    ours = {m.lower() for m in OUR_MODS}
+    return [p for p in sorted(game.mods_dir.iterdir())
+            if p.is_dir() and p.name.lower() not in ours and not LEGACY_PATTERN.match(p.name)]
+
+
+def strings_have_thai(path: Path, language: str) -> bool:
+    try:
+        sample = list(W3Strings.load(path, language).strings.values())[:3000]
+    except Exception:
+        return False
+    return sum(1 for s in sample if THAI_CHARS.search(s)) > 100
+
+
+def foreign_thai_mods(game: GameInfo, deep: bool = False) -> list[Path]:
+    """Thai mods from other sources; their tr.w3strings sorts before modThaiText and wins.
+
+    deep also reads every other mod's .w3strings (seconds per file), so it is for install time only.
+    """
+    return [p for p in _other_mods(game) if FOREIGN_THAI_PATTERN.match(p.name)
+            or (deep and any(strings_have_thai(f, f.stem.lower()) for f in p.rglob("*.w3strings")))]
+
+
+def script_overlaps(game: GameInfo) -> list[str]:
+    """Other mods replacing the HUD scripts modThaiDoubleSub patches; the script compiler rejects duplicates."""
+    names = {n.lower() for n in SCRIPT_FILES}
+    out = []
+    for mod in _other_mods(game):
+        hits = sorted({f.name for f in mod.rglob("*.ws") if f.name.lower() in names})
+        if hits:
+            out.append(f"{mod.name} ({', '.join(hits)})")
+    return out
+
+
+def disable_mods(game: GameInfo, mods: list[Path]) -> Path:
+    """Move mods out of mods/ so the game stops loading them; the user can move them back."""
+    target = game.path / DISABLED_DIR
+    target.mkdir(exist_ok=True)
+    for p in mods:
+        dest = target / p.name
+        if dest.exists():
+            dest = target / f"{p.name}_{time.strftime('%Y%m%d-%H%M%S')}"
+        shutil.move(str(p), str(dest))
+        log.info("moved %s to %s", p, dest)
+    return target
+
+
+def _sha1(path: Path) -> str:
+    return hashlib.sha1(path.read_bytes()).hexdigest()
+
+
+def _file_hashes(root: Path, mods: list[str]) -> dict[str, str]:
+    return {f.relative_to(root).as_posix(): _sha1(f)
+            for name in mods for f in sorted((root / name).rglob("*")) if f.is_file() and f.name != MANIFEST}
+
+
+def modified_files(game: GameInfo, hashes: dict[str, str]) -> list[str]:
+    """Files of our mods that changed or vanished since install, e.g. another modThaiFont copied over ours."""
+    out = []
+    for rel, digest in hashes.items():
+        try:
+            if _sha1(game.mods_dir / rel) != digest:
+                out.append(rel)
+        except OSError:
+            out.append(rel)
+    return out
 
 
 def base_strings_modified(game: GameInfo) -> bool:
@@ -85,15 +161,17 @@ def base_strings_modified(game: GameInfo) -> bool:
 def status(game: GameInfo) -> Status:
     manifest = game.mods_dir / MOD_TEXT / MANIFEST
     legacy = [p.name for p in legacy_mods(game)]
+    foreign = [p.name for p in foreign_thai_mods(game)]
     if not manifest.exists():
         present = [m for m in OUR_MODS if (game.mods_dir / m).exists()]
-        return Status(bool(present), mods=present, legacy_mods=legacy)
+        return Status(bool(present), mods=present, legacy_mods=legacy, foreign_mods=foreign)
     try:
         data = json.loads(manifest.read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return Status(True, mods=list(OUR_MODS), legacy_mods=legacy)
+        return Status(True, mods=list(OUR_MODS), legacy_mods=legacy, foreign_mods=foreign)
     return Status(True, data.get("version", ""), data.get("options"), data.get("installed_at", ""),
-                  float(data.get("percent", 0)), data.get("mods", []), legacy)
+                  float(data.get("percent", 0)), data.get("mods", []), legacy, foreign,
+                  modified_files(game, data.get("files") or {}))
 
 
 def _check_writable(mods_dir: Path) -> None:
@@ -134,6 +212,17 @@ def install(opts: InstallOptions, progress: ProgressFn = noop, confirm: ConfirmF
                 shutil.rmtree(p)
         else:
             report.warnings.append(f"ยังมี mod ไทยตัวเก่า ({names}) อยู่ อาจทำให้แสดงผลผิดพลาด")
+    progress(0.0, "ตรวจหา mod ภาษาไทยตัวอื่น...")
+    foreign = foreign_thai_mods(game, deep=True)
+    if foreign:
+        names = ", ".join(p.name for p in foreign)
+        if confirm(f"พบ mod ภาษาไทยจากที่อื่น ({names}) เช่น ThaiLanguage Remastered จาก Nexus\n"
+                   "ซึ่งจะทับข้อความและซับของตัวนี้ ทำให้ภาษาไทยแสดงเพี้ยน\n"
+                   f"ต้องการย้ายออกไปไว้ที่โฟลเดอร์ {DISABLED_DIR} ในโฟลเดอร์เกมหรือไม่? (ย้ายกลับเองได้)"):
+            target = disable_mods(game, foreign)
+            report.warnings.append(f"ย้าย mod ไทยจากที่อื่น ({names}) ไปไว้ที่ {target} แล้ว")
+        else:
+            report.warnings.append(f"ยังมี mod ไทยจากที่อื่น ({names}) อยู่ในโฟลเดอร์ mods ภาษาไทยจะแสดงเพี้ยน")
     if base_strings_modified(game):
         report.warnings.append("ไฟล์ข้อความของตัวเกมถูกโปรแกรมเก่าแก้ไขไว้ แนะนำให้ใช้ Verify integrity of game files ใน Steam/GOG")
 
@@ -177,6 +266,11 @@ def install(opts: InstallOptions, progress: ProgressFn = noop, confirm: ConfirmF
                 for name, data in scripts.items():
                     (target / name).write_bytes(data)
                 report.mods.append(MOD_SCRIPT)
+                overlaps = script_overlaps(game)
+                if overlaps:
+                    report.warnings.append(f"mod อื่นแก้ script ซับไฟล์เดียวกัน ({'; '.join(overlaps)})"
+                                           " เกมอาจขึ้น error ตอนคอมไพล์ script ให้รวมด้วย Script Merger"
+                                           " หรือเอาเครื่องหมายออกจาก \"ปรับสีและขนาดซับ\" แล้วติดตั้งใหม่")
             except PatchError as exc:
                 log.warning("script patch skipped: %s", exc)
                 report.warnings.append("script ของเกมเวอร์ชันนี้ไม่ตรงกับที่รองรับ จึงข้ามการปรับสี/ขนาดซับ"
@@ -192,6 +286,7 @@ def install(opts: InstallOptions, progress: ProgressFn = noop, confirm: ConfirmF
             "total": report.total,
             "percent": round(report.percent, 2),
             "translation_source": report.source,
+            "files": _file_hashes(staging, report.mods),
         }
         (staging / MOD_TEXT / MANIFEST).write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
 

@@ -13,9 +13,9 @@ from pathlib import Path
 
 from . import __version__
 from .game_detect import EDITION_UNKNOWN, GameInfo, identify
-from .installer import MOD_TEXT, OUR_MODS, THAI_CHARS, legacy_mods, status
+from .installer import (MOD_SCRIPT, MOD_TEXT, OUR_MODS, foreign_thai_mods, legacy_mods, script_overlaps, status,
+                        strings_have_thai)
 from .paths import app_data_dir
-from .w3strings import W3Strings
 
 # Cloudflare Worker in worker/; THAIW3_REPORT_URL overrides it for testing
 REPORT_URL = "https://thaiw3setup-report.owltoool.workers.dev/report"
@@ -71,14 +71,6 @@ def _mods_settings_paths() -> list[Path]:
     return out
 
 
-def _has_thai(path: Path, language: str) -> bool | None:
-    try:
-        sample = list(W3Strings.load(path, language).strings.values())[:3000]
-    except Exception:
-        return None
-    return sum(1 for s in sample if THAI_CHARS.search(s)) > 100
-
-
 def _describe_mod(path: Path) -> str:
     files = [f for f in path.rglob("*") if f.is_file()]
     notable = sorted({f.name.lower() for f in files if f.suffix.lower() in (".w3strings", ".redswf")})
@@ -96,8 +88,17 @@ def _describe_mod(path: Path) -> str:
 
 def _conflicts(game: GameInfo) -> list[str]:
     out = [f"leftover 4.x folders: {', '.join(game.stale_content)}"] if game.stale_content else []
+    if game.loose_content:
+        out.append(f"mod files loose in content\\: {', '.join(game.loose_content)}")
     for p in legacy_mods(game):
         out.append(f"old w3tu Thai mod: mods\\{p.name}")
+    for p in foreign_thai_mods(game):
+        out.append(f"other Thai mod: mods\\{p.name}")
+    for s in script_overlaps(game):
+        out.append(f"same HUD scripts as {MOD_SCRIPT}: mods\\{s}")
+    st = status(game)
+    if st.modified:
+        out.append(f"our files changed since install: {', '.join(st.modified[:8])}")
     if game.mods_dir.is_dir():
         for mod in sorted(game.mods_dir.iterdir()):
             if not mod.is_dir() or mod.name in OUR_MODS:
@@ -110,7 +111,7 @@ def _conflicts(game: GameInfo) -> list[str]:
                 out.append(f"mods\\{mod.name} has font files: {', '.join(sorted(set(fonts))[:6])}")
     for lang in STRING_LANGS:
         for f in game.strings_files(lang):
-            if f.parent.name == "content0" and _has_thai(f, lang):
+            if f.parent.name == "content0" and strings_have_thai(f, lang):
                 out.append(f"game file {f.relative_to(game.path)} contains Thai (modified by an old tool)")
     return out
 

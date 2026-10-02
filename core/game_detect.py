@@ -34,6 +34,7 @@ class GameInfo:
     notes: list[str] = field(default_factory=list)
     version: str = ""
     stale_content: list[str] = field(default_factory=list)
+    loose_content: list[str] = field(default_factory=list)
 
     @property
     def supported(self) -> bool:
@@ -112,9 +113,22 @@ def _split_content_dirs(p: Path) -> list[str]:
     return sorted(dirs, key=lambda n: int(n[7:]))
 
 
+def _loose_content(p: Path) -> list[str]:
+    """Mod files unpacked straight into content\\ (blob0.bundle, tr.w3strings, scripts\\) instead of mods\\."""
+    content = p / "content"
+    return sorted(e.name for e in content.iterdir()
+                  if (e.is_dir() and e.name.lower() == "scripts")
+                  or (e.is_file() and e.suffix.lower() in (".bundle", ".w3strings")))
+
+
 def stale_note(dirs: list[str]) -> str:
     names = dirs[0] if len(dirs) == 1 else f"{dirs[0]}-{dirs[-1]}"
     return f"พบโฟลเดอร์ content\\{names} ที่ค้างจากเวอร์ชัน 4.x ลบทิ้งได้ (ห้ามลบ content0)"
+
+
+def loose_note(names: list[str]) -> str:
+    return (f"พบไฟล์ mod วางอยู่ในโฟลเดอร์ content โดยตรง ({', '.join(names)}) น่าจะติดตั้ง mod ผิดที่"
+            " ควรย้ายออก (ห้ามลบ content0 และ metadata.store)")
 
 
 def identify(path: Path | str, store: str = "") -> GameInfo:
@@ -143,6 +157,10 @@ def identify(path: Path | str, store: str = "") -> GameInfo:
     if edition == EDITION_REMASTERED and split:
         info.stale_content = split
         info.notes.append(stale_note(split))
+    if edition == EDITION_REMASTERED:
+        info.loose_content = _loose_content(p)
+        if info.loose_content:
+            info.notes.append(loose_note(info.loose_content))
     return info
 
 

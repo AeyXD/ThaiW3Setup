@@ -390,6 +390,10 @@ class App(tk.Tk):
             text = "ยังไม่ได้ติดตั้งภาษาไทย" if ok else ""
         if st and st.legacy_mods:
             text += "  |  พบ mod ไทยตัวเก่า: " + ", ".join(st.legacy_mods)
+        if st and st.foreign_mods:
+            text += "  |  พบ mod ไทยจากที่อื่น (กดติดตั้งเพื่อย้ายออก): " + ", ".join(st.foreign_mods)
+        if st and st.modified:
+            text += "  |  ไฟล์ mod ถูกเปลี่ยนหลังติดตั้ง กดติดตั้งใหม่"
         self.lbl_installed.configure(text=text)
         self.lbl_latest.configure(**self._latest_text(path, st if ok else None))
         self.btn_uninstall.configure(state="normal" if st and st.installed and not self.busy else "disabled")
