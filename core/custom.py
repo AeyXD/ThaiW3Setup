@@ -59,6 +59,15 @@ class Overrides:
     keep_english: set[int] = field(default_factory=set)
     # ids never extended with "[English]" in two-language subtitles
     plain: set[int] = field(default_factory=set)
+    # ids of name tabs (switched on or off) still without a Thai name: shown in English, not counted as translated
+    missing: set[int] = field(default_factory=set)
+    # coverage follows progress_of: green rows count as translated even when empty, rows of other colours
+    # (in tabs that mark rows green) are left out of the total
+    done: set[int] = field(default_factory=set)
+    excluded: set[int] = field(default_factory=set)
+
+    def counted(self, sid: int, translated: bool) -> bool:
+        return sid not in self.excluded and sid not in self.missing and (translated or sid in self.done)
 
 
 COMMUNITY_ID = "1kIj-WNi24iy3--NLHNzcIj5szOBXoxHJGdwRQNj0etk"
@@ -67,9 +76,14 @@ TAB_CHARACTERS = "\u0e0a\u0e37\u0e48\u0e2d\u0e15\u0e31\u0e27\u0e25\u0e30\u0e04\u
 TAB_PLACES = "\u0e0a\u0e37\u0e48\u0e2d\u0e40\u0e21\u0e37\u0e2d\u0e07"
 TAB_QUESTS = "\u0e0a\u0e37\u0e48\u0e2d\u0e40\u0e04\u0e27\u0e2a"
 TAB_SKILLS = "\u0e0a\u0e37\u0e48\u0e2d\u0e2a\u0e01\u0e34\u0e25"
-NAME_TABS = (TAB_CHARACTERS, TAB_PLACES, TAB_QUESTS, TAB_SKILLS)
+TAB_MONSTERS = "\u0e0a\u0e37\u0e48\u0e2d\u0e21\u0e2d\u0e19\u0e2a\u0e40\u0e15\u0e2d\u0e23\u0e4c"
+TAB_ITEMS = "\u0e0a\u0e37\u0e48\u0e2d\u0e44\u0e2d\u0e40\u0e17\u0e21"
+TAB_GWENT = "\u0e0a\u0e37\u0e48\u0e2d\u0e01\u0e32\u0e23\u0e4c\u0e14\u0e40\u0e01\u0e27\u0e19\u0e15\u0e4c"
+TAB_OTHER = "\u0e0a\u0e37\u0e48\u0e2d\u0e2d\u0e37\u0e48\u0e19\u0e46"
+NAME_TABS = (TAB_CHARACTERS, TAB_PLACES, TAB_QUESTS, TAB_SKILLS, TAB_MONSTERS, TAB_ITEMS, TAB_GWENT, TAB_OTHER)
 NAME_GIDS = {TAB_CHARACTERS: 1219926511, TAB_PLACES: 796210995, TAB_QUESTS: 1268129566,
-             TAB_SKILLS: 1710767002}
+             TAB_SKILLS: 1710767002, TAB_MONSTERS: 1221982709, TAB_ITEMS: 1392156453, TAB_GWENT: 566424687,
+             TAB_OTHER: 1610218200}
 NAME_LABEL_PREFIX = "\u0e41\u0e1b\u0e25"
 
 
@@ -329,8 +343,22 @@ def merged_overrides(sheets: list[dict], force_download: bool = False,
         else:
             out.strings.update(data.strings)
             out.keep_english.difference_update(data.strings)
+            out.missing.difference_update(data.strings)
+            out.excluded.difference_update(data.strings)
+        _apply_marks(out, data)
     progress(1.0, "โหลดคำแปลเสริมแล้ว")
     return out
+
+
+def _apply_marks(out: Overrides, data: CustomData) -> None:
+    """Row colours of one sheet, as progress_of reads them: only tabs with green rows mark anything."""
+    if not data.done:
+        return
+    out.done.update(data.done)
+    out.excluded.difference_update(data.done)
+    out.missing.difference_update(data.done)
+    out.excluded.update(data.skipped)
+    out.done.difference_update(data.skipped)
 
 
 def _apply_name_tab(out: Overrides, data: CustomData, mode: str) -> None:
@@ -341,9 +369,14 @@ def _apply_name_tab(out: Overrides, data: CustomData, mode: str) -> None:
         if shown.get(sid):
             out.strings[sid] = shown[sid]
             out.keep_english.discard(sid)
+            out.missing.discard(sid)
         else:
             out.strings.pop(sid, None)
             out.keep_english.add(sid)
+            if mode or not (data.thai.get(sid) or data.strings.get(sid)):
+                out.missing.add(sid)
+            else:
+                out.missing.discard(sid)
 
 
 def export_defaults() -> None:

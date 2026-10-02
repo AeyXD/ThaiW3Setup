@@ -86,8 +86,9 @@ def coverage(game: GameInfo, thai: dict[int, str], by_text: dict[str, str] | Non
     if english is None:
         raise RuntimeError("en.w3strings not found")
     overrides = overrides or Overrides()
-    translated = sum(1 for sid, text in english.strings.items() if _thai_for(sid, text, thai, by_text, overrides))
-    return translated, len(english.strings)
+    translated = sum(1 for sid, text in english.strings.items()
+                     if overrides.counted(sid, bool(_thai_for(sid, text, thai, by_text, overrides))))
+    return translated, len(english.strings.keys() - overrides.excluded)
 
 
 def build_texts(game: GameInfo, thai: dict[int, str], opts: InstallOptions,
@@ -124,7 +125,7 @@ def build_texts(game: GameInfo, thai: dict[int, str], opts: InstallOptions,
         if en_text is None:
             en_text = slot.strings.get(sid, "") if slot is not None else ""
         th = _thai_for(sid, en_text, thai, by_text, overrides)
-        if th and sid in english.strings:
+        if sid in english.strings and overrides.counted(sid, bool(th)):
             translated += 1
         if th:
             out.strings[sid] = (combine(th, en_text, opts.thai_first)
@@ -146,4 +147,4 @@ def build_texts(game: GameInfo, thai: dict[int, str], opts: InstallOptions,
     progress(0.7, "กำลังสร้างไฟล์ข้อความ...")
     files[f"{opts.slot}.w3strings"] = out.build()
     progress(1.0, "สร้างไฟล์ข้อความภาษาไทยเสร็จแล้ว")
-    return TextResult(files, len(english.strings), translated, skipped)
+    return TextResult(files, len(english.strings.keys() - overrides.excluded), translated, skipped)

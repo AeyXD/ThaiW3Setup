@@ -457,6 +457,9 @@ class App(tk.Tk):
         if diff > 0:
             return {"text": f"ถ้าติดตั้งใหม่ตอนนี้: แปลได้ {latest:.1f}% (+{diff:.1f}%) กดติดตั้งเพื่ออัปเดต",
                     "style": "Ok.TLabel"}
+        if diff < 0:
+            return {"text": f"ถ้าติดตั้งใหม่ตอนนี้: แปลได้ {latest:.1f}% ({diff:.1f}% นับชื่อเฉพาะที่ยังไม่มีชื่อไทยด้วย)",
+                    "style": "TLabel"}
         return {"text": f"ถ้าติดตั้งใหม่ตอนนี้: แปลได้ {latest:.1f}% (ติดตั้งไว้เป็นล่าสุดแล้ว)", "style": "TLabel"}
 
     # ---------- actions ----------

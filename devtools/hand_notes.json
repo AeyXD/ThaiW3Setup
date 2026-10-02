@@ -1,0 +1,16 @@
+{
+  "1059068": "ตัวละคร: ชื่อสั้นของ Bart the Troll (entity quests\\secondary_npcs\\bart_the_troll และอยู่ใน photomode_characters.csv)",
+  "351353": "ตัวละคร: ดอปเพลอร์ที่มีชื่อ (ชื่อผู้พูดใน scene_voice_tags และอยู่ใน attitudes.xml)",
+  "1112403": "ตัวละคร: ชื่อผู้พูดใน Blood and Wine (scene_voice_tags)",
+  "320601": "ตัวละคร: key mula ใช้ใน cutscene เท่านั้น (ภาษาโปแลนด์แปลว่าล่อ) หลักฐานน้อย",
+  "1205337": "ตัวละคร: โจรเมือง Dun Tynne ในเควส q703 (entity q703_a04s02_nazairian_spear)",
+  "1205382": "ตัวละคร: หัวหน้าโจรเมือง Dun Tynne ในเควส q703 (entity q703_a06_leader_01_sword_2h)",
+  "1209925": "ตัวละคร: หัวหน้าโจรตัวปลอมที่จุดแลกตัวประกันในเควส q703 (entity q703_exchange_spot_bandit_fake_leader)",
+  "1073710": "ตัวละคร: ชายแก่ในเควสล่าสัตว์ประหลาด mh206 ของ Skellige (entity mh206_old_man)",
+  "1033452": "ตัวละคร: สุนัขในเควสหาน้องชายที่หายไปช่วงต้นเกม (entity mq0001_dog)",
+  "1082705": "id 1082705 และ 1084771 อยู่ในหัวข้อ tutorial (สอนเล่นเป็น Ciri)",
+  "1196997": "อยู่ในหัวข้อ tutorial (ระบบ Living World ใน Blood and Wine)",
+  "1041681": "ระบุไม่ได้",
+  "336331": "Cut Content",
+  "169137": "Cut Content"
+}
