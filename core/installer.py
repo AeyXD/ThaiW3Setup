@@ -20,7 +20,7 @@ from .options import InstallOptions
 from .progress import ProgressFn, noop, scaled
 from .script_patcher import MODULES_REL, PatchError, ScriptOptions, build_scripts
 from .sheet import get_translations
-from .text_builder import build_texts
+from .text_builder import build_texts, coverage
 from .w3strings import W3Strings
 
 log = logging.getLogger(__name__)
@@ -202,6 +202,21 @@ def install(opts: InstallOptions, progress: ProgressFn = noop, confirm: ConfirmF
     finally:
         shutil.rmtree(staging, ignore_errors=True)
     progress(1.0, "ติดตั้งเสร็จแล้ว")
+    return report
+
+
+def check_coverage(opts: InstallOptions, progress: ProgressFn = noop) -> InstallReport:
+    """Download the latest translation and custom sheets and count what an install would translate now."""
+    game = identify(opts.game_path)
+    if not game.supported:
+        raise RuntimeError(f"ไม่รองรับเกมในโฟลเดอร์นี้: {game.label}")
+    report = InstallReport()
+    tr = get_translations(force_download=True, progress=scaled(progress, 0.0, 0.8))
+    report.source, report.fetched = tr.source, tr.age_text
+    overrides = merged_overrides(opts.custom_sheets, True, scaled(progress, 0.8, 0.95))
+    report.custom = len(overrides.strings)
+    report.translated, report.total = coverage(game, tr.thai, tr.by_text, overrides)
+    progress(1.0, "เช็คคำแปลล่าสุดเสร็จแล้ว")
     return report
 
 

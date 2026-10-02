@@ -8,7 +8,7 @@ from dataclasses import fields
 from . import __version__
 from .custom import cached_stats, sheet_key
 from .game_detect import find_games, identify
-from .installer import install, status, uninstall
+from .installer import check_coverage, install, status, uninstall
 from .options import FONTS, InstallOptions, load_options, save_options
 
 
@@ -26,6 +26,10 @@ def _game_path(arg: str | None) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # Thai messages crash on the Windows console code page when output is piped or redirected
+    for stream in (sys.stdout, sys.stderr):
+        if stream is not None and hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     p = argparse.ArgumentParser(prog="ThaiW3Setup", description="Thai translation for The Witcher 3 Remastered")
     p.add_argument("--version", action="version", version=__version__)
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -35,6 +39,8 @@ def main(argv: list[str] | None = None) -> int:
     for name in ("install", "uninstall", "status"):
         s = sub.add_parser(name)
         s.add_argument("--game")
+    sub.add_parser("check", help="download the latest translation and count what an install would translate"
+                   ).add_argument("--game")
     inst = sub.choices["install"]
     inst.add_argument("--font", choices=list(FONTS))
     inst.add_argument("--mode", choices=["thai", "double"])
@@ -90,6 +96,16 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.cmd == "uninstall":
         print("removed:", ", ".join(uninstall(game_path)) or "-")
+        return 0
+    if args.cmd == "check":
+        opts = load_options()
+        opts.game_path = game_path
+        report = check_coverage(opts, _progress)
+        st = status(identify(game_path))
+        print(f"translated {report.translated}/{report.total} ({report.percent:.2f}%) from {report.source},"
+              f" custom overrides {report.custom}")
+        if st.installed:
+            print(f"installed: {st.percent:.2f}%")
         return 0
 
     opts = load_options()

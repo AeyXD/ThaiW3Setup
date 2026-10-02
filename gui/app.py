@@ -17,7 +17,7 @@ from tkinter import ttk
 from core import APP_TITLE, __version__
 from core.assets import help_image
 from core.game_detect import find_games, identify
-from core.installer import install, status, uninstall
+from core.installer import check_coverage, install, status, uninstall
 from core.options import FONTS, MODE_DOUBLE, MODE_THAI, SLOT_EN, SLOT_TR, load_options, save_options
 from core.paths import app_data_dir
 from gui.notice_dialog import show_notice
@@ -66,6 +66,8 @@ class App(tk.Tk):
         self.busy = False
         self.preview_image = None
         self._preview_job = None
+        # (game path, percent) from the last "check %"
+        self.latest: tuple[str, float] | None = None
 
         self.v_game = tk.StringVar(value=self.opts.game_path)
         self.v_font = tk.StringVar(value=FONTS.get(self.opts.font, "CS PraKas"))
@@ -112,12 +114,16 @@ class App(tk.Tk):
         self.cb_game = ttk.Combobox(game, textvariable=self.v_game)
         self.cb_game.grid(row=0, column=0, sticky="ew")
         ttk.Button(game, text="เลือก...", command=self.browse).grid(row=0, column=1, padx=(6, 0))
+        self.btn_check = ttk.Button(game, text="เช็ค %", command=self.do_check)
+        self.btn_check.grid(row=0, column=2, padx=(6, 0))
         self.lbl_edition = ttk.Label(game, text="")
-        self.lbl_edition.grid(row=1, column=0, columnspan=2, sticky="w", pady=(4, 0))
+        self.lbl_edition.grid(row=1, column=0, columnspan=3, sticky="w", pady=(4, 0))
         self.lbl_installed = ttk.Label(game, text="")
-        self.lbl_installed.grid(row=2, column=0, columnspan=2, sticky="w")
+        self.lbl_installed.grid(row=2, column=0, columnspan=3, sticky="w")
+        self.lbl_latest = ttk.Label(game, text="")
+        self.lbl_latest.grid(row=3, column=0, columnspan=3, sticky="w")
         self.lbl_notes = ttk.Label(game, text="", style="Warn.TLabel")
-        self.lbl_notes.grid(row=3, column=0, columnspan=2, sticky="w")
+        self.lbl_notes.grid(row=4, column=0, columnspan=3, sticky="w")
 
         body = ttk.Frame(root)
         body.grid(row=3, column=0, sticky="nsew", pady=8)
@@ -361,8 +367,10 @@ class App(tk.Tk):
         if not path:
             self.lbl_edition.configure(text="ยังไม่ได้เลือกโฟลเดอร์เกม", style="Bad.TLabel")
             self.lbl_installed.configure(text="")
+            self.lbl_latest.configure(text="")
             self.lbl_notes.configure(text="")
             self.btn_install.configure(state="disabled")
+            self.btn_check.configure(state="disabled")
             return
         game = identify(path)
         ok = game.supported
@@ -370,6 +378,7 @@ class App(tk.Tk):
         self.lbl_edition.configure(text=("✔ " if ok else "✖ ") + label, style="Ok.TLabel" if ok else "Bad.TLabel")
         self.lbl_notes.configure(text="\n".join("⚠ " + n for n in game.notes))
         self.btn_install.configure(state="normal" if ok and not self.busy else "disabled")
+        self.btn_check.configure(state="normal" if ok and not self.busy else "disabled")
         st = status(game) if ok else None
         if st and st.installed:
             text = f"ติดตั้งแล้ว v{st.version or '?'}"
@@ -382,9 +391,38 @@ class App(tk.Tk):
         if st and st.legacy_mods:
             text += "  |  พบ mod ไทยตัวเก่า: " + ", ".join(st.legacy_mods)
         self.lbl_installed.configure(text=text)
+        self.lbl_latest.configure(**self._latest_text(path, st if ok else None))
         self.btn_uninstall.configure(state="normal" if st and st.installed and not self.busy else "disabled")
 
+    def _latest_text(self, path: str, st) -> dict:
+        if not self.latest or self.latest[0] != path or st is None:
+            return {"text": "", "style": "TLabel"}
+        latest = round(self.latest[1], 1)
+        if not st.installed:
+            return {"text": f"ถ้าติดตั้งตอนนี้: แปลได้ {latest:.1f}%", "style": "TLabel"}
+        diff = latest - round(st.percent, 1)
+        if diff > 0:
+            return {"text": f"ถ้าติดตั้งใหม่ตอนนี้: แปลได้ {latest:.1f}% (+{diff:.1f}%) กดติดตั้งเพื่ออัปเดต",
+                    "style": "Ok.TLabel"}
+        return {"text": f"ถ้าติดตั้งใหม่ตอนนี้: แปลได้ {latest:.1f}% (ติดตั้งไว้เป็นล่าสุดแล้ว)", "style": "TLabel"}
+
     # ---------- actions ----------
+    def do_check(self):
+        opts = self.current_options()
+        self.set_busy(True)
+        self.progress["value"] = 0
+
+        def progress(fraction, message):
+            self.events.put(("progress", fraction, message))
+
+        def work():
+            try:
+                self.events.put(("checked", opts.game_path, check_coverage(opts, progress)))
+            except Exception as exc:
+                log.error("check failed\n%s", traceback.format_exc())
+                self.events.put(("check_error", str(exc)))
+        threading.Thread(target=work, daemon=True).start()
+
     def set_busy(self, busy: bool):
         self.busy = busy
         self.cb_game.configure(state="disabled" if busy else "normal")
@@ -484,7 +522,17 @@ class App(tk.Tk):
                     _k, message, answer, done = event
                     answer["yes"] = messagebox.askyesno(APP_TITLE, message, parent=self)
                     done.set()
+                elif kind == "checked":
+                    report = event[2]
+                    self.latest = (event[1], report.percent)
+                    self.v_status.set(f"คำแปลล่าสุด: แปลได้ {report.percent:.2f}% "
+                                      f"({report.translated:,}/{report.total:,} ข้อความ)")
+                    self.set_busy(False)
+                elif kind == "check_error":
+                    self.set_busy(False)
+                    self.v_status.set(f"เช็คคำแปลล่าสุดไม่สำเร็จ: {event[1]}")
                 elif kind == "installed":
+                    self.latest = None
                     self.set_busy(False)
                     self.on_installed(event[1])
                 elif kind == "permission":

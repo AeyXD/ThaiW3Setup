@@ -79,6 +79,17 @@ def untranslated(game: GameInfo, thai: dict[int, str], by_text: dict[str, str] |
             if text.strip() and not _thai_for(sid, text, thai, by_text, overrides)}
 
 
+def coverage(game: GameInfo, thai: dict[int, str], by_text: dict[str, str] | None = None,
+             overrides: Overrides | None = None) -> tuple[int, int]:
+    """(translated, total) counted as build_texts does, without building the files."""
+    english = _load_merged(game, "en", [])
+    if english is None:
+        raise RuntimeError("en.w3strings not found")
+    overrides = overrides or Overrides()
+    translated = sum(1 for sid, text in english.strings.items() if _thai_for(sid, text, thai, by_text, overrides))
+    return translated, len(english.strings)
+
+
 def build_texts(game: GameInfo, thai: dict[int, str], opts: InstallOptions,
                 progress: ProgressFn = noop, by_text: dict[str, str] | None = None,
                 overrides: Overrides | None = None) -> TextResult:
