@@ -16,11 +16,12 @@ from tkinter import ttk
 
 from core import APP_TITLE, __version__
 from core.assets import help_image
-from core.game_detect import find_games, identify
-from core.installer import check_coverage, install, status, uninstall
+from core.game_detect import find_games, game_root, identify
+from core.installer import EXPORT_README, check_coverage, export, install, status, uninstall
 from core.options import FONTS, MODE_DOUBLE, MODE_THAI, SLOT_EN, SLOT_TR, load_options, save_options
 from core.paths import app_data_dir
 from gui.notice_dialog import show_notice
+from gui.widgets import Tooltip, icon, ttk_image
 
 log = logging.getLogger(__name__)
 
@@ -28,6 +29,8 @@ UI_FONT = ("Leelawadee UI", 10)
 UI_BOLD = ("Leelawadee UI", 10, "bold")
 UI_TITLE = ("Leelawadee UI", 15, "bold")
 PREVIEW_SIZE = (620, 150)
+ICON_SIZE = 20
+MENU_EXPORT, MENU_UNINSTALL = 0, 1
 
 T_UPGRADE_NOTICE = ("\u0e2a\u0e33\u0e2b\u0e23\u0e31\u0e1a\u0e15\u0e31\u0e27\u0e40\u0e01\u0e21\u0e17\u0e35\u0e48\u0e2d\u0e31\u0e1b\u0e40\u0e27\u0e2d\u0e23\u0e4c\u0e0a\u0e31\u0e19\u0e08\u0e32\u0e01 Classic / Next-gen "
                     "\u0e43\u0e2b\u0e49\u0e25\u0e1a mod \u0e41\u0e1b\u0e25\u0e40\u0e01\u0e48\u0e32 \u0e41\u0e25\u0e30 \u0e0b\u0e48\u0e2d\u0e21\u0e44\u0e1f\u0e25\u0e4c\u0e40\u0e01\u0e21 "
@@ -41,6 +44,8 @@ T_DONE = "\u0e15\u0e34\u0e14\u0e15\u0e31\u0e49\u0e07\u0e40\u0e2a\u0e23\u0e47\u0e
 T_DONE_NOTICE = (f"{T_DONE} \u0e16\u0e49\u0e32\u0e20\u0e32\u0e29\u0e32\u0e43\u0e19\u0e40\u0e01\u0e21\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e40\u0e1b\u0e25\u0e35\u0e48\u0e22\u0e19 "
                  "\u0e43\u0e2b\u0e49\u0e40\u0e02\u0e49\u0e32 \u0e15\u0e31\u0e49\u0e07\u0e04\u0e48\u0e32 > \u0e20\u0e32\u0e29\u0e32 > \u0e44\u0e17\u0e22")
 T_REPORT_BUTTON = "\u0e2a\u0e48\u0e07\u0e23\u0e32\u0e22\u0e07\u0e32\u0e19\u0e1b\u0e31\u0e0d\u0e2b\u0e32..."
+T_EXPORT_BUTTON = "สร้างไฟล์ไว้ copy เอง..."
+T_EXPORTED = "สร้างไฟล์เสร็จแล้ว"
 T_SLOT_EN_HINT = "\u0e43\u0e19\u0e40\u0e01\u0e21\u0e43\u0e2b\u0e49\u0e15\u0e31\u0e49\u0e07\u0e20\u0e32\u0e29\u0e32\u0e02\u0e49\u0e2d\u0e04\u0e27\u0e32\u0e21\u0e40\u0e1b\u0e47\u0e19 English"
 
 
@@ -60,6 +65,8 @@ class App(tk.Tk):
         style.configure("Bad.TLabel", foreground="#c62828")
         style.configure("Warn.TLabel", foreground="#b26a00")
         style.configure("Big.TButton", font=UI_BOLD, padding=(16, 6))
+        style.configure("Icon.TButton", padding=(6, 6))
+        style.configure("More.TButton", padding=(10, 6))
 
         self.opts = load_options()
         self.events: queue.Queue = queue.Queue()
@@ -209,19 +216,43 @@ class App(tk.Tk):
         bottom.grid(row=5, column=0, sticky="ew", pady=(8, 0))
         bottom.columnconfigure(0, weight=1)
         self.progress = ttk.Progressbar(bottom, maximum=1000)
-        self.progress.grid(row=0, column=0, columnspan=5, sticky="ew")
-        ttk.Label(bottom, textvariable=self.v_status).grid(row=1, column=0, columnspan=5, sticky="w", pady=(2, 6))
-        self.btn_install = ttk.Button(bottom, text="ติดตั้ง / อัปเดต", style="Big.TButton", command=self.do_install)
-        self.btn_install.grid(row=2, column=1, padx=3)
-        self.btn_uninstall = ttk.Button(bottom, text="ถอนการติดตั้ง", command=self.do_uninstall)
-        self.btn_uninstall.grid(row=2, column=2, padx=3)
-        ttk.Button(bottom, text="เปิดโฟลเดอร์ mods", command=self.open_mods).grid(row=2, column=3, padx=3)
-        ttk.Button(bottom, text="ปิด", command=self.destroy).grid(row=2, column=4, padx=(3, 0))
+        self.progress.grid(row=0, column=0, columnspan=2, sticky="ew")
+        ttk.Label(bottom, textvariable=self.v_status).grid(row=1, column=0, columnspan=2, sticky="w", pady=(2, 6))
+
         left = ttk.Frame(bottom)
         left.grid(row=2, column=0, sticky="w")
-        ttk.Button(left, text="ตรวจสอบอัปเดต", command=lambda: self.check_update(manual=True)).pack(side="left")
-        ttk.Button(left, text=T_REPORT_BUTTON, command=self.open_report).pack(side="left", padx=(4, 0))
+        for name, label, command in (("update", "ตรวจสอบอัปเดต", lambda: self.check_update(manual=True)),
+                                     ("bug_report", T_REPORT_BUTTON, self.open_report),
+                                     ("folder_open", "เปิดโฟลเดอร์ mods", self.open_mods)):
+            image = ttk_image(self, name, ICON_SIZE)
+            btn = ttk.Button(left, image=image, text="" if image else label, style="Icon.TButton", command=command)
+            btn.pack(side="left", padx=(0, 4))
+            Tooltip(btn, label.rstrip("."))
+
+        right = ttk.Frame(bottom)
+        right.grid(row=2, column=1, sticky="e")
+        self.btn_install = ttk.Button(right, text="ติดตั้ง / อัปเดต", image=ttk_image(self, "download", ICON_SIZE),
+                                      compound="left", style="Big.TButton", command=self.do_install)
+        self.btn_install.pack(side="left")
+        self.btn_more = ttk.Button(right, text="เพิ่มเติม", image=ttk_image(self, "expand_more", ICON_SIZE),
+                                   compound="right", style="More.TButton", command=self.show_more_menu)
+        self.btn_more.pack(side="left", padx=(6, 0), fill="y")
+        self.menu_more = tk.Menu(self, tearoff=False, font=UI_FONT)
+        for name, label, command in (("drive_file_move", T_EXPORT_BUTTON, self.do_export),
+                                     ("delete", "ถอนการติดตั้ง", self.do_uninstall)):
+            image = icon(self, name, ICON_SIZE)
+            self.menu_more.add_command(label=f"  {label}", command=command, **({"image": image, "compound": "left"}
+                                                                                if image else {}))
         self.update_states()
+
+    def show_more_menu(self):
+        btn = self.btn_more
+        self.menu_more.update_idletasks()
+        x = btn.winfo_rootx() + btn.winfo_width() - self.menu_more.winfo_reqwidth()
+        try:
+            self.menu_more.tk_popup(x, btn.winfo_rooty() + btn.winfo_height())
+        finally:
+            self.menu_more.grab_release()
 
     # ---------- helpers ----------
     def current_options(self):
@@ -360,7 +391,7 @@ class App(tk.Tk):
         path = filedialog.askdirectory(parent=self, title="เลือกโฟลเดอร์เกม The Witcher 3",
                                        initialdir=self.v_game.get() or None)
         if path:
-            self.v_game.set(os.path.normpath(path))
+            self.v_game.set(os.path.normpath(game_root(path)))
 
     def refresh_game(self):
         path = self.v_game.get().strip()
@@ -371,6 +402,7 @@ class App(tk.Tk):
             self.lbl_notes.configure(text="")
             self.btn_install.configure(state="disabled")
             self.btn_check.configure(state="disabled")
+            self._set_more_states(False, False)
             return
         game = identify(path)
         ok = game.supported
@@ -396,7 +428,12 @@ class App(tk.Tk):
             text += "  |  ไฟล์ mod ถูกเปลี่ยนหลังติดตั้ง กดติดตั้งใหม่"
         self.lbl_installed.configure(text=text)
         self.lbl_latest.configure(**self._latest_text(path, st if ok else None))
-        self.btn_uninstall.configure(state="normal" if st and st.installed and not self.busy else "disabled")
+        self._set_more_states(ok, bool(st and st.installed))
+
+    def _set_more_states(self, export_ok: bool, uninstall_ok: bool):
+        self.btn_more.configure(state="disabled" if self.busy else "normal")
+        self.menu_more.entryconfigure(MENU_EXPORT, state="normal" if export_ok and not self.busy else "disabled")
+        self.menu_more.entryconfigure(MENU_UNINSTALL, state="normal" if uninstall_ok and not self.busy else "disabled")
 
     def _latest_text(self, path: str, st) -> dict:
         if not self.latest or self.latest[0] != path or st is None:
@@ -467,6 +504,34 @@ class App(tk.Tk):
                 self.events.put(("error", str(exc)))
         threading.Thread(target=work, daemon=True).start()
 
+    def do_export(self):
+        opts = self.current_options()
+        try:
+            opts.validate()
+        except ValueError as exc:
+            messagebox.showerror(APP_TITLE, str(exc), parent=self)
+            return
+        out_dir = filedialog.askdirectory(parent=self, title="เลือกที่เก็บไฟล์ภาษาไทย (จะสร้างโฟลเดอร์ ThaiW3_mods ในนี้)",
+                                          initialdir=str(Path.home() / "Desktop"))
+        if not out_dir:
+            return
+        self.opts = opts
+        save_options(opts)
+        self.set_busy(True)
+        self.progress["value"] = 0
+        refresh = self.v_refresh.get()
+
+        def progress(fraction, message):
+            self.events.put(("progress", fraction, message))
+
+        def work():
+            try:
+                self.events.put(("exported", export(opts, out_dir, progress, force_download=refresh)))
+            except Exception as exc:
+                log.error("export failed\n%s", traceback.format_exc())
+                self.events.put(("export_error", str(exc)))
+        threading.Thread(target=work, daemon=True).start()
+
     def do_uninstall(self):
         path = self.v_game.get().strip()
         if not messagebox.askyesno(APP_TITLE, "ต้องการถอน mod ภาษาไทยออกจากเกมหรือไม่?", parent=self):
@@ -484,7 +549,7 @@ class App(tk.Tk):
         self.refresh_game()
 
     def open_mods(self):
-        path = Path(self.v_game.get().strip()) / "mods"
+        path = game_root(self.v_game.get().strip()) / "mods"
         target = path if path.is_dir() else path.parent
         if target.is_dir():
             os.startfile(target)
@@ -539,6 +604,14 @@ class App(tk.Tk):
                     self.latest = None
                     self.set_busy(False)
                     self.on_installed(event[1])
+                elif kind == "exported":
+                    self.set_busy(False)
+                    self.on_exported(event[1])
+                elif kind == "export_error":
+                    self.set_busy(False)
+                    self.v_status.set("สร้างไฟล์ไม่สำเร็จ")
+                    messagebox.showerror(APP_TITLE, f"สร้างไฟล์ไม่สำเร็จ:\n{event[1]}\n\nดูรายละเอียดได้ที่ {log_path()}",
+                                         parent=self)
                 elif kind == "permission":
                     self.set_busy(False)
                     self.v_status.set(event[1])
@@ -556,6 +629,20 @@ class App(tk.Tk):
         if show_notice(self, APP_TITLE, T_UPGRADE_NOTICE, bold=True, warning=T_ONEDRIVE_WARNING):
             self.opts.hide_upgrade_notice_v2 = True
             save_options(self.opts)
+
+    def on_exported(self, report):
+        self.v_status.set(f"{T_EXPORTED}  แปลแล้ว {report.percent:.2f}%  {report.output}")
+        game = identify(self.opts.game_path)
+        lines = [f"{T_EXPORTED} ที่ {report.output}", "",
+                 f"คัดลอกโฟลเดอร์ {', '.join(report.mods)} ไปไว้ในโฟลเดอร์ mods ของเกม",
+                 f"{game.mods_dir}",
+                 f"(ขั้นตอนละเอียดอยู่ในไฟล์ {EXPORT_README})", "",
+                 f"แปลแล้ว {report.percent:.2f}% ({report.translated:,}/{report.total:,} ข้อความ)"]
+        if report.warnings:
+            lines += ["", "ข้อควรทราบ:"] + [f"- {w}" for w in report.warnings]
+        messagebox.showinfo(APP_TITLE, "\n".join(lines), parent=self)
+        if os.path.isdir(report.output):
+            os.startfile(report.output)
 
     def on_installed(self, report):
         lines = [f"\u0e41\u0e1b\u0e25\u0e41\u0e25\u0e49\u0e27 {report.percent:.2f}% ({report.translated:,}/{report.total:,} \u0e02\u0e49\u0e2d\u0e04\u0e27\u0e32\u0e21)",

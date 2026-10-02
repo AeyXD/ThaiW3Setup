@@ -1,6 +1,6 @@
 # ThaiW3Setup — ติดตั้งภาษาไทย The Witcher 3: Wild Hunt — Remastered
 
-โปรแกรมติดตั้ง mod แปลไทยสำหรับ **The Witcher 3: Wild Hunt — Remastered** (Steam / GOG / Epic)
+โปรแกรมติดตั้ง mod แปลไทยสำหรับ **The Witcher 3: Wild Hunt — Remastered** (Steam / GOG / Epic / แอป Xbox)
 ใช้คำแปลของ w3tu (Witcher 3 Translate Utility) เป็นหลัก และเติมข้อความที่ยังขาดจาก Google Sheet ของกลุ่มนักแปลอีกชุด
 แล้วสร้างไฟล์ใหม่ให้ตรงกับรูปแบบของเวอร์ชัน Remastered
 
@@ -27,6 +27,15 @@
 
 ถ้าอยากเปลี่ยนฟอนต์ สี หรือขนาดภายหลัง ให้เปิดโปรแกรม ปรับค่า แล้วกดติดตั้งซ้ำ
 เมื่อเกมอัปเดตหรือทีมแปลอัปเดตคำแปลแล้ว ก็กดติดตั้งซ้ำได้เช่นกัน
+
+### สร้างไฟล์ไว้ copy เอง
+
+ถ้ากดติดตั้งแล้วเขียนลงโฟลเดอร์เกมไม่ได้ (เช่นเกมจากแอป Xbox / Game Pass) ให้กด **สร้างไฟล์ไว้ copy เอง...** แทน
+แล้วเลือกที่เก็บ โปรแกรมจะสร้างโฟลเดอร์ `ThaiW3_mods` ที่มี `modThai*` ครบตามตัวเลือกที่ตั้งไว้ (ฟอนต์ ซับสองภาษา สี ขนาด ตำแหน่ง คำแปลเสริม)
+พร้อมไฟล์ `วิธีติดตั้ง.txt` ให้คัดลอกโฟลเดอร์ `modThai*` ทั้งหมดไปไว้ใน `mods` ของโฟลเดอร์เกมเอง (สร้าง `mods` ถ้ายังไม่มี และลบ `modThai*` ตัวเก่าก่อน)
+โปรแกรมยังต้องอ่านไฟล์ของเกมเพื่อสร้างข้อความและ script ซับ จึงต้องเลือกโฟลเดอร์เกมให้ถูกต้องเหมือนตอนติดตั้งปกติ
+
+> เกมจากแอป Xbox อยู่ที่ `X:\XboxGames\<ชื่อเกม>\Content` โปรแกรมค้นหาให้เอง และถ้าเลือกโฟลเดอร์ชื่อเกมจะเข้าไปที่ `Content` ให้อัตโนมัติ
 
 ## ปรับแต่งคำแปล (คำแปลเสริม)
 
@@ -113,6 +122,7 @@ Windows จึงอาจขึ้นเตือนได้
 | ตัวอักษรไทยเป็นสี่เหลี่ยม | ตรวจว่ามี `mods\modThaiFont` และไม่มี mod ฟอนต์อื่นทับ |
 | ภาษาไทยเพี้ยน/เป็นตัวเหลี่ยมหลังลง mod ไทยตัวอื่นด้วย | ห้ามใช้คู่กับ ThaiLanguage Remastered จาก Nexus (`modThaiLanguage` และ `modThaiFont` ของเขาชื่อซ้ำกับของเรา) ให้กด **ติดตั้ง / อัปเดต** อีกครั้ง โปรแกรมจะถามแล้วย้ายออกให้ |
 | ข้อความเพี้ยนหลังใช้ w3tu ตัวเก่า | ใน Steam/GOG ให้ Verify integrity of game files แล้วติดตั้งใหม่ |
+| เขียนลงโฟลเดอร์เกมไม่ได้ (เช่นเกมจากแอป Xbox) | กด **สร้างไฟล์ไว้ copy เอง...** แล้วคัดลอก `modThai*` ลงโฟลเดอร์ `mods` ของเกมเอง |
 | ติดตั้งไม่สำเร็จ | ดู log ที่ `%APPDATA%\ThaiW3Setup\install.log` |
 
 ## ใช้งานผ่าน command line
@@ -121,9 +131,12 @@ Windows จึงอาจขึ้นเตือนได้
 ThaiW3Setup.exe detect
 ThaiW3Setup.exe install --font Sarabun --mode double --color1 #FFFFFF --color2 #A0A0A0 --size2 24
 ThaiW3Setup.exe install --sub-y -10 --sub-width 120 --dialog-y -8 --choice-x -10 --choice-y 5 --choice-scale 120
+ThaiW3Setup.exe export --out D:\ThaiFiles --font Sarabun --mode double
 ThaiW3Setup.exe status
 ThaiW3Setup.exe uninstall
 ```
+
+`export` ใช้ตัวเลือกเดียวกับ `install` แต่สร้างไฟล์ไว้ที่ `<out>\ThaiW3_mods` ให้คัดลอกลง `mods` ของเกมเอง
 
 ดูตัวเลือกทั้งหมดได้จาก `ThaiW3Setup.exe install --help`
 
@@ -174,4 +187,5 @@ build.bat offline         :: build โดยไม่ดาวน์โหลด
 - คำแปลส่วนเติม: ผู้ร่วมแปลใน [Google Sheet ของกลุ่มนักแปล The Witcher 3 ภาษาไทย](https://docs.google.com/spreadsheets/d/1Ar5MVSc4Mdr7YAFssOmTJcJ9IyHrtxUZxt649-DhnA4)
 - patch ซับสองภาษาต้นฉบับ: svvv
 - ภาพพื้นหลังในหน้าต่างปรับตำแหน่งซับ: MILOGAME_AVIF HDR ([อัลบั้ม Zonerama](https://eu.zonerama.com/PrestigiousCap4934/Album/16612460))
+- ไอคอนปุ่ม: [Material Symbols](https://github.com/google/material-design-icons) ของ Google (Apache License 2.0) สร้างด้วย `devtools/make_ui_icons.py`
 - The Witcher 3: Wild Hunt © CD PROJEKT S.A. โปรแกรมนี้เป็นผลงานของแฟนเกม ไม่เกี่ยวข้องกับ CD PROJEKT RED
