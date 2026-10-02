@@ -1,10 +1,15 @@
 """Write Thai release notes (shown on GitHub and in the in-app update dialog).
 
 usage: python packaging/release_notes.py VERSION SHA256 OUT [VIRUSTOTAL_ANALYSIS]
+
+The change list comes from packaging/notes/VERSION.md when it exists, otherwise from the commit subjects.
 """
+import os
 import re
 import subprocess
 import sys
+
+NOTES_DIR = os.path.join(os.path.dirname(__file__), "notes")
 
 KINDS = {"feat": "เพิ่ม", "fix": "แก้ไข", "perf": "ปรับปรุง", "refactor": "ปรับปรุง", "docs": "เอกสาร"}
 
@@ -32,8 +37,11 @@ def main() -> None:
     version, sha256, path = sys.argv[1:4]
     analysis = sys.argv[4] if len(sys.argv) > 4 else ""
     lines = [f"## ThaiW3Setup {version}", ""]
-    items = changes()
-    if items:
+    written = os.path.join(NOTES_DIR, f"{version}.md")
+    if os.path.exists(written):
+        with open(written, encoding="utf-8") as fh:
+            lines += [fh.read().strip(), ""]
+    elif items := changes():
         lines += ["### สิ่งที่เปลี่ยน", *items, ""]
     lines += [
         "### วิธีติดตั้ง / อัปเดต",
