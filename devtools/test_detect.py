@@ -40,6 +40,15 @@ try:
     g = identify(make_game(split=12, launcher=False))
     assert g.edition == EDITION_REMASTERED, "exe version outranks launcher-configuration.json"
 
+    # Xbox app layout: the picked folder holds Content\ with bin\ and content\ inside
+    xbox = Path(tempfile.mkdtemp()) / "The Witcher 3- Wild Hunt - Game of the Year Edition"
+    xbox.mkdir()
+    make_game().rename(xbox / "Content")
+    g = identify(xbox)
+    assert g.edition == EDITION_REMASTERED and g.path == xbox / "Content", (g.edition, g.path)
+    assert g.mods_dir == xbox / "Content" / "mods"
+    assert game_detect.game_root(xbox / "Content") == xbox / "Content"
+
     game_detect.exe_version = lambda _p: "4.4.0.0"
     g = identify(make_game(split=12))
     assert g.edition == EDITION_NEXTGEN and not g.notes, (g.edition, g.notes)

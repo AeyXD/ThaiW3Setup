@@ -1,4 +1,4 @@
-"""Locate The Witcher 3 installs (Steam, GOG, Epic) and identify the edition."""
+"""Locate The Witcher 3 installs (Steam, GOG, Epic, Xbox app) and identify the edition."""
 from __future__ import annotations
 
 import ctypes
@@ -131,8 +131,16 @@ def loose_note(names: list[str]) -> str:
             " ควรย้ายออก (ห้ามลบ content0 และ metadata.store)")
 
 
-def identify(path: Path | str, store: str = "") -> GameInfo:
+def game_root(path: Path | str) -> Path:
+    """The folder holding bin\\ and content\\; Xbox app installs keep them one level down in Content\\."""
     p = Path(path)
+    if not (p / "content" / "content0").is_dir() and (p / "Content" / "content" / "content0").is_dir():
+        return p / "Content"
+    return p
+
+
+def identify(path: Path | str, store: str = "") -> GameInfo:
+    p = game_root(path)
     exe_dx12 = p / "bin" / "x64_dx12" / "witcher3.exe"
     exe_dx11 = p / "bin" / "x64" / "witcher3.exe"
     content0 = p / "content" / "content0"
@@ -246,6 +254,18 @@ def _epic_candidates() -> list[Path]:
     return out
 
 
+def _xbox_candidates() -> list[Path]:
+    out = []
+    for letter in string.ascii_uppercase[2:]:
+        root = Path(f"{letter}:\\XboxGames")
+        try:
+            if root.is_dir():
+                out += [d for d in sorted(root.iterdir()) if d.is_dir() and "witcher 3" in d.name.lower()]
+        except OSError:
+            continue
+    return out
+
+
 def _drive_guesses() -> list[Path]:
     out = []
     for letter in string.ascii_uppercase[2:]:
@@ -264,7 +284,7 @@ def find_games() -> list[GameInfo]:
     seen = set()
     found = []
     sources = (("Steam", _steam_candidates), ("GOG", _gog_candidates),
-               ("Epic", _epic_candidates), ("", _drive_guesses))
+               ("Epic", _epic_candidates), ("Xbox", _xbox_candidates), ("", _drive_guesses))
     for store, fn in sources:
         try:
             candidates = fn()

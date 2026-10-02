@@ -1,4 +1,4 @@
-"""Install / uninstall / status for the Thai mod. Only touches mods/modThai*."""
+"""Install / export / uninstall / status for the Thai mod. Only touches mods/modThai*."""
 from __future__ import annotations
 
 import hashlib
@@ -17,7 +17,7 @@ from . import __version__
 from .assets import font_files, storybook_files, write_mod_content
 from .custom import merged_overrides
 from .game_detect import GameInfo, identify
-from .options import InstallOptions
+from .options import SLOT_EN, InstallOptions
 from .progress import ProgressFn, noop, scaled
 from .script_patcher import MODULES_REL, SCRIPT_FILES, PatchError, ScriptOptions, build_scripts
 from .sheet import get_translations
@@ -36,6 +36,8 @@ LEGACY_PATTERN = re.compile(r"^modkuntoonw3thai", re.IGNORECASE)
 # ThaiLanguage Remastered 5.0 on Nexus ships modThaiLanguage plus its own modThaiFont (same name as ours)
 FOREIGN_THAI_PATTERN = re.compile(r"^modThaiLanguage$", re.IGNORECASE)
 DISABLED_DIR = "mods_disabled"
+EXPORT_DIR = "ThaiW3_mods"
+EXPORT_README = "วิธีติดตั้ง.txt"
 THAI_CHARS = re.compile("[\u0e00-\u0e7f]")
 
 ConfirmFn = Callable[[str], bool]
@@ -50,6 +52,7 @@ class InstallReport:
     custom: int = 0
     warnings: list[str] = field(default_factory=list)
     mods: list[str] = field(default_factory=list)
+    output: str = ""
 
     @property
     def percent(self) -> float:
@@ -188,8 +191,7 @@ def _remove_our_mods(game: GameInfo) -> None:
             shutil.rmtree(target)
 
 
-def install(opts: InstallOptions, progress: ProgressFn = noop, confirm: ConfirmFn = lambda _m: True,
-            force_download: bool = False) -> InstallReport:
+def _supported_game(opts: InstallOptions) -> GameInfo:
     opts.validate()
     game = identify(opts.game_path)
     if not game.supported:
@@ -197,6 +199,12 @@ def install(opts: InstallOptions, progress: ProgressFn = noop, confirm: ConfirmF
     log.info("game %s version %s", game.path, game.version or "?")
     if game.stale_content:
         log.warning("leftover 4.x folders: %s", ", ".join(game.stale_content))
+    return game
+
+
+def install(opts: InstallOptions, progress: ProgressFn = noop, confirm: ConfirmFn = lambda _m: True,
+            force_download: bool = False) -> InstallReport:
+    game = _supported_game(opts)
     report = InstallReport()
 
     try:
@@ -223,6 +231,22 @@ def install(opts: InstallOptions, progress: ProgressFn = noop, confirm: ConfirmF
             report.warnings.append(f"ย้าย mod ไทยจากที่อื่น ({names}) ไปไว้ที่ {target} แล้ว")
         else:
             report.warnings.append(f"ยังมี mod ไทยจากที่อื่น ({names}) อยู่ในโฟลเดอร์ mods ภาษาไทยจะแสดงเพี้ยน")
+    staging = Path(tempfile.mkdtemp(prefix="thaiw3_"))
+    try:
+        _build_mods(game, opts, staging, report, progress, force_download)
+        progress(0.93, "คัดลอกไฟล์ลงโฟลเดอร์ mods...")
+        _remove_our_mods(game)
+        for name in report.mods:
+            shutil.copytree(staging / name, game.mods_dir / name)
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
+    progress(1.0, "ติดตั้งเสร็จแล้ว")
+    return report
+
+
+def _build_mods(game: GameInfo, opts: InstallOptions, staging: Path, report: InstallReport,
+                progress: ProgressFn, force_download: bool) -> None:
+    """Write every enabled mod folder and the manifest into staging, filling in report."""
     if base_strings_modified(game):
         report.warnings.append("ไฟล์ข้อความของตัวเกมถูกโปรแกรมเก่าแก้ไขไว้ แนะนำให้ใช้ Verify integrity of game files ใน Steam/GOG")
 
@@ -240,63 +264,106 @@ def install(opts: InstallOptions, progress: ProgressFn = noop, confirm: ConfirmF
                                " แนะนำให้ใช้ Verify integrity of game files ใน Steam/GOG แล้วติดตั้งใหม่")
 
     progress(0.78, "เตรียมฟอนต์และซับ Storybook...")
+    (staging / MOD_TEXT / "content").mkdir(parents=True)
+    for name, data in text.files.items():
+        (staging / MOD_TEXT / "content" / name).write_bytes(data)
+    report.mods.append(MOD_TEXT)
+
+    write_mod_content(staging / MOD_FONT / "content", font_files(opts.font))
+    report.mods.append(MOD_FONT)
+
+    if opts.storybook:
+        write_mod_content(staging / MOD_STORY / "content", storybook_files(opts.slot))
+        report.mods.append(MOD_STORY)
+
+    if opts.subtitle_style:
+        progress(0.85, "ปรับ script สีและขนาดซับ...")
+        try:
+            scripts = build_scripts(game.script_modules, ScriptOptions(
+                opts.color1, opts.color2, opts.size1, opts.size2, opts.speaker_colors,
+                opts.sub_x, opts.sub_y, opts.sub_width, opts.dialog_x, opts.dialog_y,
+                opts.choice_x, opts.choice_y, opts.choice_scale))
+            target = staging / MOD_SCRIPT / "content" / MODULES_REL
+            target.mkdir(parents=True)
+            for name, data in scripts.items():
+                (target / name).write_bytes(data)
+            report.mods.append(MOD_SCRIPT)
+            overlaps = script_overlaps(game)
+            if overlaps:
+                report.warnings.append(f"mod อื่นแก้ script ซับไฟล์เดียวกัน ({'; '.join(overlaps)})"
+                                       " เกมอาจขึ้น error ตอนคอมไพล์ script ให้รวมด้วย Script Merger"
+                                       " หรือเอาเครื่องหมายออกจาก \"ปรับสีและขนาดซับ\" แล้วติดตั้งใหม่")
+        except PatchError as exc:
+            log.warning("script patch skipped: %s", exc)
+            report.warnings.append("script ของเกมเวอร์ชันนี้ไม่ตรงกับที่รองรับ จึงข้ามการปรับสี/ขนาดซับ"
+                                   " (ข้อความภาษาไทยยังใช้งานได้ปกติ)")
+
+    manifest = {
+        "version": __version__,
+        "installed_at": time.strftime("%Y-%m-%d %H:%M"),
+        "edition": game.edition,
+        "options": asdict(opts),
+        "mods": report.mods,
+        "translated": report.translated,
+        "total": report.total,
+        "percent": round(report.percent, 2),
+        "translation_source": report.source,
+        "files": _file_hashes(staging, report.mods),
+    }
+    (staging / MOD_TEXT / MANIFEST).write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def export_readme(game: GameInfo, mods: list[str], slot: str) -> str:
+    folders = "\n".join(f"   - {m}" for m in mods)
+    language = "English" if slot == SLOT_EN else "ไทย"
+    return (f"ไฟล์ภาษาไทย The Witcher 3 สร้างโดย ThaiW3Setup v{__version__} เมื่อ {time.strftime('%Y-%m-%d %H:%M')}\n"
+            "\n"
+            "วิธีติดตั้ง\n"
+            "1. ปิดเกมก่อน\n"
+            f"2. เปิดโฟลเดอร์เกม (โฟลเดอร์ที่มี bin และ content อยู่ข้างใน)\n   {game.path}\n"
+            "3. ถ้ายังไม่มีโฟลเดอร์ชื่อ mods ให้สร้างขึ้นมา\n"
+            "4. ถ้าในโฟลเดอร์ mods มีโฟลเดอร์ modThai... อยู่แล้ว ให้ลบออกก่อน\n"
+            f"5. คัดลอกโฟลเดอร์ต่อไปนี้ทั้งหมดไปไว้ในโฟลเดอร์ mods\n{folders}\n"
+            f"6. เข้าเกมแล้วตั้งค่า > ภาษา > ภาษาข้อความเป็น {language}\n"
+            "\n"
+            "ถอนการติดตั้ง: ลบโฟลเดอร์ modThai... ออกจากโฟลเดอร์ mods ของเกม\n")
+
+
+def export(opts: InstallOptions, out_dir: str | os.PathLike, progress: ProgressFn = noop,
+           force_download: bool = False) -> InstallReport:
+    """Build the mods into out_dir/ThaiW3_mods for the user to copy into the game's mods folder by hand."""
+    game = _supported_game(opts)
+    target = Path(out_dir) / EXPORT_DIR
+    try:
+        _check_writable(target)
+    except PermissionError as exc:
+        raise PermissionError(f"ไม่มีสิทธิ์เขียนไฟล์ลงโฟลเดอร์ {target}") from exc
+    report = InstallReport(output=str(target))
+
+    old = legacy_mods(game)
+    if old:
+        report.warnings.append(f"พบ mod ภาษาไทยตัวเก่าของ w3tu ({', '.join(p.name for p in old)}) ในโฟลเดอร์ mods"
+                               " ของเกม ให้ลบออกก่อนคัดลอก ไม่งั้นจะทำงานชนกัน")
+    progress(0.0, "ตรวจหา mod ภาษาไทยตัวอื่น...")
+    foreign = foreign_thai_mods(game, deep=True)
+    if foreign:
+        report.warnings.append(f"พบ mod ภาษาไทยจากที่อื่น ({', '.join(p.name for p in foreign)}) ในโฟลเดอร์ mods"
+                               " ของเกม ให้ย้ายออกก่อนคัดลอก ไม่งั้นภาษาไทยจะแสดงเพี้ยน")
+
     staging = Path(tempfile.mkdtemp(prefix="thaiw3_"))
     try:
-        (staging / MOD_TEXT / "content").mkdir(parents=True)
-        for name, data in text.files.items():
-            (staging / MOD_TEXT / "content" / name).write_bytes(data)
-        report.mods.append(MOD_TEXT)
-
-        write_mod_content(staging / MOD_FONT / "content", font_files(opts.font))
-        report.mods.append(MOD_FONT)
-
-        if opts.storybook:
-            write_mod_content(staging / MOD_STORY / "content", storybook_files(opts.slot))
-            report.mods.append(MOD_STORY)
-
-        if opts.subtitle_style:
-            progress(0.85, "ปรับ script สีและขนาดซับ...")
-            try:
-                scripts = build_scripts(game.script_modules, ScriptOptions(
-                    opts.color1, opts.color2, opts.size1, opts.size2, opts.speaker_colors,
-                    opts.sub_x, opts.sub_y, opts.sub_width, opts.dialog_x, opts.dialog_y,
-                    opts.choice_x, opts.choice_y, opts.choice_scale))
-                target = staging / MOD_SCRIPT / "content" / MODULES_REL
-                target.mkdir(parents=True)
-                for name, data in scripts.items():
-                    (target / name).write_bytes(data)
-                report.mods.append(MOD_SCRIPT)
-                overlaps = script_overlaps(game)
-                if overlaps:
-                    report.warnings.append(f"mod อื่นแก้ script ซับไฟล์เดียวกัน ({'; '.join(overlaps)})"
-                                           " เกมอาจขึ้น error ตอนคอมไพล์ script ให้รวมด้วย Script Merger"
-                                           " หรือเอาเครื่องหมายออกจาก \"ปรับสีและขนาดซับ\" แล้วติดตั้งใหม่")
-            except PatchError as exc:
-                log.warning("script patch skipped: %s", exc)
-                report.warnings.append("script ของเกมเวอร์ชันนี้ไม่ตรงกับที่รองรับ จึงข้ามการปรับสี/ขนาดซับ"
-                                       " (ข้อความภาษาไทยยังใช้งานได้ปกติ)")
-
-        manifest = {
-            "version": __version__,
-            "installed_at": time.strftime("%Y-%m-%d %H:%M"),
-            "edition": game.edition,
-            "options": asdict(opts),
-            "mods": report.mods,
-            "translated": report.translated,
-            "total": report.total,
-            "percent": round(report.percent, 2),
-            "translation_source": report.source,
-            "files": _file_hashes(staging, report.mods),
-        }
-        (staging / MOD_TEXT / MANIFEST).write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-
-        progress(0.93, "คัดลอกไฟล์ลงโฟลเดอร์ mods...")
-        _remove_our_mods(game)
+        _build_mods(game, opts, staging, report, progress, force_download)
+        progress(0.93, f"คัดลอกไฟล์ไปที่ {target}...")
+        for name in OUR_MODS:
+            if (target / name).exists():
+                shutil.rmtree(target / name)
         for name in report.mods:
-            shutil.copytree(staging / name, game.mods_dir / name)
+            shutil.copytree(staging / name, target / name)
+        (target / EXPORT_README).write_text(export_readme(game, report.mods, opts.slot), encoding="utf-8-sig")
     finally:
         shutil.rmtree(staging, ignore_errors=True)
-    progress(1.0, "ติดตั้งเสร็จแล้ว")
+    log.info("exported %s to %s", ", ".join(report.mods), target)
+    progress(1.0, "สร้างไฟล์เสร็จแล้ว")
     return report
 
 

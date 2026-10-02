@@ -1,4 +1,4 @@
-"""Command-line interface: install / uninstall / status / detect."""
+"""Command-line interface: install / export / uninstall / status / detect."""
 from __future__ import annotations
 
 import argparse
@@ -8,7 +8,7 @@ from dataclasses import fields
 from . import __version__
 from .custom import cached_stats, sheet_key
 from .game_detect import find_games, identify
-from .installer import check_coverage, install, status, uninstall
+from .installer import check_coverage, export, install, status, uninstall
 from .options import FONTS, InstallOptions, load_options, save_options
 
 
@@ -25,23 +25,7 @@ def _game_path(arg: str | None) -> str:
     return str(games[0].path)
 
 
-def main(argv: list[str] | None = None) -> int:
-    # Thai messages crash on the Windows console code page when output is piped or redirected
-    for stream in (sys.stdout, sys.stderr):
-        if stream is not None and hasattr(stream, "reconfigure"):
-            stream.reconfigure(encoding="utf-8", errors="replace")
-    p = argparse.ArgumentParser(prog="ThaiW3Setup", description="Thai translation for The Witcher 3 Remastered")
-    p.add_argument("--version", action="version", version=__version__)
-    sub = p.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("detect")
-    sub.add_parser("custom", help="list custom translation sheets")
-    sub.add_parser("check-update", help="check GitHub for a newer version of this setup")
-    for name in ("install", "uninstall", "status"):
-        s = sub.add_parser(name)
-        s.add_argument("--game")
-    sub.add_parser("check", help="download the latest translation and count what an install would translate"
-                   ).add_argument("--game")
-    inst = sub.choices["install"]
+def _add_style_args(inst: argparse.ArgumentParser) -> None:
     inst.add_argument("--font", choices=list(FONTS))
     inst.add_argument("--mode", choices=["thai", "double"])
     inst.add_argument("--english-first", action="store_true")
@@ -63,7 +47,31 @@ def main(argv: list[str] | None = None) -> int:
     inst.add_argument("--choice-scale", type=int, help="dialogue choices size, percent of default (50-250)")
     inst.add_argument("--custom", metavar="N,N", help="enable exactly these custom sheets (numbers from 'custom', 0 = none)")
     inst.add_argument("--refresh", action="store_true", help="force re-download of translations")
-    inst.add_argument("--yes", action="store_true", help="remove old w3tu mods and move other Thai mods to mods_disabled without asking")
+
+
+def main(argv: list[str] | None = None) -> int:
+    # Thai messages crash on the Windows console code page when output is piped or redirected
+    for stream in (sys.stdout, sys.stderr):
+        if stream is not None and hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+    p = argparse.ArgumentParser(prog="ThaiW3Setup", description="Thai translation for The Witcher 3 Remastered")
+    p.add_argument("--version", action="version", version=__version__)
+    sub = p.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("detect")
+    sub.add_parser("custom", help="list custom translation sheets")
+    sub.add_parser("check-update", help="check GitHub for a newer version of this setup")
+    for name in ("install", "uninstall", "status"):
+        s = sub.add_parser(name)
+        s.add_argument("--game")
+    sub.add_parser("check", help="download the latest translation and count what an install would translate"
+                   ).add_argument("--game")
+    exp = sub.add_parser("export", help="build the mods into OUT\\ThaiW3_mods to copy into the game's mods folder by hand")
+    exp.add_argument("--game")
+    exp.add_argument("--out", required=True)
+    for inst in (sub.choices["install"], exp):
+        _add_style_args(inst)
+    sub.choices["install"].add_argument(
+        "--yes", action="store_true", help="remove old w3tu mods and move other Thai mods to mods_disabled without asking")
     args = p.parse_args(argv)
 
     if args.cmd == "detect":
@@ -138,11 +146,16 @@ def main(argv: list[str] | None = None) -> int:
             return True
         return input(message + " [y/N] ").strip().lower() in ("y", "yes")
 
-    report = install(opts, _progress, confirm, force_download=args.refresh)
+    if args.cmd == "export":
+        report = export(opts, args.out, _progress, force_download=args.refresh)
+    else:
+        report = install(opts, _progress, confirm, force_download=args.refresh)
     save_options(opts)
     print(f"translated {report.translated}/{report.total} ({report.percent:.2f}%) from {report.source},"
           f" custom overrides {report.custom}")
     print("mods:", ", ".join(report.mods))
+    if report.output:
+        print(f"output: {report.output}  (copy these folders into {identify(game_path).mods_dir})")
     for w in report.warnings:
         print("warning:", w)
     return 0
