@@ -30,8 +30,6 @@ UI_BOLD = ("Leelawadee UI", 10, "bold")
 UI_TITLE = ("Leelawadee UI", 15, "bold")
 PREVIEW_SIZE = (620, 150)
 ICON_SIZE = 20
-MENU_EXPORT, MENU_UNINSTALL = 0, 1
-
 T_UPGRADE_NOTICE = ("\u0e2a\u0e33\u0e2b\u0e23\u0e31\u0e1a\u0e15\u0e31\u0e27\u0e40\u0e01\u0e21\u0e17\u0e35\u0e48\u0e2d\u0e31\u0e1b\u0e40\u0e27\u0e2d\u0e23\u0e4c\u0e0a\u0e31\u0e19\u0e08\u0e32\u0e01 Classic / Next-gen "
                     "\u0e43\u0e2b\u0e49\u0e25\u0e1a mod \u0e41\u0e1b\u0e25\u0e40\u0e01\u0e48\u0e32 \u0e41\u0e25\u0e30 \u0e0b\u0e48\u0e2d\u0e21\u0e44\u0e1f\u0e25\u0e4c\u0e40\u0e01\u0e21 "
                     "\u0e01\u0e48\u0e2d\u0e19\u0e25\u0e07 mod \u0e15\u0e31\u0e27\u0e19\u0e35\u0e49 "
@@ -67,6 +65,7 @@ class App(tk.Tk):
         style.configure("Big.TButton", font=UI_BOLD, padding=(16, 6))
         style.configure("Icon.TButton", padding=(6, 6))
         style.configure("More.TButton", padding=(10, 6))
+        style.configure("Split.TButton", padding=(2, 6))
 
         self.opts = load_options()
         self.events: queue.Queue = queue.Queue()
@@ -234,25 +233,35 @@ class App(tk.Tk):
         self.btn_install = ttk.Button(right, text="ติดตั้ง / อัปเดต", image=ttk_image(self, "download", ICON_SIZE),
                                       compound="left", style="Big.TButton", command=self.do_install)
         self.btn_install.pack(side="left")
+        self.menu_install = self._make_menu((("drive_file_move", T_EXPORT_BUTTON, self.do_export),))
+        self.btn_install_more = ttk.Button(right, image=ttk_image(self, "expand_more", ICON_SIZE), style="Split.TButton",
+                                           command=lambda: self.popup_menu(self.menu_install, self.btn_install))
+        self.btn_install_more.pack(side="left", fill="y")
+        Tooltip(self.btn_install_more, T_EXPORT_BUTTON.rstrip("."))
+        self.menu_more = self._make_menu((("delete", "ถอนการติดตั้ง", self.do_uninstall),))
         self.btn_more = ttk.Button(right, text="เพิ่มเติม", image=ttk_image(self, "expand_more", ICON_SIZE),
-                                   compound="right", style="More.TButton", command=self.show_more_menu)
+                                   compound="right", style="More.TButton",
+                                   command=lambda: self.popup_menu(self.menu_more, self.btn_more, align_right=True))
         self.btn_more.pack(side="left", padx=(6, 0), fill="y")
-        self.menu_more = tk.Menu(self, tearoff=False, font=UI_FONT)
-        for name, label, command in (("drive_file_move", T_EXPORT_BUTTON, self.do_export),
-                                     ("delete", "ถอนการติดตั้ง", self.do_uninstall)):
-            image = icon(self, name, ICON_SIZE)
-            self.menu_more.add_command(label=f"  {label}", command=command, **({"image": image, "compound": "left"}
-                                                                                if image else {}))
         self.update_states()
 
-    def show_more_menu(self):
-        btn = self.btn_more
-        self.menu_more.update_idletasks()
-        x = btn.winfo_rootx() + btn.winfo_width() - self.menu_more.winfo_reqwidth()
+    def _make_menu(self, items) -> tk.Menu:
+        menu = tk.Menu(self, tearoff=False, font=UI_FONT)
+        for name, label, command in items:
+            image = icon(self, name, ICON_SIZE)
+            menu.add_command(label=f"  {label}", command=command, **({"image": image, "compound": "left"}
+                                                                      if image else {}))
+        return menu
+
+    def popup_menu(self, menu: tk.Menu, anchor, align_right: bool = False):
+        menu.update_idletasks()
+        x = anchor.winfo_rootx()
+        if align_right:
+            x += anchor.winfo_width() - menu.winfo_reqwidth()
         try:
-            self.menu_more.tk_popup(x, btn.winfo_rooty() + btn.winfo_height())
+            menu.tk_popup(x, anchor.winfo_rooty() + anchor.winfo_height())
         finally:
-            self.menu_more.grab_release()
+            menu.grab_release()
 
     # ---------- helpers ----------
     def current_options(self):
@@ -431,9 +440,9 @@ class App(tk.Tk):
         self._set_more_states(ok, bool(st and st.installed))
 
     def _set_more_states(self, export_ok: bool, uninstall_ok: bool):
+        self.btn_install_more.configure(state="normal" if export_ok and not self.busy else "disabled")
         self.btn_more.configure(state="disabled" if self.busy else "normal")
-        self.menu_more.entryconfigure(MENU_EXPORT, state="normal" if export_ok and not self.busy else "disabled")
-        self.menu_more.entryconfigure(MENU_UNINSTALL, state="normal" if uninstall_ok and not self.busy else "disabled")
+        self.menu_more.entryconfigure(0, state="normal" if uninstall_ok and not self.busy else "disabled")
 
     def _latest_text(self, path: str, st) -> dict:
         if not self.latest or self.latest[0] != path or st is None:
