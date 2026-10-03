@@ -13,6 +13,7 @@ from dataclasses import asdict, dataclass, field
 
 from .paths import assets_dir, cache_dir
 from .progress import ProgressFn, noop, scaled
+from .rich_color import ColorWorkbook
 from .sheet import CACHE_MAX_AGE, EXPORT_URL, _cell_text, _download
 
 log = logging.getLogger(__name__)
@@ -171,7 +172,7 @@ def _fill_kind(cell) -> str:
 
 def parse_custom_xlsx(data: bytes, tab: str = "") -> CustomData:
     """Worksheet ``tab`` (or the first): a title row, a header row with ID and TRANSLATE (and optionally
-    THAI), then data rows."""
+    THAI), then data rows. TRANSLATE and THAI keep the category colours painted on their text (see rich_color)."""
     import openpyxl
 
     wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
@@ -179,6 +180,9 @@ def parse_custom_xlsx(data: bytes, tab: str = "") -> CustomData:
         wb.close()
         raise ValueError(f"\u0e44\u0e21\u0e48\u0e1e\u0e1a\u0e41\u0e17\u0e47\u0e1a \"{tab}\" \u0e43\u0e19 sheet")
     ws = wb[tab] if tab else wb.worksheets[0]
+    colored_wb = ColorWorkbook(data)
+    colored = dict(colored_wb.rows(tab or 0))
+    colored_wb.close()
     title, id_col, tr_col, th_col = "", None, None, None
     out = CustomData("", {})
     for i, styled in enumerate(ws.iter_rows()):
@@ -203,12 +207,16 @@ def parse_custom_xlsx(data: bytes, tab: str = "") -> CustomData:
             out.done.extend(ids)
         elif kind == FILL_OTHER:
             out.skipped.extend(ids)
+        row_num = next((c.row for c in styled if getattr(c, "row", None)), None)
+        tagged = colored.get(row_num, {})
         if th_col is not None and len(cells) > th_col and cells[th_col]:
+            th = tagged[th_col].tagged.strip() if th_col in tagged else cells[th_col]
             for sid in ids:
-                out.thai[sid] = cells[th_col]
+                out.thai[sid] = th
         if len(cells) > tr_col and cells[tr_col]:
+            tr = tagged[tr_col].tagged if tr_col in tagged else _cell_text(row[tr_col])
             for sid in ids:
-                out.strings[sid] = _cell_text(row[tr_col])
+                out.strings[sid] = tr
     wb.close()
     if id_col is None:
         raise ValueError("ไม่พบหัวตาราง ID / TRANSLATE ในแท็บแรกของ sheet")
@@ -230,24 +238,28 @@ def _bundled_path(sheet_id: str, tab: str = ""):
     return assets_dir() / "custom" / f"{_file_stem(sheet_id, tab)}.json.gz"
 
 
+# 2: TRANSLATE / THAI carry <font color> tags for painted category colours
+CUSTOM_FORMAT = 2
+
+
 def save_custom(path, data: CustomData, fetched_at: float) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with gzip.open(path, "wt", encoding="utf-8") as fh:
-        json.dump({"title": data.title, "fetched_at": fetched_at,
+        json.dump({"format": CUSTOM_FORMAT, "title": data.title, "fetched_at": fetched_at,
                    "strings": {str(k): v for k, v in data.strings.items()},
                    "thai": {str(k): v for k, v in data.thai.items()},
                    "ids": data.ids, "done": data.done, "skipped": data.skipped}, fh, ensure_ascii=False)
 
 
 def load_custom(path) -> tuple[CustomData, float, bool]:
-    """The flag is False for files written before THAI and ids were saved."""
+    """The flag is False for files of an older CUSTOM_FORMAT (no THAI and ids, or no category colours)."""
     with gzip.open(path, "rt", encoding="utf-8") as fh:
         payload = json.load(fh)
     data = CustomData(payload.get("title", ""), {int(k): v for k, v in payload["strings"].items()},
                       {int(k): v for k, v in payload.get("thai", {}).items()},
                       [int(k) for k in payload.get("ids", [])], [int(k) for k in payload.get("done", [])],
                       [int(k) for k in payload.get("skipped", [])])
-    return data, float(payload["fetched_at"]), "ids" in payload
+    return data, float(payload["fetched_at"]), payload.get("format") == CUSTOM_FORMAT
 
 
 def _fetch(sheet_id: str, progress: ProgressFn, pool: dict[str, bytes] | None) -> bytes:
@@ -296,11 +308,10 @@ def get_custom_data(sheet_id: str, force_download: bool = False, allow_online: b
                     progress: ProgressFn = noop, tab: str = "",
                     pool: dict[str, bytes] | None = None) -> CustomData:
     cache = _cache_path(sheet_id, tab)
-    name_tab = is_name_tab({"sheet_id": sheet_id, "tab": tab})
     if cache.exists() and not force_download:
         try:
             data, ts, complete = load_custom(cache)
-            fresh = time.time() - ts < CACHE_MAX_AGE and (complete or not name_tab)
+            fresh = time.time() - ts < CACHE_MAX_AGE and complete
             if fresh or not allow_online:
                 return data
         except (OSError, ValueError, KeyError) as exc:
