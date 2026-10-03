@@ -46,6 +46,20 @@ def test_moved_patch():
         assert text.count("{") == text.count("}")
 
 
+def test_multiline_double():
+    # combine() writes "<br><br>[" after multi-line Thai; every "  [" split turns it back first
+    out = scripts()
+    expected = {"hudModuleSubtitles.ws": ["htmlString"], "hudModuleDialog.ws": ["text", "text", "lastSetChoices[ i ].description"],
+                "hudModuleOneliners.ws": ["value"], "hudModuleQuests.ws": ["questName"]}
+    for name, variables in expected.items():
+        text = out[name]
+        for var in set(variables):
+            line = f'{var} = StrReplaceAll({var}, "<br><br>[", "  [");'
+            assert text.count(line) == variables.count(var), (name, var)
+            assert text.index(line) < text.index(f'StrContains({var}, "  [")' if var != "text" and var != "htmlString"
+                                                 else f'StrReplaceAll({var}, "  [",'), (name, var)
+
+
 def test_validate():
     InstallOptions(sub_x=100, sub_y=-100, sub_width=150, dialog_x=12.5, choice_x=-75, choice_scale=250).validate()
     for bad in (dict(sub_x=100.5), dict(dialog_y=-110), dict(choice_x=101), dict(layout_bg="nope"), dict(sub_width=40), dict(sub_width=12.5), dict(sub_x="1"),

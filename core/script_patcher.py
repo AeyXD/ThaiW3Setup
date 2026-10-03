@@ -34,6 +34,7 @@ VARS_END = "\t// mod thai\n\n"
 
 DIALOG_LINES = """\
 		// mod thai
+		text = StrReplaceAll(text, "<br><br>[", "  [");
 		text = StrReplaceAll(text, "  [", "</FONT><FONT size = '"+ IntToString( 27 + subtitleScale + (m_size2 - m_size_default) ) + "' COLOR='" + m_color2 + "'><br>[");
 		text = "<FONT COLOR='" + m_color1 + "'>" + text + "</FONT>";
 		// mod thai
@@ -41,6 +42,7 @@ DIALOG_LINES = """\
 
 DIALOG_CHOICE = """\
 			// mod thai
+			lastSetChoices[ i ].description = StrReplaceAll(lastSetChoices[ i ].description, "<br><br>[", "  [");
 			if(StrContains(lastSetChoices[ i ].description, "  ["))
 			{
 				lastSetChoices[ i ].description = StrReplaceAll(lastSetChoices[ i ].description, "  [", " [");
@@ -55,6 +57,7 @@ DIALOG_WITOLD = (
 
 ONELINER = """\
 		// mod thai
+		value = StrReplaceAll(value, "<br><br>[", "  [");
 		if(StrContains(value, "  ["))
 		{
 			value = StrReplaceAll(value, "  [", "</FONT><FONT COLOR='" + m_color2 + "'><br>[");
@@ -66,6 +69,7 @@ ONELINER = """\
 
 QUEST_NAME = """\
 		// mod thai
+		questName = StrReplaceAll(questName, "<br><br>[", "  [");
 		if(StrContains(questName, "  ["))
 		{
 			questName = StrLeft(questName, StrFindFirst(questName, "  ["));
@@ -85,6 +89,7 @@ QUEST_OBJECTIVE = """\
 
 SUB_SPLIT = """\
 		// mod thai
+		htmlString = StrReplaceAll(htmlString, "<br><br>[", "  [");
 		htmlString = StrReplaceAll(htmlString, "  [", "</FONT><FONT size = '"+ IntToString( 27 + subScale + (m_size2 - m_size_default) ) + "' COLOR='" + m_color2 + "'><br>[");
 		// mod thai
 """
