@@ -123,6 +123,36 @@ for name in ("modThaiText-1.0.0.zip", "modThaiFont-1.0.0.zip", BUILD_INFO, GUIDE
     (pkg2 / name).write_bytes(b"new")
 assert publish_packages(pkg2, old) == [BUILD_INFO, "modThaiFont-0.3.0.zip",
                                        "modThaiText-0.3.0.zip", GUIDE_NAME]
+
+# a cross-drive move copies before deleting, so a failure can leave a partially
+# written new zip at the target even though shutil.move never returned; the rollback
+# must take that half-written file with it, not leave a corrupt zip next to the old set
+old3 = Path(tempfile.mkdtemp()) / "ThaiW3_console"
+old3.mkdir()
+for name in ("modThaiText-0.3.0.zip", BUILD_INFO, GUIDE_NAME):
+    (old3 / name).write_bytes(b"old")
+pkg3 = Path(tempfile.mkdtemp())
+for name in ("modThaiText-1.0.0.zip", BUILD_INFO, GUIDE_NAME):
+    (pkg3 / name).write_bytes(b"new")
+
+def _move_that_copies_partially(src, dst):
+    if Path(dst).name == "modThaiText-1.0.0.zip":
+        Path(dst).write_bytes(b"new-but-trunca")  # copy got this far before ENOSPC
+        raise OSError(28, "simulated disk full mid-copy")
+    return _real_move(src, dst)
+
+_console.shutil.move = _move_that_copies_partially
+try:
+    publish_packages(pkg3, old3)
+    raise AssertionError("simulated failure did not propagate")
+except OSError:
+    pass
+finally:
+    _console.shutil.move = _real_move
+assert not (old3 / "modThaiText-1.0.0.zip").exists(), "half-written new zip must not survive"
+assert sorted(p.name for p in old3.iterdir()) == [BUILD_INFO, "modThaiText-0.3.0.zip", GUIDE_NAME]
+assert (old3 / "modThaiText-0.3.0.zip").read_bytes() == b"old"
+assert not any(p.name.startswith(".ThaiW3_console-old-") for p in old3.parent.iterdir())
 assert sorted(p.name for p in old.iterdir()) == sorted(
     ["modThaiText-1.0.0.zip", "modThaiFont-1.0.0.zip", BUILD_INFO, GUIDE_NAME, "โน้ตของฉัน.txt"])
 assert list(pkg2.iterdir()) == []

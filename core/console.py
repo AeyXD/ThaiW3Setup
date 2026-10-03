@@ -63,28 +63,6 @@ def console_options(opts: InstallOptions) -> InstallOptions:
     return base
 
 
-def clean_console_target(target: Path) -> list[str]:
-    """Remove a previous console export's files so the folder matches this build's set.
-
-    Deletes the zips the previous build recorded in build-info.json — that catches
-    renames and mods disabled this run — plus the rewritten build info and guide.
-    When build-info is missing or corrupt, a strict shape check is the fallback: one
-    of our mod names, a full X.Y[.Z] version and a .zip suffix, nothing else, so
-    files like modThaiText-review-notes.md are never touched.
-    """
-    removed = []
-    if not target.is_dir():
-        return removed
-    recorded = _recorded_zips(target)
-    for f in sorted(target.iterdir()):
-        if not f.is_file():
-            continue
-        if f.name in recorded or f.name in (BUILD_INFO, GUIDE_NAME) or _ZIP_NAME.fullmatch(f.name):
-            f.unlink()
-            removed.append(f.name)
-    return removed
-
-
 def _recorded_zips(target: Path) -> set[str]:
     try:
         data = json.loads((target / BUILD_INFO).read_text(encoding="utf-8"))
@@ -140,8 +118,11 @@ def publish_packages(package_dir: Path, target: Path) -> list[str]:
         moved: list[str] = []
         try:
             for f in sorted(package_dir.iterdir()):
-                shutil.move(str(f), target / f.name)
+                # register the name before the move: a cross-drive shutil.move copies
+                # first, so a disk-full failure leaves a partial file at the target
+                # that must vanish with the rollback too
                 moved.append(f.name)
+                shutil.move(str(f), target / f.name)
         except BaseException:
             for name in moved:
                 (target / name).unlink(missing_ok=True)
