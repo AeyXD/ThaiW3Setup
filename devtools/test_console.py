@@ -81,6 +81,52 @@ assert sorted(p.name for p in target.iterdir()) == sorted(
      "modThaiText-latest.zip", "modThaiText-review-notes.md", "โน้ตของฉัน.txt"])
 assert list(pkg.iterdir()) == [], "files move out of the staging package dir"
 
+# a swap that fails partway (disk full, unwritable target) rolls the old set back:
+# one new file lands, the second refuses to move, and the folder ends up exactly as
+# it started — old zips and build-info intact, no half-new files, no backup litter
+old = Path(tempfile.mkdtemp()) / "ThaiW3_console"
+old.mkdir()
+for name in ("modThaiText-0.3.0.zip", "modThaiFont-0.3.0.zip", BUILD_INFO, GUIDE_NAME):
+    (old / name).write_bytes(b"old")
+(old / "โน้ตของฉัน.txt").write_bytes(b"mine")
+pkg2 = Path(tempfile.mkdtemp())
+for name in ("modThaiText-1.0.0.zip", "modThaiFont-1.0.0.zip", BUILD_INFO, GUIDE_NAME):
+    (pkg2 / name).write_bytes(b"new")
+
+import shutil as _shutil
+import core.console as _console
+_real_move = _shutil.move
+
+def _move_that_fills_disk(src, dst):
+    if Path(dst).name == "modThaiFont-1.0.0.zip":
+        raise OSError(28, "simulated disk full")
+    return _real_move(src, dst)
+
+_console.shutil.move = _move_that_fills_disk
+try:
+    publish_packages(pkg2, old)
+    raise AssertionError("simulated failure did not propagate")
+except OSError:
+    pass
+finally:
+    _console.shutil.move = _real_move
+assert sorted(p.name for p in old.iterdir()) == sorted(
+    ["modThaiText-0.3.0.zip", "modThaiFont-0.3.0.zip", BUILD_INFO, GUIDE_NAME, "โน้ตของฉัน.txt"])
+assert (old / BUILD_INFO).read_bytes() == b"old", "rollback must restore old content"
+assert not (old / "modThaiText-1.0.0.zip").exists(), "half-moved new file must not survive"
+assert not any(p.name.startswith(".ThaiW3_console-old-") for p in old.parent.iterdir()), \
+    "backup dir must be cleaned up after rollback"
+
+# after the fault clears, a rebuilt package set (the staged one was consumed by the
+# failed attempt) publishes cleanly; removed comes back sorted
+for name in ("modThaiText-1.0.0.zip", "modThaiFont-1.0.0.zip", BUILD_INFO, GUIDE_NAME):
+    (pkg2 / name).write_bytes(b"new")
+assert publish_packages(pkg2, old) == [BUILD_INFO, "modThaiFont-0.3.0.zip",
+                                       "modThaiText-0.3.0.zip", GUIDE_NAME]
+assert sorted(p.name for p in old.iterdir()) == sorted(
+    ["modThaiText-1.0.0.zip", "modThaiFont-1.0.0.zip", BUILD_INFO, GUIDE_NAME, "โน้ตของฉัน.txt"])
+assert list(pkg2.iterdir()) == []
+
 # the guide names every zip, states the script-mod exclusion and Thai-only limit, and
 # quotes save behaviour the way CDPR documents it rather than overpromising
 guide = console_guide(ConsoleGuideInput(

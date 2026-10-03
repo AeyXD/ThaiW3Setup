@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import tempfile
 import zipfile
 from dataclasses import dataclass
 from datetime import date
@@ -94,16 +95,63 @@ def _recorded_zips(target: Path) -> set[str]:
         return set()
 
 
+def _owned_files(target: Path) -> list[Path]:
+    """Files in target belonging to a console export, old build-info first."""
+    if not target.is_dir():
+        return []
+    recorded = _recorded_zips(target)
+    return [f for f in sorted(target.iterdir()) if f.is_file()
+            and (f.name in recorded or f.name in (BUILD_INFO, GUIDE_NAME)
+                 or _ZIP_NAME.fullmatch(f.name))]
+
+
+def clean_console_target(target: Path) -> list[str]:
+    """Delete a previous console export's files so the folder matches this build's set.
+
+    Deletes the zips the previous build recorded in build-info.json — that catches
+    renames and mods disabled this run — plus the rewritten build info and guide.
+    When build-info is missing or corrupt, a strict shape check is the fallback: one
+    of our mod names, a full X.Y[.Z] version and a .zip suffix, nothing else, so
+    files like modThaiText-review-notes.md are never touched.
+    """
+    files = _owned_files(target)
+    for f in files:
+        f.unlink()
+    return [f.name for f in files]
+
+
 def publish_packages(package_dir: Path, target: Path) -> list[str]:
     """Swap a fully built package set into target, leaving foreign files in place.
 
     Runs only after the new set exists in full, so a build that fails partway never
-    touches the previous export; on success the folder matches the new build-info.
+    touches the previous export. The swap itself moves the old set aside to a backup
+    beside the target (same filesystem, cheap renames) and puts it back on any
+    failure, so even a disk-full or unwritable target never leaves the folder
+    without one complete export.
     """
-    removed = clean_console_target(target)
-    target.mkdir(parents=True, exist_ok=True)
-    for f in sorted(package_dir.iterdir()):
-        shutil.move(str(f), target / f.name)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    backup = Path(tempfile.mkdtemp(dir=target.parent, prefix=f".{target.name}-old-"))
+    try:
+        removed = []
+        for f in _owned_files(target):
+            shutil.move(str(f), backup / f.name)
+            removed.append(f.name)
+        target.mkdir(parents=True, exist_ok=True)
+        moved: list[str] = []
+        try:
+            for f in sorted(package_dir.iterdir()):
+                shutil.move(str(f), target / f.name)
+                moved.append(f.name)
+        except BaseException:
+            for name in moved:
+                (target / name).unlink(missing_ok=True)
+            raise
+    except BaseException:
+        for f in backup.iterdir():
+            shutil.move(str(f), target / f.name)
+        shutil.rmtree(backup, ignore_errors=True)
+        raise
+    shutil.rmtree(backup, ignore_errors=True)
     return removed
 
 
