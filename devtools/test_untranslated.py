@@ -1,8 +1,9 @@
 import json, os, sys, tempfile
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from gamepath import GAME
 
 tmp = tempfile.mkdtemp()
-os.environ["APPDATA"] = tmp  # keep the settings test away from the real profile
+os.environ["THAIW3SETUP_DATA"] = tmp  # keep the settings test away from the real profile
 
 from core import custom
 from core.custom import merged_overrides, default_sheets, parse_custom_xlsx
@@ -12,7 +13,6 @@ from core.sheet import get_translations
 from core.text_builder import build_texts, untranslated
 from export_untranslated import build_rows, write_xlsx
 
-GAME = r"D:\SteamLibrary\steamapps\common\The Witcher 3"
 
 # build_rows keeps translated/annotated rows, drops stale empty ones, adds new ids
 rows = build_rows({1: "new", 3: "still missing"},

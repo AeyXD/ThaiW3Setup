@@ -1,12 +1,12 @@
 """Problem report: content, redaction, conflicts, and upload to a local Worker (wrangler dev) when running."""
 import os, sys, tempfile, urllib.error
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from gamepath import GAME
 
 from pathlib import Path
 from core import report
 from core.report import MAGIC, build_report, collect_details, compose_report, format_contact, send_report
 
-GAME = r"D:\SteamLibrary\steamapps\common\The Witcher 3"
 
 text = build_report(GAME, "note line")
 assert text.startswith(MAGIC), text[:80]

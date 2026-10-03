@@ -3,7 +3,7 @@ import json, os, sys, tempfile, time
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 tmp = tempfile.mkdtemp()
-os.environ["APPDATA"] = tmp  # keep the settings test away from the real profile
+os.environ["THAIW3SETUP_DATA"] = tmp  # keep the settings test away from the real profile
 
 from core import custom
 from core.custom import (COMMUNITY_ID, NAME_DOUBLE, NAME_TABS, NAME_THAI, TAB_CHARACTERS, TAB_QUESTS, TAB_SKILLS,

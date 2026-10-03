@@ -1,12 +1,12 @@
 import os, sys, time
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from gamepath import GAME
 from core.game_detect import identify
 from core.options import InstallOptions, MODE_DOUBLE, MODE_THAI
 from core.sheet import get_translations
 from core.text_builder import build_texts, LANGUAGE_NAME_ID
 from core.w3strings import W3Strings
 
-GAME = r"D:\SteamLibrary\steamapps\common\The Witcher 3"
 g = identify(GAME)
 print("edition", g.edition, g.supported, len(g.strings_files("en")), "en files")
 t0 = time.time()

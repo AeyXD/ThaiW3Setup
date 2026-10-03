@@ -77,12 +77,15 @@ def main(argv: list[str] | None = None) -> int:
     args = p.parse_args(argv)
 
     if args.cmd == "detect":
-        for g in find_games():
+        games = find_games()
+        for g in games:
             print(f"{g.path}  [{g.store or '-'}] {g.edition} {g.version}".rstrip())
             if g.stale_content:
                 print(f"  ! leftover 4.x folders: {', '.join(g.stale_content)}")
             if g.loose_content:
                 print(f"  ! mod files loose in content: {', '.join(g.loose_content)}")
+        if not games:
+            print("no install found automatically, pass --game PATH")
         return 0
     if args.cmd == "check-update":
         from .update import check_for_update

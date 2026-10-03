@@ -1,12 +1,13 @@
-import os, sys
+import os, sys, tempfile
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from PIL import ImageGrab
 import ctypes
-ctypes.windll.shcore.SetProcessDpiAwareness(1)
+if sys.platform == "win32":
+    ctypes.windll.shcore.SetProcessDpiAwareness(1)
 import gui.app as appmod
 from gui.hud_layout_dialog import BG_LABELS
 
-tmp = os.environ["TEMP"]
+tmp = tempfile.gettempdir()
 app = appmod.App()
 
 

@@ -5,10 +5,11 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from gamepath import GAME
 from core.bundle import iter_bundle  # noqa: E402
 from core.logo import GUI_BUNDLE, _read_cr2w, _sprite_tags, _swf_body, _tags  # noqa: E402
 
-GAME = Path(r"D:\SteamLibrary\steamapps\common\The Witcher 3")
+GAME = Path(GAME)
 target = sys.argv[1] if len(sys.argv) > 1 else "gameplay\\gui_new\\swf\\mainmenu\\panel_ingamemenu.redswf"
 data = next(iter_bundle(GAME / "content" / "content0" / "bundles" / GUI_BUNDLE, lambda n, _s: n == target)).data
 cr2w = _read_cr2w(data)

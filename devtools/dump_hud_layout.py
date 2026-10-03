@@ -7,11 +7,12 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from gamepath import game_path
 
 from core.bundle import read_bundle
 from core.swf_font import _Bits, _swf_body, _tags
 
-BUNDLE = r"D:\SteamLibrary\steamapps\common\The Witcher 3\content\content0\bundles\startup.bundle"
+BUNDLE = game_path("content", "content0", "bundles", "startup.bundle")
 
 
 def inner_tags(d: bytes, p: int):

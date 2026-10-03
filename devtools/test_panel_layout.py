@@ -1,12 +1,13 @@
 import os, struct, sys, zlib
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from gamepath import game_path
 from pathlib import Path
 from core.bundle import iter_bundle
 from core.logo import GUI_BUNDLE
 from core.panel_layout import (ALIGN_JUSTIFY, BODY_LEADING, BODY_MIN_HEIGHT, PANELS, _text_fields,
                                panel_files)
 
-CONTENT0 = Path(r"D:\SteamLibrary\steamapps\common\The Witcher 3\content\content0")
+CONTENT0 = Path(game_path("content", "content0"))
 
 
 def swf(data):

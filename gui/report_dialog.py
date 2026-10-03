@@ -8,6 +8,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 from core.report import collect_details, compose_report, format_contact, report_url, send_report
+from gui.theme import P, mono, ui
 
 log = logging.getLogger(__name__)
 
@@ -60,8 +61,8 @@ class ReportDialog(tk.Toplevel):
         self.game_path = game_path
         self.events: queue.Queue = queue.Queue()
         style = ttk.Style(self)
-        style.configure("Contact.TLabelframe.Label", font=("Leelawadee UI", 12, "bold"), foreground="#1a5fb4")
-        style.configure("Hint.TLabel", font=("Leelawadee UI", 9), foreground="#666666")
+        style.configure("Contact.TLabelframe.Label", font=ui(12, "bold"), foreground=P.accent)
+        style.configure("Hint.TLabel", font=ui(9), foreground=P.hint)
 
         root = ttk.Frame(self, padding=12)
         root.pack(fill="both", expand=True)
@@ -81,14 +82,14 @@ class ReportDialog(tk.Toplevel):
         self.cb_kind = ttk.Combobox(contact, textvariable=self.v_kind, values=CONTACT_KINDS, width=10)
         self.cb_kind.grid(row=1, column=1, sticky="w", padx=(6, 6), pady=(6, 0))
         self.cb_kind.bind("<<ComboboxSelected>>", lambda _e: self.schedule_refresh())
-        self.ent_contact = ttk.Entry(contact, textvariable=self.v_contact, font=("Leelawadee UI", 10))
+        self.ent_contact = ttk.Entry(contact, textvariable=self.v_contact, font=ui(10))
         self.ent_contact.grid(row=1, column=2, sticky="ew", pady=(6, 0))
         self.ent_contact.bind("<KeyRelease>", lambda _e: self.schedule_refresh())
         ttk.Label(contact, text=T_CONTACT_HINT, style="Hint.TLabel").grid(row=2, column=0, columnspan=3, sticky="w",
                                                                          pady=(4, 0))
 
         ttk.Label(root, text=T_NOTE).grid(row=2, column=0, sticky="w", pady=(10, 2))
-        self.note = tk.Text(root, height=3, wrap="word", font=("Leelawadee UI", 10))
+        self.note = tk.Text(root, height=3, wrap="word", font=ui(10))
         self.note.grid(row=3, column=0, sticky="ew")
         self.note.bind("<KeyRelease>", lambda _e: self.schedule_refresh())
 
@@ -98,7 +99,7 @@ class ReportDialog(tk.Toplevel):
         self.preview_frame = frame
         frame.columnconfigure(0, weight=1)
         frame.rowconfigure(0, weight=1)
-        self.preview = tk.Text(frame, height=18, wrap="none", font=("Consolas", 9))
+        self.preview = tk.Text(frame, height=18, wrap="none", font=mono(9))
         self.preview.grid(row=0, column=0, sticky="nsew")
         ys = ttk.Scrollbar(frame, orient="vertical", command=self.preview.yview)
         ys.grid(row=0, column=1, sticky="ns")

@@ -1,13 +1,13 @@
 """export() builds the same mod folders as install() outside the game; copied into mods they read as installed."""
 import json, os, shutil, sys, tempfile
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from gamepath import GAME, game_path
 
 from pathlib import Path
 from core.game_detect import GameInfo, identify
 from core.installer import EXPORT_DIR, EXPORT_README, MANIFEST, MOD_TEXT, _sha1, export, status
 from core.options import load_options
 
-GAME = r"D:\SteamLibrary\steamapps\common\The Witcher 3"
 
 opts = load_options()
 opts.game_path = GAME

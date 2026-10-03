@@ -14,7 +14,8 @@ ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "assets" / "layout_bg"
 MAX_SIZE = (1280, 720)
 CREDIT = "Screenshot: MILOGAME_AVIF HDR - eu.zonerama.com/PrestigiousCap4934/Album/16612460"
-FONT_CANDIDATES = [r"C:\Windows\Fonts\segoeui.ttf", r"C:\Windows\Fonts\arial.ttf"]
+FONT_CANDIDATES = [r"C:\Windows\Fonts\segoeui.ttf", r"C:\Windows\Fonts\arial.ttf",
+                   "/System/Library/Fonts/Supplemental/Arial.ttf", "/Library/Fonts/Arial.ttf"]
 
 
 def _font(px: int):

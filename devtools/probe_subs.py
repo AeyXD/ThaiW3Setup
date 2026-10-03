@@ -1,8 +1,9 @@
 import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from gamepath import game_path
 from core.bundle import read_bundle
 
-meta = open(r"D:\SteamLibrary\steamapps\common\The Witcher 3\content\metadata.store", "rb").read()
+meta = open(game_path("content", "metadata.store"), "rb").read()
 names = set(meta.split(b"\0"))
 files = read_bundle(r"C:\Users\saetanpee\Downloads\w3tu\Tools\modThaiStoryBook\content\blob0.bundle")
 tr_ok = en_ok = 0
