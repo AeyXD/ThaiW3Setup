@@ -1,13 +1,14 @@
 import struct, sys
 sys.path.insert(0, r"C:\Users\saetanpee\AppData\Local\Temp\w3thai_baseline")
+from gamepath import game_path
 from probe_meta import R
 
-B = r"D:\SteamLibrary\steamapps\common\The Witcher 3\content\content0\bundles\blob.bundle"
+B = game_path("content", "content0", "bundles", "blob.bundle")
 with open(B, "rb") as fh:
     h = fh.read(32)
     print("blob header", struct.unpack_from("<IIIHI", h, 8), "toc entries", struct.unpack_from("<I", h, 16)[0] / 304)
 
-d = open(r"D:\SteamLibrary\steamapps\common\The Witcher 3\content\metadata.store", "rb").read()
+d = open(game_path("content", "metadata.store"), "rb").read()
 r = R(d); r.take(4); r.u32(); r.u32(); r.u32()
 st = r.vlq(); strtab = d[r.p:r.p + st]; r.p += st
 

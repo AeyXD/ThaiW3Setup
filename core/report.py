@@ -15,6 +15,7 @@ from . import __version__
 from .game_detect import EDITION_UNKNOWN, GameInfo, identify
 from .installer import (MOD_SCRIPT, MOD_TEXT, OUR_MODS, foreign_thai_mods, legacy_mods, script_overlaps, status,
                         strings_have_thai)
+from .osutil import WINDOWS
 from .paths import app_data_dir
 
 # Cloudflare Worker in worker/; THAIW3_REPORT_URL overrides it for testing
@@ -54,12 +55,13 @@ def _launcher_config(game: GameInfo) -> str:
 
 
 def documents_dir() -> Path:
-    try:
-        buf = ctypes.create_unicode_buffer(260)
-        if ctypes.windll.shell32.SHGetFolderPathW(None, 5, None, 0, buf) == 0 and buf.value:
-            return Path(buf.value)
-    except (AttributeError, OSError):
-        pass
+    if WINDOWS:  # Documents may be redirected to OneDrive or another drive
+        try:
+            buf = ctypes.create_unicode_buffer(260)
+            if ctypes.windll.shell32.SHGetFolderPathW(None, 5, None, 0, buf) == 0 and buf.value:
+                return Path(buf.value)
+        except (AttributeError, OSError):
+            pass
     return Path.home() / "Documents"
 
 

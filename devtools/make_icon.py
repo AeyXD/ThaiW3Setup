@@ -7,11 +7,18 @@ S = 256
 img = Image.new("RGBA", (S, S), (0, 0, 0, 0))
 d = ImageDraw.Draw(img)
 d.rounded_rectangle((8, 8, S - 8, S - 8), radius=48, fill=(24, 26, 32, 255), outline=(190, 30, 45, 255), width=10)
-try:
-    big = ImageFont.truetype("seguisb.ttf", 110)
-    small = ImageFont.truetype("seguisb.ttf", 64)
-except OSError:
-    big = small = ImageFont.load_default()
+
+
+def pick(px):
+    for name in ("seguisb.ttf", "/System/Library/Fonts/Supplemental/Arial Bold.ttf", "DejaVuSans-Bold.ttf"):
+        try:
+            return ImageFont.truetype(name, px)
+        except OSError:
+            continue
+    return ImageFont.load_default()
+
+
+big, small = pick(110), pick(64)
 d.text((S / 2, 100), "W3", font=big, fill=(235, 235, 235, 255), anchor="mm")
 d.text((S / 2, 190), "TH", font=small, fill=(230, 60, 70, 255), anchor="mm")
 os.makedirs(os.path.dirname(out), exist_ok=True)

@@ -12,6 +12,7 @@ from PIL import Image, ImageDraw, ImageTk
 
 from core.assets import layout_background
 from core.options import LAYOUT_BGS, MODE_DOUBLE, OFFSET_LIMIT, SCALE_RANGE, WIDTH_RANGE, InstallOptions
+from gui.theme import P, ui
 from gui.preview import descent_px, subtitle_block, text_rows
 
 REF_W, REF_H = 1920, 1080
@@ -216,13 +217,13 @@ class HudLayoutDialog(tk.Toplevel):
         self.canvas.place(relx=0.5, rely=0.5, anchor="center")
         self.bg_image = ImageTk.PhotoImage(_background(self.bg_name, self.cw, self.ch))
         self.canvas.create_image(0, 0, image=self.bg_image, anchor="nw", tags=("bg",))
-        self.canvas.create_text(0, 0, anchor="n", fill="#cfd8dc", text=T_PREVIEW_HINT, font=("Leelawadee UI", 10),
+        self.canvas.create_text(0, 0, anchor="n", fill="#cfd8dc", text=T_PREVIEW_HINT, font=ui(10),
                                 tags=("overlay",), state="hidden")
         for key in FIELDS:
             color = OUTLINES[key]
             self.canvas.create_rectangle(0, 0, 0, 0, outline=color, dash=(4, 3), tags=(key, f"{key}_box"))
             self.canvas.create_image(0, 0, anchor="nw", tags=(key, f"{key}_img"))
-            self.canvas.create_text(0, 0, anchor="sw", fill=color, text=LABELS[key], font=("Leelawadee UI", 8),
+            self.canvas.create_text(0, 0, anchor="sw", fill=color, text=LABELS[key], font=ui(8),
                                     tags=(key, f"{key}_label"))
             self.canvas.tag_bind(key, "<ButtonPress-1>", lambda e, k=key: self._drag_start(k, e))
             self.canvas.tag_bind(key, "<B1-Motion>", self._drag_move)
@@ -263,7 +264,7 @@ class HudLayoutDialog(tk.Toplevel):
         self.tab_keys = {str(sub): TAB_ITEMS[0], str(dlg): TAB_ITEMS[1]}
         self.tabs.bind("<<NotebookTabChanged>>", lambda _e: self.show_active())
 
-        self.note = ttk.Label(root, foreground="#777", text=T_NOTE_APPROX)
+        self.note = ttk.Label(root, foreground=P.note, text=T_NOTE_APPROX)
         self.bottom = bottom = ttk.Frame(root)
         ttk.Button(bottom, text=T_CANCEL, command=self.destroy).pack(side="right")
         ttk.Button(bottom, text=T_OK, style="Big.TButton", command=self.save).pack(side="right", padx=(0, 6))
@@ -342,9 +343,9 @@ class HudLayoutDialog(tk.Toplevel):
         self.canvas.configure(width=w, height=h)
         self._refresh_background()
         self.canvas.coords("overlay", w / 2, 12)
-        self.canvas.itemconfigure("overlay", font=("Leelawadee UI", max(10, round(14 * self.k))))
+        self.canvas.itemconfigure("overlay", font=ui(max(10, round(14 * self.k))))
         for key in FIELDS:
-            self.canvas.itemconfigure(f"{key}_label", font=("Leelawadee UI", max(8, round(12 * self.k))))
+            self.canvas.itemconfigure(f"{key}_label", font=ui(max(8, round(12 * self.k))))
         self._render_items()
         self.place_items()
 
@@ -378,7 +379,7 @@ class HudLayoutDialog(tk.Toplevel):
         if not self.opts.subtitle_style:
             for w in widgets:
                 w.state(["disabled"])
-            ttk.Label(parent, text=T_SIZE_OFF, foreground="#777").grid(
+            ttk.Label(parent, text=T_SIZE_OFF, foreground=P.note).grid(
                 row=row + 2, column=0, columnspan=3, sticky="w")
 
     @staticmethod

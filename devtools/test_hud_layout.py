@@ -1,6 +1,7 @@
 """HUD position patch and option checks (needs the game scripts)."""
 import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from gamepath import GAME
 from dataclasses import replace
 from pathlib import Path
 
@@ -8,7 +9,6 @@ from core.options import InstallOptions
 from core.script_patcher import ScriptOptions, build_scripts
 from gui.hud_layout_dialog import clamp_offset
 
-GAME = r"D:\SteamLibrary\steamapps\common\The Witcher 3"
 MODULES = Path(GAME) / "content/content0/scripts/game/gui/hud/modules"
 
 

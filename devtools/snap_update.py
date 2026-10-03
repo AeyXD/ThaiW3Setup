@@ -1,15 +1,16 @@
 """Pretend to be an old version and capture the update banner and dialog."""
-import os, sys
+import os, sys, tempfile
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from PIL import ImageGrab
 import ctypes
-ctypes.windll.shcore.SetProcessDpiAwareness(1)
+if sys.platform == "win32":
+    ctypes.windll.shcore.SetProcessDpiAwareness(1)
 import core.update
 import gui.update_dialog
 core.update.__version__ = gui.update_dialog.__version__ = "0.0.1"
 import gui.app as appmod
 
-tmp = os.environ["TEMP"]
+tmp = tempfile.gettempdir()
 app = appmod.App()
 
 

@@ -1,8 +1,9 @@
 import re, sys, os, zlib, struct
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from gamepath import game_path
 from core.bundle import read_bundle
 
-GAME = r"D:\SteamLibrary\steamapps\common\The Witcher 3\content\content0\bundles\r4gui.bundle"
+GAME = game_path("content", "content0", "bundles", "r4gui.bundle")
 MOD = r"C:\Users\saetanpee\Downloads\w3tu\Tools\modFontCsPraKas\content\blob0.bundle"
 
 

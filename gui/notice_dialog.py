@@ -8,15 +8,16 @@ from tkinter import ttk
 
 from PIL import Image, ImageTk
 
+from gui.theme import P, ui
+
 log = logging.getLogger(__name__)
 
 T_DONT_SHOW = "\u0e44\u0e21\u0e48\u0e15\u0e49\u0e2d\u0e07\u0e41\u0e2a\u0e14\u0e07\u0e02\u0e49\u0e2d\u0e04\u0e27\u0e32\u0e21\u0e19\u0e35\u0e49\u0e2d\u0e35\u0e01"
 T_OK = "\u0e15\u0e01\u0e25\u0e07"
 IMAGE_MAX_W = 640
 TEXT_W = 620
-MESSAGE_BOLD = ("Leelawadee UI", 10, "bold")
-WARNING_FONT = ("Leelawadee UI", 13, "bold")
-WARNING_COLOR = "#c62828"
+MESSAGE_BOLD = ui(10, "bold")
+WARNING_FONT = ui(13, "bold")
 
 
 def _photo(path: Path) -> ImageTk.PhotoImage | None:
@@ -47,7 +48,7 @@ class NoticeDialog(tk.Toplevel):
         label.pack(anchor="w")
         if warning:
             ttk.Label(root, text=warning, wraplength=TEXT_W, justify="left", font=WARNING_FONT,
-                      foreground=WARNING_COLOR).pack(anchor="w", pady=(10, 0))
+                      foreground=P.bad).pack(anchor="w", pady=(10, 0))
         self.photo = _photo(image) if image else None
         if self.photo is not None:
             ttk.Label(root, image=self.photo, relief="solid", borderwidth=1).pack(pady=(10, 0))

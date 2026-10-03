@@ -1,11 +1,12 @@
-import os, sys
+import os, sys, tempfile
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from PIL import ImageGrab
 import ctypes
-ctypes.windll.shcore.SetProcessDpiAwareness(1)
+if sys.platform == "win32":
+    ctypes.windll.shcore.SetProcessDpiAwareness(1)
 from gui.app import App
 
-out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.environ["TEMP"], "w3thai_gui.png")
+out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(tempfile.gettempdir(), "w3thai_gui.png")
 mode = sys.argv[2] if len(sys.argv) > 2 else ""
 app = App()
 if mode == "double":
