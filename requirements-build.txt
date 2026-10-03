@@ -1,5 +1,9 @@
 -r requirements.txt
-pyinstaller==6.15.0
+# Windows stays on 6.15.0: release.yml compares the bootloader against that release's prebuilt hash,
+# and the hash check stops meaning anything if the version moves without the constant moving too.
+pyinstaller==6.15.0 ; sys_platform == "win32"
+# elsewhere, the release that carries PyInstaller's own Tcl/Tk 9 support in the tkinter hook
+pyinstaller==6.22.3 ; sys_platform != "win32"
 # devtools/export_untranslated.py
 gspread==6.2.1
 google-auth-oauthlib==1.5.0
