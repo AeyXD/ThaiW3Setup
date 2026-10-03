@@ -169,4 +169,26 @@ for needle in ("modThaiText-0.0.0.zip", "modThaiFont-0.0.0.zip", "REDkit", "Avai
     assert needle in guide, needle
 assert "ชั่วคราว" not in guide, "do not claim trophies come back"
 assert "ไม่ใช่ข้อผิดพลาดของแพ็กเกจ" not in guide, "do not diagnose the language menu upfront"
+
+# export-console is a one-off build and must not persist its preset into the shared
+# installer settings; the PC export keeps saving as before
+import core.cli as _cli
+from core.installer import InstallReport
+
+_calls = {}
+_cli.load_options = lambda: InstallOptions(game_path="/g")
+
+def _fake_console_export(opts, out, progress, force_download):
+    _calls["console_opts"] = opts
+    return InstallReport(output=str(out))
+
+_cli.export_console = _fake_console_export
+_cli.export = lambda opts, out, progress, force_download: InstallReport(output=str(out))
+_cli.save_options = lambda opts: _calls.setdefault("saved", opts)
+_cli.main(["export-console", "--game", "/g", "--out", "/tmp/anywhere", "--font", "Sarabun"])
+assert "saved" not in _calls, "export-console must not touch installer settings"
+assert _calls["console_opts"].font == "Sarabun", "CLI overrides still reach the build"
+_calls.pop("console_opts")
+_cli.main(["export", "--game", "/g", "--out", "/tmp/anywhere", "--font", "Sarabun"])
+assert "saved" in _calls, "PC export keeps saving settings"
 print("test_console ok")

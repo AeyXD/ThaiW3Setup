@@ -164,13 +164,18 @@ def main(argv: list[str] | None = None) -> int:
             return True
         return input(message + " [y/N] ").strip().lower() in ("y", "yes")
 
+    skip_save = False
     if args.cmd == "export":
         report = export(opts, args.out, _progress, force_download=args.refresh)
     elif args.cmd == "export-console":
         report = export_console(opts, args.out, _progress, force_download=args.refresh)
+        # one-off build: the chosen preset is recorded in the output's build-info.json
+        # instead of overwriting the installer settings the next GUI/PC run picks up
+        skip_save = True
     else:
         report = install(opts, _progress, confirm, force_download=args.refresh)
-    save_options(opts)
+    if not skip_save:
+        save_options(opts)
     print(f"translated {report.translated}/{report.total} ({report.percent:.2f}%) from {report.source},"
           f" custom overrides {report.custom}")
     print("mods:", ", ".join(report.mods))
