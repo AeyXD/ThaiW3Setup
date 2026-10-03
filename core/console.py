@@ -1,0 +1,140 @@
+"""Console (PS5 / Xbox Series X|S / Switch 2) packages for mod.io.
+
+CD Projekt RED's cross-platform rules let players install mods from mod.io on every
+platform, but mods that patch game scripts must be built with REDkit to be approved.
+Everything ThaiW3Setup ships except the subtitle-style script mod is bundle/asset
+content, so a console build simply leaves the script mod out; subtitle colours, sizes
+and positions only ever applied through that script mod and are reset here.
+"""
+from __future__ import annotations
+
+import zipfile
+from dataclasses import dataclass
+from datetime import date
+from pathlib import Path
+
+from . import __version__
+from .game_detect import GameInfo
+from .options import InstallOptions
+
+CONSOLE_DIR = "ThaiW3_console"
+BUILD_INFO = "build-info.json"
+GUIDE_NAME = "อัปโหลด-modio.md"
+HOWTO_URL = "https://mod.io/g/the-witcher-3/r/how-to-create-mods-for-cross-platform-mod-support"
+SUPPORT_URL = "https://support.cdprojektred.com/en/witcher-3/pc/gameplay/issue/3001/cross-platform-mod-support-how-to"
+# zips carry no real timestamps, so rebuilds of the same content byte-compare
+ZIP_EPOCH = (1980, 1, 1, 0, 0, 0)
+
+# options that survive into the console packages; everything else resets to defaults
+_CONSOLE_FIELDS = ("font", "mode", "thai_first", "storybook", "thai_logo", "slot", "custom_sheets")
+
+MOD_LABELS = {
+    "modThaiText": "ข้อความภาษาไทยของทั้งเกม (แปลไทย พร้อมตัดคำไทยในตัว)",
+    "modThaiFont": "ฟอนต์ภาษาไทยสำหรับ UI และซับ ไม่มี mod นี้ตัวอักษรไทยจะเป็นสี่เหลี่ยม",
+    "modThaiStoryBook": "ซับไทยของคัตซีน Storybook",
+    "modThaiLogo": "โลโก้ภาษาไทยในเมนูหลักและหน้ากดปุ่มเริ่มเกม",
+}
+
+
+def console_options(opts: InstallOptions) -> InstallOptions:
+    """Build options trimmed to what ships in the console packages.
+
+    The subtitle script mod is console-excluded (REDkit only), so every option that
+    only reaches the game through it (colours, sizes, HUD offsets) resets to default.
+    """
+    base = InstallOptions()
+    base.game_path = opts.game_path
+    base.subtitle_style = False  # the script mod is console-excluded (REDkit only)
+    for name in _CONSOLE_FIELDS:
+        setattr(base, name, getattr(opts, name))
+    base.validate()
+    return base
+
+
+def zip_mod(mod_dir: Path, dest: Path) -> None:
+    """Zip a built mod folder with the mod folder itself at the zip root, the layout
+    the game's mods directory expects. Deterministic: same content in, same bytes out."""
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
+        for f in sorted(mod_dir.rglob("*")):
+            if not f.is_file():
+                continue
+            info = zipfile.ZipInfo(f"{mod_dir.name}/{f.relative_to(mod_dir).as_posix()}", date_time=ZIP_EPOCH)
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.external_attr = 0o644 << 16
+            zf.writestr(info, f.read_bytes())
+
+
+@dataclass
+class ConsoleGuideInput:
+    game: GameInfo
+    mods: list[str]
+    zips: dict[str, str]  # mod folder name -> zip file name
+    font: str
+    mode: str
+    slot: str
+    translated: int
+    total: int
+    percent: float
+
+
+def _mode_label(mode: str) -> str:
+    return "ซับสองภาษา ไทย + อังกฤษ" if mode == "double" else "ซับไทยอย่างเดียว"
+
+
+def console_guide(info: ConsoleGuideInput) -> str:
+    files = "\n".join(f"- `{name}` — {MOD_LABELS.get(mod, mod)}" for mod, name in sorted(info.zips.items()))
+    language = "English (โหมดแทนภาษาอังกฤษ)" if info.slot == "en" else "ไทย (Thai) ในเมนู Text Language"
+    return f"""# แพ็กเกจ mod.io สำหรับคอนโซล (PS5 / Xbox Series X|S / Switch 2)
+
+สร้างโดย ThaiW3Setup v{__version__} เมื่อ {date.today().isoformat()} จากเกม {info.game.edition}
+เวอร์ชัน {info.game.version or 'ไม่ทราบ'} (แปลแล้ว {info.percent:.2f}% จากคำแปล {info.translated}/{info.total} ข้อความ)
+โหมดที่ build: ฟอนต์ {info.font} / {_mode_label(info.mode)} / ช่องภาษา {info.slot}
+
+## ไฟล์ในโฟลเดอร์นี้
+
+{files}
+- `{BUILD_INFO}` — รายละเอียด build และค่า hash ของแต่ละ zip สำหรับเทียบเวอร์ชัน
+
+## สิ่งที่แพ็กเกจนี้ไม่มี (ต่างจาก PC)
+
+mod สคริปต์ปรับสี ขนาด และตำแหน่งซับ (`modThaiDoubleSub`) ไม่อยู่ในแพ็กเกจ เพราะกติกาของ
+CD Projekt RED กำหนดให้ mod ที่แก้สคริปต์ต้องสร้างด้วย REDkit จึงจะอนุมัติขึ้นคอนโซลได้
+ซับบนคอนโซลจึงใช้สี ขนาด และตำแหน่งมาตรฐานของเกม (โหมดซับสองภาษาเป็นงานฝั่งข้อความ
+ที่ฝังอยู่ใน w3strings จึงยังใช้ได้ปกติ)
+
+## วิธีอัปโหลด (ครั้งแรก)
+
+1. สมัครบัญชี mod.io แล้วเชื่อมกับบัญชี CD PROJEKT RED (ใช้เมนู Mods ในเกมเพื่อเชื่อมก็ได้)
+2. อ่านคู่มือทางการ [How-to: Create Mods for Cross-Platform Mod Support]({HOWTO_URL})
+   และ[หน้า support เรื่อง Cross-Platform Mod Support]({SUPPORT_URL}) ของ CD Projekt RED
+   โดยเฉพาะหัวข้อโครงสร้างไฟล์ — zip ของเราวางโฟลเดอร์ mod (`modThai...`) ไว้ที่รากของ zip
+   ถ้าคู่มือกำหนดรูปแบบอื่นให้แก้ `core/console.py` (ฟังก์ชัน `zip_mod`) ให้ตรงก่อนอัปโหลด
+3. ทีละ zip: เปิด {HOWTO_URL.rsplit('/', 3)[0]} → Add mod → ตั้งชื่อเดียวกับโฟลเดอร์ mod
+   ใน zip (เช่น modThaiText) → อัปโหลด zip → เลือกหมวดให้ตรง (เช่น Localization / GUI)
+   และเขียนคำอธิบายไทย + อังกฤษสั้น ๆ
+4. แจ้งทีม mod.io / CD Projekt RED ว่าต้องการให้ mod ใช้ได้บนคอนโซล แล้วรอการอนุมัติ
+   ผลจะเห็นเป็นแท็ก **Available on consoles** บนหน้า mod
+
+## เช็กลิสต์ทดสอบบน PS5 (ก่อนประกาศให้ชุมชน)
+
+1. เปิดใช้ modThaiText ตัวเดียว → Options > Language > Text Language ต้องขึ้น
+   "{language}" และข้อความในเกมเป็นภาษาไทยจริง (ไม่ใช่อังกฤษหรือตุรกี)
+2. เพิ่ม modThaiFont → ตัวอักษรไทยต้องไม่เป็นสี่เหลี่ยม (tofu) ทั้งในเมนู ซับ และ journal
+3. เพิ่ม modThaiStoryBook (ถ้า build) → คัตซีนเปิดเรื่องต้องมีซับไทย
+4. ปิดการใช้ mod ทั้งหมด → เกมต้องกลับมาเป็นภาษาเดิมโดยไม่พัง
+5. ถ้าข้อ 1 ไม่ผ่าน (เมนูภาษาไม่แสดงรายการไทย) ให้หยุดและบันทึกปรากฏการณ์ก่อน
+   เพราะเป็นข้อจำกัดของ build คอนโซล ไม่ใช่ข้อผิดพลาดของแพ็กเกจ
+
+## ข้อควรรู้สำหรับผู้เล่นคอนโซล (แนะนำให้ใส่ในคำอธิบายบน mod.io)
+
+- ต้องล็อกอินบัญชี CD PROJEKT RED ที่เชื่อมกับ mod.io ผ่านเมนู Mods ในเกม
+- เซฟที่เปิดใช้ mod จะถูกทำเครื่องหมายว่าใช้ mod และปิดทรอฟี่/achievement ชั่วคราว
+  การย้ายเซฟข้ามแพลตฟอร์มต้องเปิดชุด mod เดียวกันทั้งสองฝั่ง ไม่อย่างนั้นเซฟจะโหลดไม่ได้
+- อยากเปลี่ยนฟอนต์หรือเปลี่ยนโหมดซับ ต้องรอ variant อื่นที่อัปโหลดแยกต่างหาก
+
+## อัปเดตคำแปลหรือเกมเวอร์ชันใหม่
+
+รันคำสั่ง build ใหม่ (ดู modio-console.md ใน repo) แล้วอัปโหลด zip ใหม่ไปเป็น
+ไฟล์เวอร์ชันถัดไปของ mod เดิมบน mod.io อย่าสร้างหน้า mod ใหม่
+"""

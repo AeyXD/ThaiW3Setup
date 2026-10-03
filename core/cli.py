@@ -8,7 +8,8 @@ from dataclasses import fields
 from . import __version__
 from .custom import cached_stats, sheet_key
 from .game_detect import find_games, identify
-from .installer import check_coverage, export, install, status, uninstall
+from .console import GUIDE_NAME
+from .installer import check_coverage, export, export_console, install, status, uninstall
 from .options import FONTS, InstallOptions, load_options, save_options
 
 
@@ -72,6 +73,21 @@ def main(argv: list[str] | None = None) -> int:
     exp.add_argument("--out", required=True)
     for inst in (sub.choices["install"], exp):
         _add_style_args(inst)
+    con = sub.add_parser("export-console",
+                         help="build one zip per mod into OUT\\ThaiW3_console for mod.io upload (PS5/Xbox consoles);"
+                              " script mods are console-excluded so subtitle style options do not apply")
+    con.add_argument("--game")
+    con.add_argument("--out", required=True)
+    con.add_argument("--font", choices=list(FONTS), help="font shipped in modThaiFont; each upload is one fixed preset")
+    con.add_argument("--mode", choices=["thai", "double"])
+    con.add_argument("--english-first", action="store_true")
+    con.add_argument("--slot", choices=["tr", "en"])
+    con.add_argument("--no-storybook", action="store_true")
+    con.add_argument("--thai-logo", action=argparse.BooleanOptionalAction,
+                     help="Thai game logo on the main menu and start screen")
+    con.add_argument("--custom", metavar="N,N",
+                     help="enable exactly these custom translation sheets (numbers from 'custom', 0 = none)")
+    con.add_argument("--refresh", action="store_true", help="force re-download of translations")
     sub.choices["install"].add_argument(
         "--yes", action="store_true", help="remove old w3tu mods and move other Thai mods to mods_disabled without asking")
     args = p.parse_args(argv)
@@ -125,22 +141,20 @@ def main(argv: list[str] | None = None) -> int:
 
     opts = load_options()
     opts.game_path = game_path
-    overrides = {"font": args.font, "mode": args.mode, "color1": args.color1, "color2": args.color2,
-                 "size1": args.size1, "size2": args.size2, "slot": args.slot,
-                 "sub_x": args.sub_x, "sub_y": args.sub_y, "sub_width": args.sub_width,
-                 "dialog_x": args.dialog_x, "dialog_y": args.dialog_y,
-                 "choice_x": args.choice_x, "choice_y": args.choice_y, "choice_scale": args.choice_scale,
-                 "thai_logo": args.thai_logo}
+    overrides = {name: getattr(args, name, None) for name in (
+        "font", "mode", "color1", "color2", "size1", "size2", "slot",
+        "sub_x", "sub_y", "sub_width", "dialog_x", "dialog_y",
+        "choice_x", "choice_y", "choice_scale", "thai_logo")}
     for key, value in overrides.items():
         if value is not None:
             setattr(opts, key, value)
-    if args.english_first:
+    if getattr(args, "english_first", False):
         opts.thai_first = False
-    if args.no_speaker_colors:
+    if getattr(args, "no_speaker_colors", False):
         opts.speaker_colors = False
-    if args.no_storybook:
+    if getattr(args, "no_storybook", False):
         opts.storybook = False
-    if args.no_subtitle_style:
+    if getattr(args, "no_subtitle_style", False):
         opts.subtitle_style = False
     if args.custom is not None:
         chosen = {int(n) for n in args.custom.split(",") if n.strip()}
@@ -154,6 +168,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "export":
         report = export(opts, args.out, _progress, force_download=args.refresh)
+    elif args.cmd == "export-console":
+        report = export_console(opts, args.out, _progress, force_download=args.refresh)
     else:
         report = install(opts, _progress, confirm, force_download=args.refresh)
     save_options(opts)
@@ -161,7 +177,9 @@ def main(argv: list[str] | None = None) -> int:
           f" custom overrides {report.custom}")
     print("mods:", ", ".join(report.mods))
     if report.output:
-        print(f"output: {report.output}  (copy these folders into {identify(game_path).mods_dir})")
+        where = ("upload the zips to mod.io, see " + GUIDE_NAME + " next to them"
+                 if args.cmd == "export-console" else f"copy these folders into {identify(game_path).mods_dir}")
+        print(f"output: {report.output}  ({where})")
     for w in report.warnings:
         print("warning:", w)
     return 0

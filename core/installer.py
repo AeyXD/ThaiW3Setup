@@ -16,6 +16,8 @@ from typing import Callable
 from . import __version__
 from .assets import font_files, storybook_files, write_mod_content
 from .bundle import BundleError
+from .console import (BUILD_INFO, CONSOLE_DIR, GUIDE_NAME, ConsoleGuideInput, console_guide,
+                      console_options, zip_mod)
 from .custom import merged_overrides
 from .game_detect import GameInfo, identify
 from .panel_layout import LayoutError, panel_files
@@ -133,6 +135,10 @@ def disable_mods(game: GameInfo, mods: list[Path]) -> Path:
 
 def _sha1(path: Path) -> str:
     return hashlib.sha1(path.read_bytes()).hexdigest()
+
+
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def _file_hashes(root: Path, mods: list[str]) -> dict[str, str]:
@@ -401,6 +407,67 @@ def export(opts: InstallOptions, out_dir: str | os.PathLike, progress: ProgressF
         shutil.rmtree(staging, ignore_errors=True)
     log.info("exported %s to %s", ", ".join(report.mods), target)
     progress(1.0, "สร้างไฟล์เสร็จแล้ว")
+    return report
+
+
+def export_console(opts: InstallOptions, out_dir: str | os.PathLike, progress: ProgressFn = noop,
+                   force_download: bool = False) -> InstallReport:
+    """Build console-safe mods into out_dir/ThaiW3_console, one zip per mod for mod.io upload.
+
+    Consoles only get mods through mod.io and script mods must be REDkit-built there,
+    so the build drops modThaiDoubleSub; console_options resets the style options that
+    only ever reached the game through it.
+    """
+    game = _supported_game(opts)
+    opts = console_options(opts)
+    target = Path(out_dir) / CONSOLE_DIR
+    try:
+        _check_writable(target)
+    except PermissionError as exc:
+        raise PermissionError(f"ไม่มีสิทธิ์เขียนไฟล์ลงโฟลเดอร์ {target}") from exc
+    report = InstallReport(output=str(target))
+
+    staging = Path(tempfile.mkdtemp(prefix="thaiw3_console_"))
+    try:
+        _build_mods(game, opts, staging, report, progress, force_download)
+        # uploaded folders stay content-only; the manifest documents local installs
+        (staging / MOD_TEXT / MANIFEST).unlink(missing_ok=True)
+        report.warnings.append("แพ็กเกจคอนโซลไม่มี mod สคริปต์ปรับสี/ขนาด/ตำแหน่งซับ (ต้องสร้างด้วย REDkit "
+                               "จึงอนุมัติขึ้นคอนโซลได้) ซับจึงใช้สไตล์มาตรฐานของเกม")
+        progress(0.95, "บีบอัดแพ็กเกจสำหรับ mod.io...")
+        zips: dict[str, str] = {}
+        mods_info = {}
+        for name in report.mods:
+            dest = target / f"{name}-{__version__}.zip"
+            zip_mod(staging / name, dest)
+            zips[name] = dest.name
+            mods_info[name] = {
+                "zip": dest.name,
+                "bytes": dest.stat().st_size,
+                "sha256": _sha256(dest),
+                "files": sorted(f.relative_to(staging / name).as_posix()
+                                for f in (staging / name).rglob("*") if f.is_file()),
+            }
+        info = {
+            "version": __version__,
+            "built_at": time.strftime("%Y-%m-%d %H:%M"),
+            "edition": game.edition,
+            "game_version": game.version,
+            "options": asdict(opts),
+            "translated": report.translated,
+            "total": report.total,
+            "percent": round(report.percent, 2),
+            "translation_source": report.source,
+            "mods": mods_info,
+        }
+        (target / BUILD_INFO).write_text(json.dumps(info, ensure_ascii=False, indent=2), encoding="utf-8")
+        (target / GUIDE_NAME).write_text(console_guide(ConsoleGuideInput(
+            game, report.mods, zips, opts.font, opts.mode, opts.slot,
+            report.translated, report.total, report.percent)), encoding="utf-8")
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
+    log.info("console export %s to %s", ", ".join(report.mods), target)
+    progress(1.0, "สร้างแพ็กเกจคอนโซลเสร็จแล้ว")
     return report
 
 
