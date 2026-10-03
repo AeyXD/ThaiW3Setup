@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .osutil import WINDOWS
+from .pe_version import file_version
 
 log = logging.getLogger(__name__)
 
@@ -78,7 +79,9 @@ class GameInfo:
 
 
 def exe_version(path: Path) -> str:
-    """File version of an exe as "a.b.c.d", or "" when unavailable (always so off Windows)."""
+    """File version of an exe as "a.b.c.d", or "" when unavailable."""
+    if not WINDOWS:  # the API below is Windows-only; read the same numbers out of the file instead
+        return file_version(path)
     try:
         ver = ctypes.windll.version
         size = ver.GetFileVersionInfoSizeW(str(path), None)
