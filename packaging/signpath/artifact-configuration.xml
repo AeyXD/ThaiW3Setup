@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copy into the SignPath project as the default artifact configuration.
+     The GitHub artifact is a ZIP of dist/ThaiW3Setup; only our own exe is signed,
+     the Python/Tcl DLLs under _internal are upstream binaries and must stay unsigned. -->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1"
+                        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                        xsi:schemaLocation="http://signpath.io/artifact-configuration/v1 https://app.signpath.io/Web/artifact-configuration/v1.xsd">
+  <parameters>
+    <parameter name="version" required="true" />
+  </parameters>
+  <zip-file>
+    <pe-file path="ThaiW3Setup.exe" product-name="ThaiW3Setup" product-version="${version}">
+      <authenticode-sign />
+    </pe-file>
+  </zip-file>
+</artifact-configuration>

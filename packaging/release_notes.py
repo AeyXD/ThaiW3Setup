@@ -57,7 +57,8 @@ def main() -> None:
         for item in analysis.split(","):
             name, _, url = item.partition("=")
             lines.append(f"- [{name.replace(chr(92), '/').split('/')[-1]}]({url})")
-    lines += ["", f"build โดย GitHub Actions จาก commit {git('rev-parse', '--short', 'HEAD')}"]
+    lines += ["", f"build โดย GitHub Actions จาก commit {git('rev-parse', '--short', 'HEAD')}",
+              "", "[Code signing policy](https://github.com/FordenHillson/ThaiW3Setup#code-signing-policy)"]
     with open(path, "w", encoding="utf-8") as fh:
         fh.write("\n".join(lines) + "\n")
     sys.stdout.reconfigure(encoding="utf-8")

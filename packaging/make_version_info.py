@@ -18,9 +18,9 @@ TEMPLATE = f"""VSVersionInfo(
       StringStruct('FileDescription', 'Thai translation installer for The Witcher 3 Remastered'),
       StringStruct('FileVersion', '{__version__}'),
       StringStruct('InternalName', '{APP_NAME}'),
-      StringStruct('LegalCopyright', 'Open source. Translation by the w3tu / Kuntoon team.'),
+      StringStruct('LegalCopyright', 'MIT License. Translation by the w3tu / Kuntoon team.'),
       StringStruct('OriginalFilename', '{APP_NAME}.exe'),
-      StringStruct('ProductName', 'Witcher 3 Remastered Thai Setup'),
+      StringStruct('ProductName', '{APP_NAME}'),
       StringStruct('ProductVersion', '{__version__}')])]),
     VarFileInfo([VarStruct('Translation', [1033, 1200])])
   ]
