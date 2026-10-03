@@ -16,8 +16,8 @@ from typing import Callable
 from . import __version__
 from .assets import font_files, storybook_files, write_mod_content
 from .bundle import BundleError
-from .console import (BUILD_INFO, CONSOLE_DIR, GUIDE_NAME, ConsoleGuideInput, console_guide,
-                      console_options, zip_mod)
+from .console import (BUILD_INFO, CONSOLE_DIR, GUIDE_NAME, ConsoleGuideInput, clean_console_target,
+                      console_guide, console_options, zip_mod)
 from .custom import merged_overrides
 from .game_detect import GameInfo, identify
 from .panel_layout import LayoutError, panel_files
@@ -427,6 +427,9 @@ def export_console(opts: InstallOptions, out_dir: str | os.PathLike, progress: P
         raise PermissionError(f"ไม่มีสิทธิ์เขียนไฟล์ลงโฟลเดอร์ {target}") from exc
     report = InstallReport(output=str(target))
 
+    stale = clean_console_target(target)
+    if stale:
+        log.info("removed previous console export files: %s", ", ".join(stale))
     staging = Path(tempfile.mkdtemp(prefix="thaiw3_console_"))
     try:
         _build_mods(game, opts, staging, report, progress, force_download)

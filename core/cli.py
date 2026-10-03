@@ -75,12 +75,10 @@ def main(argv: list[str] | None = None) -> int:
         _add_style_args(inst)
     con = sub.add_parser("export-console",
                          help="build one zip per mod into OUT\\ThaiW3_console for mod.io upload (PS5/Xbox consoles);"
-                              " script mods are console-excluded so subtitle style options do not apply")
+                              " script mods are console-excluded, so subtitles ship Thai-only with the game's style")
     con.add_argument("--game")
     con.add_argument("--out", required=True)
     con.add_argument("--font", choices=list(FONTS), help="font shipped in modThaiFont; each upload is one fixed preset")
-    con.add_argument("--mode", choices=["thai", "double"])
-    con.add_argument("--english-first", action="store_true")
     con.add_argument("--slot", choices=["tr", "en"])
     con.add_argument("--no-storybook", action="store_true")
     con.add_argument("--thai-logo", action=argparse.BooleanOptionalAction,

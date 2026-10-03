@@ -15,7 +15,7 @@ from pathlib import Path
 
 from . import __version__
 from .game_detect import GameInfo
-from .options import InstallOptions
+from .options import InstallOptions, MODE_THAI
 
 CONSOLE_DIR = "ThaiW3_console"
 BUILD_INFO = "build-info.json"
@@ -26,7 +26,12 @@ SUPPORT_URL = "https://support.cdprojektred.com/en/witcher-3/pc/gameplay/issue/3
 ZIP_EPOCH = (1980, 1, 1, 0, 0, 0)
 
 # options that survive into the console packages; everything else resets to defaults
-_CONSOLE_FIELDS = ("font", "mode", "thai_first", "storybook", "thai_logo", "slot", "custom_sheets")
+# (mode is forced to Thai-only: the "  [English]" separator that combine() writes only
+# becomes a second subtitle line through the console-excluded script mod)
+_CONSOLE_FIELDS = ("font", "storybook", "thai_logo", "slot", "custom_sheets")
+
+# every file name a console export may own in its output folder
+_OWNED_ZIP_PREFIXES = ("modThaiText-", "modThaiFont-", "modThaiStoryBook-", "modThaiLogo-", "modThaiDoubleSub-")
 
 MOD_LABELS = {
     "modThaiText": "ข้อความภาษาไทยของทั้งเกม (แปลไทย พร้อมตัดคำไทยในตัว)",
@@ -45,10 +50,29 @@ def console_options(opts: InstallOptions) -> InstallOptions:
     base = InstallOptions()
     base.game_path = opts.game_path
     base.subtitle_style = False  # the script mod is console-excluded (REDkit only)
+    base.mode = MODE_THAI
     for name in _CONSOLE_FIELDS:
         setattr(base, name, getattr(opts, name))
     base.validate()
     return base
+
+
+def clean_console_target(target: Path) -> list[str]:
+    """Remove a previous console export's files so the folder matches this build's set.
+
+    Only deletes names this tool owns: our per-mod zips (any version, including mods
+    disabled this run) plus the build info and guide, which get rewritten anyway.
+    """
+    removed = []
+    if not target.is_dir():
+        return removed
+    for f in sorted(target.iterdir()):
+        if not f.is_file():
+            continue
+        if f.name.startswith(_OWNED_ZIP_PREFIXES) or f.name in (BUILD_INFO, GUIDE_NAME):
+            f.unlink()
+            removed.append(f.name)
+    return removed
 
 
 def zip_mod(mod_dir: Path, dest: Path) -> None:
@@ -100,8 +124,10 @@ def console_guide(info: ConsoleGuideInput) -> str:
 
 mod สคริปต์ปรับสี ขนาด และตำแหน่งซับ (`modThaiDoubleSub`) ไม่อยู่ในแพ็กเกจ เพราะกติกาของ
 CD Projekt RED กำหนดให้ mod ที่แก้สคริปต์ต้องสร้างด้วย REDkit จึงจะอนุมัติขึ้นคอนโซลได้
-ซับบนคอนโซลจึงใช้สี ขนาด และตำแหน่งมาตรฐานของเกม (โหมดซับสองภาษาเป็นงานฝั่งข้อความ
-ที่ฝังอยู่ใน w3strings จึงยังใช้ได้ปกติ)
+ซับบนคอนโซลจึงใช้สี ขนาด และตำแหน่งมาตรฐานของเกม และ build คอนโซลจำกัดไว้ที่
+**ซับไทยอย่างเดียว** เพราะโหมดสองภาษาพึ่งสคริปต์ตัวเดียวกันในการตัดตัวคั่น
+"  [English]" ออกเป็นบรรทัดที่สองของซับ ไม่มีสคริปต์แล้วภาษาอังกฤษจะต่อท้ายบรรทัดเดียวกัน
+จะเปิดโหมดสองภาษาอีกครั้งเมื่อมีสคริปต์ mod เวอร์ชัน REDkit หรือได้ทดสอบการแสดงผลบนคอนโซลจริง
 
 ## วิธีอัปโหลด (ครั้งแรก)
 
@@ -129,8 +155,9 @@ CD Projekt RED กำหนดให้ mod ที่แก้สคริปต
 ## ข้อควรรู้สำหรับผู้เล่นคอนโซล (แนะนำให้ใส่ในคำอธิบายบน mod.io)
 
 - ต้องล็อกอินบัญชี CD PROJEKT RED ที่เชื่อมกับ mod.io ผ่านเมนู Mods ในเกม
-- เซฟที่เปิดใช้ mod จะถูกทำเครื่องหมายว่าใช้ mod และปิดทรอฟี่/achievement ชั่วคราว
-  การย้ายเซฟข้ามแพลตฟอร์มต้องเปิดชุด mod เดียวกันทั้งสองฝั่ง ไม่อย่างนั้นเซฟจะโหลดไม่ได้
+- เซฟที่สร้างขณะเปิดใช้ mod ถูกทำเครื่องหมายว่าเป็นเซฟที่ใช้ mod และทรอฟี่/achievements
+  จะถูกปิดในเซฟลักษณะนี้
+- การย้ายเซฟข้ามแพลตฟอร์มควรเปิดชุด mod เดียวกันทั้งสองฝั่ง ไม่อย่างนั้นเซฟอาจโหลดไม่ถูกต้อง
 - อยากเปลี่ยนฟอนต์หรือเปลี่ยนโหมดซับ ต้องรอ variant อื่นที่อัปโหลดแยกต่างหาก
 
 ## อัปเดตคำแปลหรือเกมเวอร์ชันใหม่
