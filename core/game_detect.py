@@ -10,6 +10,8 @@ import string
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .osutil import WINDOWS
+
 log = logging.getLogger(__name__)
 
 STEAM_APP_ID = "292030"
@@ -76,7 +78,7 @@ class GameInfo:
 
 
 def exe_version(path: Path) -> str:
-    """File version of an exe as "a.b.c.d", or "" when unavailable."""
+    """File version of an exe as "a.b.c.d", or "" when unavailable (always so off Windows)."""
     try:
         ver = ctypes.windll.version
         size = ver.GetFileVersionInfoSizeW(str(path), None)
@@ -343,10 +345,11 @@ def _drive_guesses() -> list[Path]:
 
 
 def find_games() -> list[GameInfo]:
+    """Installs we can find on our own. Off Windows every source is a dead end, so the user browses instead."""
     seen = set()
     found = []
     sources = (("Steam", _steam_candidates), ("GOG", _gog_candidates),
-               ("Epic", _epic_candidates), ("Xbox", _xbox_candidates), ("", _drive_guesses))
+               ("Epic", _epic_candidates), ("Xbox", _xbox_candidates), ("", _drive_guesses)) if WINDOWS else ()
     for store, fn in sources:
         try:
             candidates = fn()

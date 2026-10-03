@@ -7,6 +7,7 @@ import tkinter as tk
 from PIL import Image, ImageTk
 
 from core.paths import assets_dir
+from gui.theme import P, ui
 
 log = logging.getLogger(__name__)
 
@@ -68,8 +69,8 @@ class Tooltip:
         self.tip = tk.Toplevel(self.widget)
         self.tip.wm_overrideredirect(True)
         self.tip.wm_attributes("-topmost", True)
-        tk.Label(self.tip, text=self.text, background="#ffffe1", relief="solid", borderwidth=1,
-                 font=("Leelawadee UI", 9), padx=6, pady=2).pack()
+        tk.Label(self.tip, text=self.text, background=P.tip_bg, foreground=P.tip_fg, relief="solid", borderwidth=1,
+                 font=ui(9), padx=6, pady=2).pack()
         self.tip.update_idletasks()
         # keep the tip on screen when the button sits at the bottom edge
         if y + self.tip.winfo_height() > self.widget.winfo_screenheight():

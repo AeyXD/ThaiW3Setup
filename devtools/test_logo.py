@@ -1,5 +1,6 @@
 """Patch the menu logos from the installed game and save before/after crops to %TEMP%/w3thai_logo."""
 import os
+import tempfile
 import struct
 import sys
 import time
@@ -7,12 +8,13 @@ import zlib
 from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from gamepath import GAME
 from core.bundle import iter_bundle  # noqa: E402
 from core.logo import (GUI_BUNDLE, MENU_FILES, _decode_dxt5, _logo_regions, _read_cr2w, _swf_body,  # noqa: E402
                        load_logo, logo_files, patch_menu)
 
-GAME = Path(sys.argv[1] if len(sys.argv) > 1 else r"D:\SteamLibrary\steamapps\common\The Witcher 3")
-OUT = Path(os.environ["TEMP"]) / "w3thai_logo"
+GAME = Path(sys.argv[1] if len(sys.argv) > 1 else GAME)
+OUT = Path(tempfile.gettempdir()) / "w3thai_logo"
 OUT.mkdir(parents=True, exist_ok=True)
 content0 = GAME / "content" / "content0"
 

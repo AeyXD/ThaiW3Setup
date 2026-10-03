@@ -19,15 +19,17 @@ from core.assets import help_image
 from core.game_detect import find_games, game_root, identify
 from core.installer import EXPORT_README, check_coverage, export, install, status, uninstall
 from core.options import FONTS, MODE_DOUBLE, MODE_THAI, SLOT_EN, SLOT_TR, load_options, save_options
+from core.osutil import MACOS, WINDOWS, open_folder
 from core.paths import app_data_dir
 from gui.notice_dialog import show_notice
+from gui.theme import NATIVE_CONTROLS, P, init as init_theme, ui
 from gui.widgets import Tooltip, icon, ttk_image
 
 log = logging.getLogger(__name__)
 
-UI_FONT = ("Leelawadee UI", 10)
-UI_BOLD = ("Leelawadee UI", 10, "bold")
-UI_TITLE = ("Leelawadee UI", 15, "bold")
+UI_FONT = ui(10)
+UI_BOLD = ui(10, "bold")
+UI_TITLE = ui(15, "bold")
 PREVIEW_SIZE = (620, 150)
 ICON_SIZE = 20
 T_UPGRADE_NOTICE = ("\u0e2a\u0e33\u0e2b\u0e23\u0e31\u0e1a\u0e15\u0e31\u0e27\u0e40\u0e01\u0e21\u0e17\u0e35\u0e48\u0e2d\u0e31\u0e1b\u0e40\u0e27\u0e2d\u0e23\u0e4c\u0e0a\u0e31\u0e19\u0e08\u0e32\u0e01 Classic / Next-gen "
@@ -44,6 +46,9 @@ T_DONE_NOTICE = (f"{T_DONE} \u0e16\u0e49\u0e32\u0e20\u0e32\u0e29\u0e32\u0e43\u0e
 T_REPORT_BUTTON = "\u0e2a\u0e48\u0e07\u0e23\u0e32\u0e22\u0e07\u0e32\u0e19\u0e1b\u0e31\u0e0d\u0e2b\u0e32..."
 T_EXPORT_BUTTON = "สร้างไฟล์ไว้ copy เอง..."
 T_EXPORTED = "สร้างไฟล์เสร็จแล้ว"
+T_FIX_PERMISSION = ("\u0e43\u0e2b\u0e49\u0e41\u0e01\u0e49\u0e2a\u0e34\u0e17\u0e18\u0e34\u0e4c\u0e02\u0e2d\u0e07\u0e42\u0e1f\u0e25\u0e40\u0e14\u0e2d\u0e23\u0e4c\u0e40\u0e01\u0e21 "
+                    "(\u0e04\u0e25\u0e34\u0e01\u0e02\u0e27\u0e32 > Get Info > Sharing & Permissions) "
+                    "\u0e41\u0e25\u0e49\u0e27\u0e25\u0e2d\u0e07\u0e43\u0e2b\u0e21\u0e48")
 T_SLOT_EN_HINT = "\u0e43\u0e19\u0e40\u0e01\u0e21\u0e43\u0e2b\u0e49\u0e15\u0e31\u0e49\u0e07\u0e20\u0e32\u0e29\u0e32\u0e02\u0e49\u0e2d\u0e04\u0e27\u0e32\u0e21\u0e40\u0e1b\u0e47\u0e19 English"
 
 
@@ -52,20 +57,22 @@ class App(tk.Tk):
         super().__init__()
         self.title(f"{APP_TITLE}  v{__version__}")
         self.minsize(700, 640)
-        self.option_add("*TCombobox*Listbox.font", UI_FONT)
+        init_theme(self)
         style = ttk.Style(self)
         if "vista" in style.theme_names():
             style.theme_use("vista")
-        style.configure(".", font=UI_FONT)
+        if not NATIVE_CONTROLS:  # aqua already uses the system font and its own control metrics
+            self.option_add("*TCombobox*Listbox.font", UI_FONT)
+            style.configure(".", font=UI_FONT)
+            style.configure("Big.TButton", font=UI_BOLD, padding=(16, 6))
+            style.configure("Icon.TButton", padding=(6, 6))
+            style.configure("More.TButton", padding=(10, 6))
+            style.configure("Split.TButton", padding=(2, 6))
         style.configure("Title.TLabel", font=UI_TITLE)
         style.configure("Bold.TLabel", font=UI_BOLD)
-        style.configure("Ok.TLabel", foreground="#1a7f37")
-        style.configure("Bad.TLabel", foreground="#c62828")
-        style.configure("Warn.TLabel", foreground="#b26a00")
-        style.configure("Big.TButton", font=UI_BOLD, padding=(16, 6))
-        style.configure("Icon.TButton", padding=(6, 6))
-        style.configure("More.TButton", padding=(10, 6))
-        style.configure("Split.TButton", padding=(2, 6))
+        style.configure("Ok.TLabel", foreground=P.ok)
+        style.configure("Bad.TLabel", foreground=P.bad)
+        style.configure("Warn.TLabel", foreground=P.warn)
 
         self.opts = load_options()
         self.events: queue.Queue = queue.Queue()
@@ -249,7 +256,7 @@ class App(tk.Tk):
         self.update_states()
 
     def _make_menu(self, items) -> tk.Menu:
-        menu = tk.Menu(self, tearoff=False, font=UI_FONT)
+        menu = tk.Menu(self, tearoff=False) if NATIVE_CONTROLS else tk.Menu(self, tearoff=False, font=UI_FONT)
         for name, label, command in items:
             image = icon(self, name, ICON_SIZE)
             menu.add_command(label=f"  {label}", command=command, **({"image": image, "compound": "left"}
@@ -567,9 +574,12 @@ class App(tk.Tk):
         path = game_root(self.v_game.get().strip()) / "mods"
         target = path if path.is_dir() else path.parent
         if target.is_dir():
-            os.startfile(target)
+            open_folder(target)
 
     def ask_elevate(self, message: str):
+        if not WINDOWS:  # no UAC to ask; on macOS the game folder's own permissions are the fix
+            messagebox.showerror(APP_TITLE, f"{message}\n{T_FIX_PERMISSION}", parent=self)
+            return
         if messagebox.askyesno(APP_TITLE, f"{message}\nต้องการเปิดโปรแกรมใหม่ด้วยสิทธิ์ผู้ดูแลระบบ (Administrator) หรือไม่?",
                                parent=self):
             params = " ".join(f'"{a}"' for a in sys.argv[1:]) if not getattr(sys, "frozen", False) else ""
@@ -641,7 +651,7 @@ class App(tk.Tk):
         self.after(100, self.poll_events)
 
     def show_upgrade_notice(self):
-        if show_notice(self, APP_TITLE, T_UPGRADE_NOTICE, bold=True, warning=T_ONEDRIVE_WARNING):
+        if show_notice(self, APP_TITLE, T_UPGRADE_NOTICE, bold=True, warning=_onedrive_warning()):
             self.opts.hide_upgrade_notice_v2 = True
             save_options(self.opts)
 
@@ -657,7 +667,7 @@ class App(tk.Tk):
             lines += ["", "ข้อควรทราบ:"] + [f"- {w}" for w in report.warnings]
         messagebox.showinfo(APP_TITLE, "\n".join(lines), parent=self)
         if os.path.isdir(report.output):
-            os.startfile(report.output)
+            open_folder(report.output)
 
     def on_installed(self, report):
         lines = [f"\u0e41\u0e1b\u0e25\u0e41\u0e25\u0e49\u0e27 {report.percent:.2f}% ({report.translated:,}/{report.total:,} \u0e02\u0e49\u0e2d\u0e04\u0e27\u0e32\u0e21)",
@@ -674,9 +684,14 @@ class App(tk.Tk):
         head = T_DONE_NOTICE if thai_slot else f"{T_DONE}\n{T_SLOT_EN_HINT}"
         message = "\n".join([head, ""] + lines + ([""] + warnings if warnings else []))
         if show_notice(self, APP_TITLE, message, help_image("game_language_thai") if thai_slot else None,
-                       warning=T_ONEDRIVE_WARNING):
+                       warning=_onedrive_warning()):
             self.opts.hide_done_notice_v2 = True
             save_options(self.opts)
+
+
+def _onedrive_warning() -> str | None:
+    """Documents redirected into OneDrive only bites on Windows."""
+    return T_ONEDRIVE_WARNING if WINDOWS else None
 
 
 def log_path() -> Path:
@@ -686,9 +701,14 @@ def log_path() -> Path:
 def run() -> None:
     logging.basicConfig(filename=log_path(), level=logging.INFO, encoding="utf-8",
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-    try:
-        ctypes.windll.shcore.SetProcessDpiAwareness(1)
-    except (AttributeError, OSError):
-        pass
+    if WINDOWS:  # macOS scales the whole UI itself
+        try:
+            ctypes.windll.shcore.SetProcessDpiAwareness(1)
+        except (AttributeError, OSError):
+            pass
     app = App()
+    if MACOS:  # a plain python process opens its window behind whatever launched it
+        app.lift()
+        app.attributes("-topmost", True)
+        app.after_idle(app.attributes, "-topmost", False)
     app.mainloop()

@@ -2,13 +2,13 @@
 import os, sys
 from collections import Counter, defaultdict
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from gamepath import GAME
 import openpyxl
 from core.game_detect import identify
 from core.sheet import get_translations
 from core.text_builder import _load_merged
 
 XLSX = sys.argv[1]
-GAME = r"D:\SteamLibrary\steamapps\common\The Witcher 3"
 
 
 def norm(s):

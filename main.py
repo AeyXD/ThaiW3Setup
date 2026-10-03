@@ -3,7 +3,7 @@ import sys
 
 
 def _attach_console() -> None:
-    """The windowed build starts without sys.stdout; reuse redirected handles or the parent console."""
+    """Windows only: the windowed build starts without sys.stdout; reuse redirected handles or the parent console."""
     import ctypes
     import msvcrt
     import os
@@ -31,7 +31,11 @@ def _attach_console() -> None:
 def main() -> int:
     if len(sys.argv) > 1:
         if sys.stdout is None:
-            _attach_console()
+            if sys.platform == "win32":
+                _attach_console()
+            else:  # a macOS .app launched from Finder has no streams either, but no console to attach to
+                import os
+                sys.stdout = sys.stderr = open(os.devnull, "w", encoding="utf-8")
         for stream in (sys.stdout, sys.stderr):
             if hasattr(stream, "reconfigure"):
                 stream.reconfigure(encoding="utf-8", errors="replace")

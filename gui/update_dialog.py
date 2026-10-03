@@ -8,9 +8,10 @@ import webbrowser
 from tkinter import ttk
 
 from core import __version__
+from core.paths import app_data_label
 from core.update import UpdateInfo
+from gui.theme import P, ui
 
-BANNER_BG = "#fff4c2"
 MAX_LINE_BYTES = 180  # Tk on Windows splits drawing near 200 UTF-8 bytes and detaches Thai marks there
 
 
@@ -47,9 +48,9 @@ def plain_notes(text: str) -> list[tuple[str, bool]]:
 
 class UpdateBanner(tk.Frame):
     def __init__(self, parent, info: UpdateInfo):
-        super().__init__(parent, bg=BANNER_BG, padx=12, pady=6)
+        super().__init__(parent, bg=P.banner_bg, padx=12, pady=6)
         self.info = info
-        tk.Label(self, bg=BANNER_BG, font=("Leelawadee UI", 10, "bold"),
+        tk.Label(self, bg=P.banner_bg, fg=P.banner_fg, font=ui(10, "bold"),
                  text=f"มีโปรแกรมเวอร์ชันใหม่ v{info.version} (เครื่องนี้ใช้ v{__version__})").pack(side="left")
         ttk.Button(self, text="ปิด", command=self.destroy).pack(side="right")
         ttk.Button(self, text="ดาวน์โหลด", command=self.download).pack(side="right", padx=(0, 4))
@@ -71,15 +72,16 @@ class UpdateDialog(tk.Toplevel):
         root.rowconfigure(1, weight=1)
         ttk.Label(root, style="Bold.TLabel",
                   text=f"เวอร์ชันใหม่ v{info.version}  (เครื่องนี้ใช้ v{__version__})").grid(row=0, column=0, sticky="w")
-        notes = tk.Text(root, wrap="word", height=12, relief="solid", borderwidth=1, font=("Leelawadee UI", 10))
-        notes.tag_configure("h", font=("Leelawadee UI", 10, "bold"))
+        notes = tk.Text(root, wrap="word", height=12, relief="solid", borderwidth=1, font=ui(10))
+        notes.tag_configure("h", font=ui(10, "bold"))
         for line, heading in plain_notes(info.notes or "ไม่มีรายละเอียด"):
             notes.insert("end", line + "\n", ("h",) if heading else ())
         notes.configure(state="disabled")
         notes.grid(row=1, column=0, sticky="nsew", pady=8)
         ttk.Label(root, wraplength=500, justify="left",
                   text="วิธีอัปเดต: ดาวน์โหลด zip แล้วแตกไฟล์ทับโฟลเดอร์เดิม หรือแตกไว้ที่ใหม่ก็ได้ "
-                       "ค่าที่ตั้งไว้เก็บแยกไว้ใน %APPDATA% จึงไม่หาย จากนั้นเปิดโปรแกรมแล้วกดติดตั้งอีกครั้ง").grid(
+                       f"ค่าที่ตั้งไว้เก็บแยกไว้ใน {app_data_label()} จึงไม่หาย "
+                       "จากนั้นเปิดโปรแกรมแล้วกดติดตั้งอีกครั้ง").grid(
             row=2, column=0, sticky="w")
         buttons = ttk.Frame(root)
         buttons.grid(row=3, column=0, sticky="e", pady=(8, 0))

@@ -1,6 +1,7 @@
 """Check that enabled custom sheets override the installed tr.w3strings."""
 import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from gamepath import GAME
 from core.custom import DEFAULT_SHEETS, default_sheets, get_custom, hidden_sheets, sheet_key
 from core.options import InstallOptions, _add_new_default_sheets
 from core.w3strings import W3Strings
@@ -18,7 +19,6 @@ opts = InstallOptions(custom_sheets=[], known_default_sheets=[])
 _add_new_default_sheets(opts)
 assert opts.custom_sheets and not hidden & {sheet_key(s) for s in opts.custom_sheets}
 
-GAME = r"D:\SteamLibrary\steamapps\common\The Witcher 3"
 out = W3Strings.load(os.path.join(GAME, "mods", "modThaiText", "content", "tr.w3strings"), "tr")
 for n in map(int, sys.argv[1:]):
     sheet = DEFAULT_SHEETS[n - 1]

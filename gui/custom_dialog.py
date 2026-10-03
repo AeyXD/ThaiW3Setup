@@ -10,6 +10,7 @@ from tkinter import messagebox, simpledialog, ttk
 
 from core.custom import (NAME_DOUBLE, NAME_THAI, UNLOCK_CODE, cached_stats, default_sheets, download_custom,
                          hidden_sheets, is_name_tab, parse_sheet_id, progress_of, sheet_key, sheet_url)
+from gui.theme import P
 
 ON, OFF = "☑", "☐"
 MODE_LABELS = {NAME_THAI: "\u0e44\u0e17\u0e22", NAME_DOUBLE: "2 \u0e20\u0e32\u0e29\u0e32"}
@@ -43,7 +44,7 @@ class CustomSheetsDialog(tk.Toplevel):
         root.pack(fill="both", expand=True)
         root.columnconfigure(0, weight=1)
         root.rowconfigure(1, weight=1)
-        ttk.Label(root, foreground="#5b3fc4",
+        ttk.Label(root, foreground=P.link,
                   text="* ถ้าข้อความซ้ำกัน ข้อความของไฟล์ที่อยู่ข้างบนจะถูกทับด้วยข้อความจากไฟล์ที่อยู่ข้างล่าง").grid(
             row=0, column=0, columnspan=2, sticky="w", pady=(0, 6))
 

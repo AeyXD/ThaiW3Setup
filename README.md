@@ -176,6 +176,24 @@ build.bat                 :: สร้าง dist\ThaiW3Setup-<version>.zip
 build.bat offline         :: build โดยไม่ดาวน์โหลดคำแปลใหม่
 ```
 
+### รันบน macOS (สำหรับนักพัฒนา)
+
+เกมไม่มีเวอร์ชัน macOS โปรแกรมบน Mac จึงใช้ได้กับไฟล์เกมที่อยู่ใน bottle ของ
+CrossOver / Whisky / Heroic เท่านั้น และ**ยังหาโฟลเดอร์เกมเองไม่ได้** ต้องกด "เลือก..."
+ชี้ไปที่โฟลเดอร์เกมใน bottle เช่น
+`~/Library/Application Support/CrossOver/Bottles/<bottle>/drive_c/Program Files (x86)/Steam/steamapps/common/The Witcher 3`
+
+```bash
+brew install python@3.12 python-tk@3.12
+python3.12 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python main.py          # เปิด GUI
+```
+
+ยังไม่มีสคริปต์ build สำหรับ macOS (`build.bat` และ `ThaiW3Setup.spec` เป็นของ Windows)
+ค่าที่ตั้งไว้เก็บที่ `~/Library/Application Support/ThaiW3Setup` แทน `%APPDATA%`
+และสคริปต์ใน `devtools/` อ่านโฟลเดอร์เกมจากตัวแปรแวดล้อม `W3_GAME`
+
 โครงสร้างโค้ด
 
 - `core/w3strings.py` อ่าน/เขียนไฟล์ `.w3strings` (ทั้ง UTF-16 v162 และ UTF-8 v164 ของ Remastered)

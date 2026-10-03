@@ -4,7 +4,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-ctypes.windll.shcore.SetProcessDpiAwareness(1)
+if sys.platform == "win32":
+    ctypes.windll.shcore.SetProcessDpiAwareness(1)
 
 import gui.app as appmod
 from gui.hud_layout_dialog import HudLayoutDialog

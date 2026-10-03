@@ -1,6 +1,7 @@
 import struct, zlib, hashlib
+from gamepath import game_path
 
-P = r"D:\SteamLibrary\steamapps\common\The Witcher 3\content\content0\bundles\r4gui.bundle"
+P = game_path("content", "content0", "bundles", "r4gui.bundle")
 f = open(P, "rb")
 h = f.read(32)
 size, dummy, tsz = struct.unpack_from("<III", h, 8)

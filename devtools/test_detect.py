@@ -3,10 +3,10 @@ import json, os, sys, tempfile
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from pathlib import Path
+from gamepath import GAME
 from core import game_detect
 from core.game_detect import EDITION_CLASSIC, EDITION_NEXTGEN, EDITION_REMASTERED, identify
 
-GAME = r"D:\SteamLibrary\steamapps\common\The Witcher 3"
 
 
 def make_game(split: int = 0, launcher: bool = True, dx12: bool = True) -> Path:
@@ -23,9 +23,12 @@ def make_game(split: int = 0, launcher: bool = True, dx12: bool = True) -> Path:
     return p
 
 
-real = identify(GAME)
-assert real.edition == EDITION_REMASTERED and real.version.startswith("5."), (real.edition, real.version)
-assert not real.stale_content
+if Path(GAME).is_dir():  # the real install, when this machine has one
+    real = identify(GAME)
+    assert real.edition == EDITION_REMASTERED and real.version.startswith("5."), (real.edition, real.version)
+    assert not real.stale_content
+else:
+    print("skipped the real install:", GAME, "(set W3_GAME to point at yours)")
 
 orig = game_detect.exe_version
 try:

@@ -1,11 +1,12 @@
 import os, sys, tempfile
 from pathlib import Path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from gamepath import game_path
 from core.assets import font_bundle, font_files, storybook_files, write_mod_content
 from core.bundle import read_bundle
 from core.options import FONTS
 
-meta = open(r"D:\SteamLibrary\steamapps\common\The Witcher 3\content\metadata.store", "rb").read()
+meta = open(game_path("content", "metadata.store"), "rb").read()
 names = set(meta.split(b"\0"))
 tmp = Path(tempfile.mkdtemp())
 for font in FONTS:
