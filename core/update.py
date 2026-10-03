@@ -8,9 +8,12 @@ import urllib.request
 from dataclasses import dataclass
 
 from . import APP_NAME, __version__
+from .osutil import MACOS
 log = logging.getLogger(__name__)
 
 REPO = "FordenHillson/ThaiW3Setup"
+# the macOS build carries the tag in its file name; the Windows one is just ThaiW3Setup-<version>.zip
+MAC_TAG = "macos"
 LATEST_URL = f"https://api.github.com/repos/{REPO}/releases/latest"
 RELEASES_URL = f"https://github.com/{REPO}/releases"
 
@@ -38,13 +41,20 @@ def fetch_latest(timeout: float = 8.0) -> UpdateInfo:
     })
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         data = json.load(resp)
-    zips = [a["browser_download_url"] for a in data.get("assets", []) if a.get("name", "").endswith(".zip")]
     return UpdateInfo(
         version=str(data.get("tag_name", "")).lstrip("v"),
         notes=str(data.get("body") or "").strip(),
         page_url=str(data.get("html_url") or RELEASES_URL),
-        download_url=zips[0] if zips else str(data.get("html_url") or RELEASES_URL),
+        download_url=pick_download(data.get("assets", [])) or str(data.get("html_url") or RELEASES_URL),
     )
+
+
+def pick_download(assets: list[dict]) -> str:
+    """The zip built for this platform. A release holding only the other one still links somewhere useful."""
+    zips = [a for a in assets if str(a.get("name") or "").lower().endswith(".zip")]
+    ours = [a for a in zips if (MAC_TAG in str(a.get("name") or "").lower()) == MACOS]
+    chosen = ours or zips
+    return str(chosen[0].get("browser_download_url") or "") if chosen else ""
 
 
 def check_for_update() -> UpdateInfo | None:
