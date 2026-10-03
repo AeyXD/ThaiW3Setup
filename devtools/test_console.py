@@ -7,7 +7,7 @@ from pathlib import Path
 from zipfile import ZipFile
 
 from core.console import (BUILD_INFO, GUIDE_NAME, ConsoleGuideInput, clean_console_target,
-                          console_guide, console_options, zip_mod)
+                          console_guide, console_options, publish_packages, zip_mod)
 from core.game_detect import GameInfo
 from core.options import InstallOptions, MODE_DOUBLE, MODE_THAI
 
@@ -41,19 +41,45 @@ with ZipFile(one) as zf:
     assert zf.namelist() == ["modThaiText/content/blob0.bundle", "modThaiText/content/metadata.store"]
     assert zf.read("modThaiText/content/blob0.bundle") == b"bundle"
 
-# re-export drops the previous run's zips (any version, mods disabled included) so the
-# folder matches the new build-info; anything not ours stays untouched
+# re-export drops the previous run's recorded zips (any version, mods disabled included)
+# so the folder matches the new build-info; anything not a zip of ours stays untouched
 target = Path(tempfile.mkdtemp()) / "ThaiW3_console"
 target.mkdir()
 stale = ["modThaiStoryBook-0.3.0.zip", "modThaiText-0.3.0.zip", "modThaiDoubleSub-0.3.0.zip",
          BUILD_INFO, GUIDE_NAME]
 for name in stale:
     (target / name).write_bytes(b"old")
+# build-info lists a renamed zip too, which the shape check alone would miss
+(target / "modThaiText-0.3.0-renamed.zip").write_bytes(b"old")
 (target / "โน้ตของฉัน.txt").write_bytes(b"mine")
+(target / "modThaiText-review-notes.md").write_bytes(b"review")
+(target / "modThaiText-latest.zip").write_bytes(b"not-a-version")
+import json as _json
+(target / BUILD_INFO).write_text(_json.dumps(
+    {"mods": {"modThaiText": {"zip": "modThaiText-0.3.0-renamed.zip"}}}), encoding="utf-8")
 removed = clean_console_target(target)
-assert sorted(removed) == sorted(stale), removed
-assert [p.name for p in target.iterdir()] == ["โน้ตของฉัน.txt"]
+assert sorted(removed) == sorted(stale + ["modThaiText-0.3.0-renamed.zip"]), removed
+assert sorted(p.name for p in target.iterdir()) == ["modThaiText-latest.zip",
+                                                    "modThaiText-review-notes.md", "โน้ตของฉัน.txt"]
+# corrupt build-info falls back to the strict zip shape; build-info itself always goes
+# because every build rewrites it
+(target / BUILD_INFO).write_text("{oops", encoding="utf-8")
+assert clean_console_target(target) == [BUILD_INFO]
+(target / "modThaiFont-0.3.0.zip").write_bytes(b"old")
+assert clean_console_target(target) == ["modThaiFont-0.3.0.zip"]
 assert clean_console_target(Path(tempfile.mkdtemp()) / "nope") == []
+
+# publish swaps a fully built set in only when called: the previous export survives a
+# build that fails partway because nothing touches the target until then
+pkg = Path(tempfile.mkdtemp())
+for name in ("modThaiText-1.0.0.zip", "modThaiFont-1.0.0.zip", BUILD_INFO, GUIDE_NAME):
+    (pkg / name).write_bytes(b"new")
+removed = publish_packages(pkg, target)
+assert removed == []
+assert sorted(p.name for p in target.iterdir()) == sorted(
+    ["modThaiText-1.0.0.zip", "modThaiFont-1.0.0.zip", BUILD_INFO, GUIDE_NAME,
+     "modThaiText-latest.zip", "modThaiText-review-notes.md", "โน้ตของฉัน.txt"])
+assert list(pkg.iterdir()) == [], "files move out of the staging package dir"
 
 # the guide names every zip, states the script-mod exclusion and Thai-only limit, and
 # quotes save behaviour the way CDPR documents it rather than overpromising
@@ -62,7 +88,9 @@ guide = console_guide(ConsoleGuideInput(
     {"modThaiText": "modThaiText-0.0.0.zip", "modThaiFont": "modThaiFont-0.0.0.zip"},
     "Sarabun", MODE_THAI, "tr", 90, 100, 90.0))
 for needle in ("modThaiText-0.0.0.zip", "modThaiFont-0.0.0.zip", "REDkit", "Available on consoles",
-               "ไม่อยู่ในแพ็กเกจ", "ซับไทยอย่างเดียว", "อาจโหลดไม่ถูกต้อง"):
+               "ไม่อยู่ในแพ็กเกจ", "ซับไทยอย่างเดียว", "อาจโหลดไม่ถูกต้อง",
+               "ไล่ตรวจหาสาเหตุตามลำดับ", "เปิด issue"):
     assert needle in guide, needle
 assert "ชั่วคราว" not in guide, "do not claim trophies come back"
+assert "ไม่ใช่ข้อผิดพลาดของแพ็กเกจ" not in guide, "do not diagnose the language menu upfront"
 print("test_console ok")

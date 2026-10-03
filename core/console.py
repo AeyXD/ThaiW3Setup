@@ -8,6 +8,9 @@ and positions only ever applied through that script mod and are reset here.
 """
 from __future__ import annotations
 
+import json
+import re
+import shutil
 import zipfile
 from dataclasses import dataclass
 from datetime import date
@@ -30,8 +33,10 @@ ZIP_EPOCH = (1980, 1, 1, 0, 0, 0)
 # becomes a second subtitle line through the console-excluded script mod)
 _CONSOLE_FIELDS = ("font", "storybook", "thai_logo", "slot", "custom_sheets")
 
-# every file name a console export may own in its output folder
-_OWNED_ZIP_PREFIXES = ("modThaiText-", "modThaiFont-", "modThaiStoryBook-", "modThaiLogo-", "modThaiDoubleSub-")
+# the only file shape, short of build-info's own list, that counts as our zip:
+# one of our mod names + a full version + the .zip suffix
+_ZIP_NAME = re.compile(r"(?:modThaiText|modThaiFont|modThaiStoryBook|modThaiLogo|modThaiDoubleSub)"
+                       r"-\d+\.\d+(?:\.\d+)?\.zip")
 
 MOD_LABELS = {
     "modThaiText": "ข้อความภาษาไทยของทั้งเกม (แปลไทย พร้อมตัดคำไทยในตัว)",
@@ -60,18 +65,45 @@ def console_options(opts: InstallOptions) -> InstallOptions:
 def clean_console_target(target: Path) -> list[str]:
     """Remove a previous console export's files so the folder matches this build's set.
 
-    Only deletes names this tool owns: our per-mod zips (any version, including mods
-    disabled this run) plus the build info and guide, which get rewritten anyway.
+    Deletes the zips the previous build recorded in build-info.json — that catches
+    renames and mods disabled this run — plus the rewritten build info and guide.
+    When build-info is missing or corrupt, a strict shape check is the fallback: one
+    of our mod names, a full X.Y[.Z] version and a .zip suffix, nothing else, so
+    files like modThaiText-review-notes.md are never touched.
     """
     removed = []
     if not target.is_dir():
         return removed
+    recorded = _recorded_zips(target)
     for f in sorted(target.iterdir()):
         if not f.is_file():
             continue
-        if f.name.startswith(_OWNED_ZIP_PREFIXES) or f.name in (BUILD_INFO, GUIDE_NAME):
+        if f.name in recorded or f.name in (BUILD_INFO, GUIDE_NAME) or _ZIP_NAME.fullmatch(f.name):
             f.unlink()
             removed.append(f.name)
+    return removed
+
+
+def _recorded_zips(target: Path) -> set[str]:
+    try:
+        data = json.loads((target / BUILD_INFO).read_text(encoding="utf-8"))
+        mods = data.get("mods")
+        return {m.get("zip") for m in mods.values()
+                if isinstance(m, dict) and isinstance(m.get("zip"), str)}
+    except (OSError, ValueError, AttributeError):
+        return set()
+
+
+def publish_packages(package_dir: Path, target: Path) -> list[str]:
+    """Swap a fully built package set into target, leaving foreign files in place.
+
+    Runs only after the new set exists in full, so a build that fails partway never
+    touches the previous export; on success the folder matches the new build-info.
+    """
+    removed = clean_console_target(target)
+    target.mkdir(parents=True, exist_ok=True)
+    for f in sorted(package_dir.iterdir()):
+        shutil.move(str(f), target / f.name)
     return removed
 
 
@@ -149,8 +181,15 @@ CD Projekt RED กำหนดให้ mod ที่แก้สคริปต
 2. เพิ่ม modThaiFont → ตัวอักษรไทยต้องไม่เป็นสี่เหลี่ยม (tofu) ทั้งในเมนู ซับ และ journal
 3. เพิ่ม modThaiStoryBook (ถ้า build) → คัตซีนเปิดเรื่องต้องมีซับไทย
 4. ปิดการใช้ mod ทั้งหมด → เกมต้องกลับมาเป็นภาษาเดิมโดยไม่พัง
-5. ถ้าข้อ 1 ไม่ผ่าน (เมนูภาษาไม่แสดงรายการไทย) ให้หยุดและบันทึกปรากฏการณ์ก่อน
-   เพราะเป็นข้อจำกัดของ build คอนโซล ไม่ใช่ข้อผิดพลาดของแพ็กเกจ
+5. ถ้าข้อ 1 ไม่ผ่าน (เมนูภาษาไม่แสดงรายการไทย) ไล่ตรวจหาสาเหตุตามลำดับก่อนสรุปอะไร
+   ก. เมนู Mods ในเกม: modThaiText ต้องปรากฏและอยู่ในสถานะเปิดใช้ — ถ้าไม่ปรากฏเลย
+      ปัญหาอยู่ที่การอัปโหลดหรือการโหลด mod ไม่ใช่เนื้อหาของ mod
+   ข. สลับ Text Language ไปภาษาอื่นแล้วสลับกลับ แล้วปิด-เปิดเกมใหม่อีกครั้ง
+   ค. เทียบ game_version ใน build-info.json กับเวอร์ชันเกมบนเครื่องทดสอบ
+      ต้องเป็นเกมเวอร์ชันเดียวกับที่ใช้ build
+   ง. ถ้าครบทุกข้อแล้วรายการไทยยังไม่ขึ้น เก็บหลักฐาน (ภาพหน้าจอ เวอร์ชันเกม
+      รายชื่อ mod ที่เปิดใช้) แล้วเปิด issue ใน repo ก่อนเผยแพร่ — ถึงตรงนี้ค่อยมี
+      ข้อมูลพอจะแยกว่าเป็นข้อจำกัดของคอนโซลหรือปัญหาของแพ็กเกจ
 
 ## ข้อควรรู้สำหรับผู้เล่นคอนโซล (แนะนำให้ใส่ในคำอธิบายบน mod.io)
 

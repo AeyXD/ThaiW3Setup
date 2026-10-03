@@ -16,8 +16,8 @@ from typing import Callable
 from . import __version__
 from .assets import font_files, storybook_files, write_mod_content
 from .bundle import BundleError
-from .console import (BUILD_INFO, CONSOLE_DIR, GUIDE_NAME, ConsoleGuideInput, clean_console_target,
-                      console_guide, console_options, zip_mod)
+from .console import (BUILD_INFO, CONSOLE_DIR, GUIDE_NAME, ConsoleGuideInput,
+                      console_guide, console_options, publish_packages, zip_mod)
 from .custom import merged_overrides
 from .game_detect import GameInfo, identify
 from .panel_layout import LayoutError, panel_files
@@ -427,10 +427,9 @@ def export_console(opts: InstallOptions, out_dir: str | os.PathLike, progress: P
         raise PermissionError(f"ไม่มีสิทธิ์เขียนไฟล์ลงโฟลเดอร์ {target}") from exc
     report = InstallReport(output=str(target))
 
-    stale = clean_console_target(target)
-    if stale:
-        log.info("removed previous console export files: %s", ", ".join(stale))
     staging = Path(tempfile.mkdtemp(prefix="thaiw3_console_"))
+    pkg = staging / "package"
+    pkg.mkdir()
     try:
         _build_mods(game, opts, staging, report, progress, force_download)
         # uploaded folders stay content-only; the manifest documents local installs
@@ -441,7 +440,7 @@ def export_console(opts: InstallOptions, out_dir: str | os.PathLike, progress: P
         zips: dict[str, str] = {}
         mods_info = {}
         for name in report.mods:
-            dest = target / f"{name}-{__version__}.zip"
+            dest = pkg / f"{name}-{__version__}.zip"
             zip_mod(staging / name, dest)
             zips[name] = dest.name
             mods_info[name] = {
@@ -463,10 +462,14 @@ def export_console(opts: InstallOptions, out_dir: str | os.PathLike, progress: P
             "translation_source": report.source,
             "mods": mods_info,
         }
-        (target / BUILD_INFO).write_text(json.dumps(info, ensure_ascii=False, indent=2), encoding="utf-8")
-        (target / GUIDE_NAME).write_text(console_guide(ConsoleGuideInput(
+        (pkg / BUILD_INFO).write_text(json.dumps(info, ensure_ascii=False, indent=2), encoding="utf-8")
+        (pkg / GUIDE_NAME).write_text(console_guide(ConsoleGuideInput(
             game, report.mods, zips, opts.font, opts.mode, opts.slot,
             report.translated, report.total, report.percent)), encoding="utf-8")
+        # the previous export survives a build that fails anywhere above
+        stale = publish_packages(pkg, target)
+        if stale:
+            log.info("replaced previous console export files: %s", ", ".join(stale))
     finally:
         shutil.rmtree(staging, ignore_errors=True)
     log.info("console export %s to %s", ", ".join(report.mods), target)
