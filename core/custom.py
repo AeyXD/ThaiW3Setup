@@ -73,6 +73,8 @@ class Overrides:
 
 COMMUNITY_ID = "1kIj-WNi24iy3--NLHNzcIj5szOBXoxHJGdwRQNj0etk"
 UNTRANSLATED_TAB = "Untranslated"
+REWORK_NAME = "ThaiW3 - \u0e1b\u0e23\u0e31\u0e1a\u0e1b\u0e23\u0e38\u0e07\u0e43\u0e2b\u0e21\u0e48"
+REWORK_TAB = "\u0e20\u0e32\u0e29\u0e32\u0e44\u0e17\u0e22 - \u0e23\u0e2d\u0e1b\u0e25\u0e48\u0e2d\u0e22"
 TAB_CHARACTERS = "\u0e0a\u0e37\u0e48\u0e2d\u0e15\u0e31\u0e27\u0e25\u0e30\u0e04\u0e23"
 TAB_PLACES = "\u0e0a\u0e37\u0e48\u0e2d\u0e40\u0e21\u0e37\u0e2d\u0e07"
 TAB_QUESTS = "\u0e0a\u0e37\u0e48\u0e2d\u0e40\u0e04\u0e27\u0e2a"
@@ -109,6 +111,14 @@ DEFAULT_SHEETS = [
     *(CustomSheet(COMMUNITY_ID, name_label(tab), False, tab, NAME_GIDS.get(tab), NAME_DOUBLE) for tab in NAME_TABS),
 ]
 
+# unlocked by typing UNLOCK_CODE in the custom sheets dialog; move into DEFAULT_SHEETS once released
+HIDDEN_SHEETS = [
+    # every English string, retranslated from scratch, see devtools/import_en_csv.py
+    CustomSheet("126vDT8d3oQkt_-XsLT8Ii1bTu-ZdrxHKHvMXgT5AGSc",
+                REWORK_NAME + " (\u0e23\u0e2d\u0e1b\u0e25\u0e48\u0e2d\u0e22)", True, REWORK_TAB, 0),
+]
+UNLOCK_CODE = "w3beta"
+
 
 def is_name_tab(sheet: dict) -> bool:
     return sheet.get("sheet_id") == COMMUNITY_ID and sheet.get("tab") in NAME_TABS
@@ -121,6 +131,10 @@ def sheet_key(sheet: dict) -> str:
 
 def default_sheets() -> list[dict]:
     return [asdict(s) for s in DEFAULT_SHEETS]
+
+
+def hidden_sheets() -> list[dict]:
+    return [asdict(s) for s in HIDDEN_SHEETS]
 
 
 def parse_sheet_id(text: str) -> str | None:

@@ -8,8 +8,8 @@ import tkinter as tk
 import webbrowser
 from tkinter import messagebox, simpledialog, ttk
 
-from core.custom import (NAME_DOUBLE, NAME_THAI, cached_stats, default_sheets, download_custom, is_name_tab,
-                         parse_sheet_id, progress_of, sheet_key, sheet_url)
+from core.custom import (NAME_DOUBLE, NAME_THAI, UNLOCK_CODE, cached_stats, default_sheets, download_custom,
+                         hidden_sheets, is_name_tab, parse_sheet_id, progress_of, sheet_key, sheet_url)
 
 ON, OFF = "☑", "☐"
 MODE_LABELS = {NAME_THAI: "\u0e44\u0e17\u0e22", NAME_DOUBLE: "2 \u0e20\u0e32\u0e29\u0e32"}
@@ -32,6 +32,7 @@ class CustomSheetsDialog(tk.Toplevel):
         self.counts = {sheet_key(s): cached_stats(s["sheet_id"], s.get("tab") or "") for s in self.sheets}
         self.events: queue.Queue = queue.Queue()
         self.busy = 0
+        self.typed = ""
         self._build()
         self.refresh()
         self.grab_set()
@@ -80,6 +81,7 @@ class CustomSheetsDialog(tk.Toplevel):
         ttk.Button(bottom, text="เลือกทั้งหมด", command=self.select_all).pack(side="right", padx=(0, 4))
         self.status = tk.StringVar(value=MODE_HINT + "  " + "คลิกช่อง เปิดใช้ เพื่อเปิด/ปิด  ดับเบิลคลิกเพื่อเปลี่ยนชื่อ")
         ttk.Label(root, textvariable=self.status).grid(row=3, column=0, columnspan=2, sticky="w", pady=(6, 0))
+        self.bind("<Key>", self._on_key, add="+")
 
     # ---------- list ----------
     def refresh(self, select: int | None = None):
@@ -154,6 +156,26 @@ class CustomSheetsDialog(tk.Toplevel):
             return
         self.sheets[i], self.sheets[i + delta] = self.sheets[i + delta], self.sheets[i]
         self.refresh(i + delta)
+
+    def _on_key(self, event):
+        # Windows virtual-key codes for 0-9 and A-Z match ASCII, so the code works under a Thai layout too
+        char = chr(event.keycode).lower() if 48 <= event.keycode <= 90 else event.char.lower()
+        if not char:
+            return
+        self.typed = (self.typed + char)[-len(UNLOCK_CODE):]
+        if self.typed == UNLOCK_CODE:
+            self.typed = ""
+            self.unlock_hidden()
+
+    def unlock_hidden(self):
+        have = {sheet_key(s) for s in self.sheets}
+        new = [s for s in hidden_sheets() if sheet_key(s) not in have]
+        if not new:
+            self.status.set("\u0e04\u0e33\u0e41\u0e1b\u0e25\u0e23\u0e2d\u0e1b\u0e25\u0e48\u0e2d\u0e22\u0e2d\u0e22\u0e39\u0e48\u0e43\u0e19\u0e23\u0e32\u0e22\u0e01\u0e32\u0e23\u0e41\u0e25\u0e49\u0e27")
+            return
+        self.sheets.extend(new)
+        self.refresh(len(self.sheets) - 1)
+        self._run(new, "\u0e1b\u0e25\u0e14\u0e25\u0e47\u0e2d\u0e01\u0e04\u0e33\u0e41\u0e1b\u0e25\u0e23\u0e2d\u0e1b\u0e25\u0e48\u0e2d\u0e22\u0e41\u0e25\u0e49\u0e27 \u0e01\u0e33\u0e25\u0e31\u0e07\u0e42\u0e2b\u0e25\u0e14...", self._updated)
 
     def select_all(self):
         state = not all(s.get("enabled") for s in self.sheets)
