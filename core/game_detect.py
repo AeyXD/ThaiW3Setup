@@ -131,23 +131,62 @@ def loose_note(names: list[str]) -> str:
             " ควรย้ายออก (ห้ามลบ content0 และ metadata.store)")
 
 
+XBOX_BIN = "gaming.desktop.x64"
+
+
+def _find_exe(p: Path) -> Path | None:
+    for sub in ("x64_dx12", "x64", XBOX_BIN):
+        exe = p / "bin" / sub / "witcher3.exe"
+        if exe.exists():
+            return exe
+    try:
+        return next(iter(sorted((p / "bin").glob("*/witcher3.exe"))), None)
+    except OSError:
+        return None
+
+
+def _is_xbox_build(p: Path) -> bool:
+    """Xbox app (GDK) build; Windows hides its exe unless the folder is opened from the Xbox app."""
+    return (p / "bin" / XBOX_BIN).is_dir()
+
+
+def _is_game_dir(p: Path) -> bool:
+    return (p / "content" / "content0").is_dir() and (_find_exe(p) is not None or _is_xbox_build(p))
+
+
 def game_root(path: Path | str) -> Path:
-    """The folder holding bin\\ and content\\; Xbox app installs keep them one level down in Content\\."""
+    """The folder holding bin\\ and content\\.
+
+    Xbox app installs keep them one level down in Content\\; also accepts a folder picked
+    too deep (bin\\x64_dx12, content\\content0) or the XboxGames folder itself.
+    """
     p = Path(path)
-    if not (p / "content" / "content0").is_dir() and (p / "Content" / "content" / "content0").is_dir():
-        return p / "Content"
-    return p
+    if _is_game_dir(p):
+        return p
+    tries = [p / "Content", *list(p.parents)[:2]]
+    try:
+        tries += [d / "Content" for d in sorted(p.iterdir()) if d.is_dir() and "witcher 3" in d.name.lower()]
+    except OSError:
+        pass
+    return next((t for t in tries if _is_game_dir(t)), p)
+
+
+def _describe(p: Path) -> str:
+    try:
+        return ", ".join(sorted(e.name + ("\\" if e.is_dir() else "") for e in p.iterdir())) or "(empty)"
+    except OSError as exc:
+        return f"cannot list: {exc}"
 
 
 def identify(path: Path | str, store: str = "") -> GameInfo:
     p = game_root(path)
-    exe_dx12 = p / "bin" / "x64_dx12" / "witcher3.exe"
-    exe_dx11 = p / "bin" / "x64" / "witcher3.exe"
-    content0 = p / "content" / "content0"
-    if not content0.is_dir() or not (exe_dx12.exists() or exe_dx11.exists()):
+    if not _is_game_dir(p):
+        log.info("not a Witcher 3 folder: %s [%s]", p, _describe(p))
         return GameInfo(p, EDITION_UNKNOWN, store)
 
-    version = exe_version(exe_dx12 if exe_dx12.exists() else exe_dx11)
+    exe = _find_exe(p)
+    xbox = _is_xbox_build(p)
+    version = exe_version(exe) if exe else ""
     split = _split_content_dirs(p)
     major = int(version.split(".")[0]) if version else 0
     if major >= 5:
@@ -156,10 +195,14 @@ def identify(path: Path | str, store: str = "") -> GameInfo:
         edition = EDITION_NEXTGEN
     elif major:
         edition = EDITION_CLASSIC
-    elif _launcher_remastered(p) and not split:
+    elif (_launcher_remastered(p) or xbox) and not split:
         edition = EDITION_REMASTERED
+    elif xbox or (p / "bin" / "x64_dx12" / "witcher3.exe").exists():
+        edition = EDITION_NEXTGEN
     else:
-        edition = EDITION_NEXTGEN if exe_dx12.exists() else EDITION_CLASSIC
+        edition = EDITION_CLASSIC
+    if xbox and not version:
+        log.info("Xbox build without a readable exe, edition from content layout: %s (%s)", p, edition)
 
     info = GameInfo(p, edition, store, version=version)
     if edition == EDITION_REMASTERED and split:
@@ -254,15 +297,34 @@ def _epic_candidates() -> list[Path]:
     return out
 
 
+def _xbox_roots(drive: Path) -> list[Path]:
+    """XboxGames plus any install folders the Xbox app recorded in <drive>\\.GamingRoot."""
+    roots = [drive / "XboxGames"]
+    try:
+        data = (drive / ".GamingRoot").read_bytes()
+    except OSError:
+        return roots
+    if data[:4] == b"RGBX":
+        for name in data[8:].decode("utf-16-le", errors="ignore").split("\0"):
+            name = name.strip().lstrip("\\")
+            if name:
+                roots.append(drive / name)
+    return roots
+
+
 def _xbox_candidates() -> list[Path]:
     out = []
     for letter in string.ascii_uppercase[2:]:
-        root = Path(f"{letter}:\\XboxGames")
-        try:
-            if root.is_dir():
-                out += [d for d in sorted(root.iterdir()) if d.is_dir() and "witcher 3" in d.name.lower()]
-        except OSError:
+        drive = Path(f"{letter}:\\")
+        if not drive.exists():
             continue
+        for root in _xbox_roots(drive):
+            try:
+                if root.is_dir():
+                    out += [d for d in sorted(root.iterdir()) if d.is_dir() and "witcher 3" in d.name.lower()]
+            except OSError as exc:
+                log.warning("cannot list %s: %s", root, exc)
+    log.info("Xbox candidates: %s", [str(c) for c in out])
     return out
 
 
@@ -294,12 +356,13 @@ def find_games() -> list[GameInfo]:
         for c in candidates:
             try:
                 key = str(c.resolve()).lower()
-            except OSError:
+                if key in seen or not c.is_dir():
+                    continue
+                seen.add(key)
+                info = identify(c, store)
+            except OSError as exc:
+                log.warning("cannot check %s: %s", c, exc)
                 continue
-            if key in seen or not c.is_dir():
-                continue
-            seen.add(key)
-            info = identify(c, store)
             if info.edition != EDITION_UNKNOWN:
                 found.append(info)
     found.sort(key=lambda g: (not g.supported, g.edition != EDITION_REMASTERED))

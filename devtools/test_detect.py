@@ -48,6 +48,36 @@ try:
     assert g.edition == EDITION_REMASTERED and g.path == xbox / "Content", (g.edition, g.path)
     assert g.mods_dir == xbox / "Content" / "mods"
     assert game_detect.game_root(xbox / "Content") == xbox / "Content"
+    # picked too deep, or the XboxGames folder itself
+    assert game_detect.game_root(xbox / "Content" / "bin" / "x64_dx12") == xbox / "Content"
+    assert game_detect.game_root(xbox / "Content" / "content" / "content0") == xbox / "Content"
+    assert game_detect.game_root(xbox.parent) == xbox / "Content"
+
+    # real Xbox app layout: bin\gaming.desktop.x64 whose exe Windows hides from us
+    hidden = Path(tempfile.mkdtemp()) / "The Witcher 3- Wild Hunt - Game of the Year Edition"
+    hidden.mkdir()
+    g = make_game(launcher=False)
+    (g / "bin" / "x64_dx12" / "witcher3.exe").unlink()
+    (g / "bin" / "x64_dx12").rename(g / "bin" / "gaming.desktop.x64")
+    g.rename(hidden / "Content")
+    game_detect.exe_version = lambda _p: ""
+    g = identify(hidden)
+    assert g.edition == EDITION_REMASTERED and g.path == hidden / "Content", (g.edition, g.path)
+    assert game_detect.game_root(hidden.parent) == hidden / "Content"
+    (hidden / "Content" / "content" / "content1").mkdir()
+    assert identify(hidden).edition == EDITION_NEXTGEN, "4.x split content on Xbox"
+    game_detect.exe_version = lambda _p: "5.0.15.58680"
+
+    # exe in a bin\ subfolder other than x64 / x64_dx12
+    odd = make_game()
+    (odd / "bin" / "x64_dx12").rename(odd / "bin" / "x64_gdk")
+    assert identify(odd).edition == EDITION_REMASTERED
+
+    # .GamingRoot: "RGBX", uint32 count, then NUL-terminated UTF-16 folder names
+    drive = Path(tempfile.mkdtemp())
+    (drive / ".GamingRoot").write_bytes(b"RGBX" + (2).to_bytes(4, "little")
+                                        + "Games\0\\Xbox Stuff\0".encode("utf-16-le"))
+    assert game_detect._xbox_roots(drive) == [drive / "XboxGames", drive / "Games", drive / "Xbox Stuff"]
 
     game_detect.exe_version = lambda _p: "4.4.0.0"
     g = identify(make_game(split=12))
