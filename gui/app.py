@@ -157,7 +157,7 @@ class App(tk.Tk):
                                                                        pady=(8, 0))
         ttk.Radiobutton(left, text="แทน Turkish (เมนูแสดงเป็น \"ไทย\") - แนะนำ", variable=self.v_slot,
                         value=SLOT_TR).grid(row=7, column=0, columnspan=2, sticky="w")
-        ttk.Radiobutton(left, text="แทนภาษาอังกฤษ", variable=self.v_slot, value=SLOT_EN).grid(
+        ttk.Radiobutton(left, text="แทนภาษาอังกฤษ (สำหรับเกมจาก Xbox)", variable=self.v_slot, value=SLOT_EN).grid(
             row=8, column=0, columnspan=2, sticky="w")
         ttk.Checkbutton(left, text="ดาวน์โหลดคำแปลล่าสุดทุกครั้ง", variable=self.v_refresh).grid(
             row=9, column=0, columnspan=2, sticky="w", pady=(8, 0))
