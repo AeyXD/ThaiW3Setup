@@ -10,7 +10,7 @@ from core.custom import merged_overrides, default_sheets, parse_custom_xlsx
 from core.game_detect import identify
 from core.options import InstallOptions, load_options, settings_path
 from core.sheet import get_translations
-from core.text_builder import build_texts, untranslated
+from core.text_builder import _load_merged, _thai_for, build_texts, untranslated
 from export_untranslated import build_rows, write_xlsx
 
 
@@ -34,7 +34,13 @@ tr = get_translations(allow_online=False)
 ov = merged_overrides(default_sheets(), progress=lambda f, m: None)
 pending = untranslated(g, tr.thai, tr.by_text, ov)
 res = build_texts(g, tr.thai, InstallOptions(GAME), by_text=tr.by_text, overrides=ov)
-assert len(pending) == res.total - res.translated - 1, (len(pending), res.total, res.translated)  # 1 empty string
+english = _load_merged(g, "en", [])
+uncounted = {sid for sid, text in english.strings.items()
+             if sid not in ov.excluded and not ov.counted(sid, bool(_thai_for(sid, text, tr.thai, tr.by_text, ov)))}
+assert len(uncounted) == res.total - res.translated, (len(uncounted), res.total, res.translated)
+# name-tab names still without Thai are left to the name tabs, and empty strings need no translation
+expected = {sid for sid in uncounted if sid not in ov.missing and english.strings[sid].strip()}
+assert pending.keys() == expected, (len(pending), len(expected))
 print("untranslated", len(pending))
 
 # settings saved before a default sheet existed pick it up once, and keep it removed afterwards
