@@ -165,7 +165,8 @@ guide = console_guide(ConsoleGuideInput(
     "Sarabun", MODE_THAI, "tr", 90, 100, 90.0))
 for needle in ("modThaiText-0.0.0.zip", "modThaiFont-0.0.0.zip", "REDkit", "Available on consoles",
                "ไม่อยู่ในแพ็กเกจ", "ซับไทยอย่างเดียว", "อาจโหลดไม่ถูกต้อง",
-               "ไล่ตรวจหาสาเหตุตามลำดับ", "เปิด issue"):
+               "ไล่ตรวจหาสาเหตุตามลำดับ", "เปิด issue",
+               "แพ็กเกจทดลอง", "ยังไม่ได้รับการยืนยันบนคอนโซล"):
     assert needle in guide, needle
 assert "ชั่วคราว" not in guide, "do not claim trophies come back"
 assert "ไม่ใช่ข้อผิดพลาดของแพ็กเกจ" not in guide, "do not diagnose the language menu upfront"

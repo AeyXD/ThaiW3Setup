@@ -1,9 +1,12 @@
 # คำอธิบาย mod.io (สองภาษา) สำหรับ 4 หน้า mod
 
-ร่างสำเร็จรูปสำหรับวางในหน้า mod.io — ก่อนอัปโหลดให้แก้สองอย่างเสมอ:
+ร่างสำเร็จรูปสำหรับวางในหน้า mod.io — ก่อนอัปโหลดให้แก้สามอย่างเสมอ:
 
 1. **ตัวเลข % คำแปล** — เอาตัวเลขจริงจาก `percent` ใน `build-info.json` ของ build ที่อัปโหลด
 2. **ลิงก์ข้ามหน้า** — เติม URL จริงหลังสร้างหน้า mod แต่ละหน้าแล้ว (แทนที่ `<<URL>>`)
+3. **ช่องภาษาในวิธีใช้** — ตาม `options.slot` ใน build-info.json: ช่อง `tr` ให้ผู้เล่นเลือก
+   "ไทย (Thai)" ส่วนช่อง `en` (โหมดแทนภาษาอังกฤษ) ให้เลือก "English"
+   (แทนที่ `<<ภาษาข้อความ>>` / `<<TEXT LANGUAGE>>` ในร่าง)
 
 หน้า mod.io ใช้ BBCode (`[b]`, `[url=]`) ถ้าช่องกรอกเป็นข้อความเปล่าก็ตัดแท็กออกได้เลย
 ชื่อหน้า (Profile name) ให้ตรงชื่อโฟลเดอร์ mod ตามที่ runbook กำหนด
@@ -26,7 +29,7 @@
 
 [b]วิธีใช้[/b]
 1. เปิดใช้ mod นี้ในเมนู Mods ของเกม
-2. Options > Language > Text Language > ไทย (Thai)
+2. Options > Language > Text Language > <<ภาษาข้อความ>>
 3. [b]ควรเปิดใช้ modThaiFont ด้วยทุกครั้ง[/b] ไม่อย่างนั้นตัวอักษรไทยจะแสดงเป็นสี่เหลี่ยม
    และถ้าอยากได้ซับคัตซีน Storybook ให้เปิด modThaiStoryBook เพิ่ม
 
@@ -57,7 +60,7 @@ spaces.
 
 [b]How to use[/b]
 1. Enable this mod in the in-game Mods menu
-2. Options > Language > Text Language > ไทย (Thai)
+2. Options > Language > Text Language > <<TEXT LANGUAGE>>
 3. [b]Enable modThaiFont as well[/b] — without it Thai characters show as boxes.
    Add modThaiStoryBook if you want Thai subtitles on the storybook cutscenes.
 
@@ -197,6 +200,9 @@ The Witcher 3: Wild Hunt © CD PROJEKT S.A.
 
 ## หมายเหตุการใช้งาน
 
+- **เกตก่อนเผยแพร่**: แพ็กเกจปัจจุบันเป็น "ทดลองสร้างสำเร็จ" ไม่ใช่ "ทดสอบและรองรับ
+  คอนโซลแล้ว" — อัปโหลด unlisted จนกว่า (1) โครงสร้าง zip ยืนยันกับคู่มือทางการ
+  และ (2) เช็กลิสต์ PS5 ใน `อัปโหลด-modio.md` ผ่านครบ จึงเปลี่ยนเป็น listed ได้
 - ระหว่างเป็น unlisted ไม่จำเป็นต้องใส่คำอธิบายเต็ม — ใส่ขั้นต่ำแล้วค่อยเติมตอนเปิดเผย
 - หลังแต่ละหน้าผ่านอนุมัติ console ให้เพิ่มบรรทัดแรกว่า
   "พร้อมใช้บน PS5 / Xbox Series X|S / Switch 2 ผ่านเมนู Mods ในเกม"
