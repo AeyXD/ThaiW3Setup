@@ -32,6 +32,20 @@
 ถ้าอยากเปลี่ยนฟอนต์ สี หรือขนาดภายหลัง ให้เปิดโปรแกรม ปรับค่า แล้วกดติดตั้งซ้ำ
 เมื่อเกมอัปเดตหรือทีมแปลอัปเดตคำแปลแล้ว ก็กดติดตั้งซ้ำได้เช่นกัน
 
+### บน macOS
+
+เกมไม่มีเวอร์ชัน macOS ถ้าเล่นบน Mac แสดงว่าไฟล์เกมอยู่ใน bottle ของ CrossOver / Whisky / Heroic / Porting Kit
+โปรแกรมหา bottle ให้เอง ถ้าหาไม่เจอก็กด **เลือก...** ชี้ไปที่โฟลเดอร์เกมใน bottle ได้
+
+1. ดาวน์โหลด `ThaiW3Setup-x.y.z-macos-arm64.zip` แล้วแตกไฟล์
+2. **เปิดครั้งแรกต้องปลดล็อกก่อน** เพราะโปรแกรมยังไม่ได้ notarize กับ Apple — เปิด Terminal แล้วพิมพ์
+   `xattr -dr com.apple.quarantine ` จากนั้นลากไฟล์ `ThaiW3Setup.app` มาวางต่อท้ายแล้วกด Enter
+   (หรือดับเบิลคลิกให้ขึ้นคำเตือนก่อน แล้วไป System Settings > Privacy & Security กด **Open Anyway**)
+3. จากนั้นใช้งานเหมือนบน Windows ทุกอย่าง
+
+> รองรับ Mac ชิป Apple (M1 ขึ้นไป) เท่านั้น ยังไม่รองรับ Intel Mac
+> ถ้าไม่ปลดล็อกตามข้อ 2 macOS จะขึ้นว่า *"Apple could not verify..."* โดยปุ่มเริ่มต้นเป็น **Move to Trash**
+
 ### สร้างไฟล์ไว้ copy เอง
 
 ถ้ากดติดตั้งแล้วเขียนลงโฟลเดอร์เกมไม่ได้ (เช่นเกมจากแอป Xbox / Game Pass) ให้กดลูกศรข้างปุ่ม **ติดตั้ง / อัปเดต** แล้วเลือก **สร้างไฟล์ไว้ copy เอง...** แทน
@@ -192,9 +206,16 @@ brew install python@3.12 python-tk@3.12
 python3.12 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 .venv/bin/python main.py          # เปิด GUI
+./build.sh                        # สร้าง dist/ThaiW3Setup-<version>-macos-<arch>.zip
+./build.sh offline                # build โดยไม่ดาวน์โหลดคำแปลใหม่
 ```
 
-ยังไม่มีสคริปต์ build สำหรับ macOS (`build.bat` และ `ThaiW3Setup.spec` เป็นของ Windows)
+`build.sh` ใช้ `ThaiW3Setup.spec` ตัวเดียวกับ Windows โดย spec เลือกไอคอนและ `BUNDLE()` ตาม platform
+ได้ `.app` ที่มี Tcl/Tk อยู่ข้างใน ไม่ต้องมี Python ในเครื่องปลายทาง และ zip ด้วย `ditto` เพื่อไม่ให้ลายเซ็นเสีย
+
+.app ยังไม่ได้ notarize ผู้ใช้จึงต้องปลดล็อกเองครั้งแรก (ดูหัวข้อ "บน macOS" ด้านบน)
+การ notarize ต้องสมัคร Apple Developer Program ปีละ $99
+
 ค่าที่ตั้งไว้เก็บที่ `~/Library/Application Support/ThaiW3Setup` แทน `%APPDATA%`
 และสคริปต์ใน `devtools/` อ่านโฟลเดอร์เกมจากตัวแปรแวดล้อม `W3_GAME`
 
