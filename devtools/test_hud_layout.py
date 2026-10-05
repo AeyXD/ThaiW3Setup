@@ -60,6 +60,28 @@ def test_multiline_double():
                                                  else f'StrReplaceAll({var}, "  [",'), (name, var)
 
 
+def test_dialog_speaker():
+    dlg = scripts()["hudModuleDialog.ws"].replace("\r\n", "\n")
+    assert dlg.count("private function ModThaiFindSpeaker() : CActor") == 1
+    assert dlg.count("m_spk_raw = text;") == 1
+    assert dlg.count("ModThaiSentenceSet( text, alternativeUI );") == 1
+    assert dlg.count("m_fxSentenceSetSFF.InvokeSelfOneArg( FlashArgString( text ) );") == 1  # inside ModThaiSentenceSet
+    assert "prefix + m_spk_text" in dlg and "m_spk_wait = 0.5;" in dlg
+    assert dlg.index("m_spk_wait = 0.0;\n\t\t// mod thai\n\t\tif(!ep1hack)") > 0
+    assert '"#5ACCF7"' in dlg
+    assert dlg.count("{") == dlg.count("}")
+
+    plain = scripts(speaker_colors=False)["hudModuleDialog.ws"]
+    assert "color = m_color1;" in plain and '"#5ACCF7"' not in plain
+
+
+def test_sub_speaker_colors():
+    # names from the Thai name tabs no longer read "Geralt", so the translated name counts too
+    sub = scripts()["hudModuleSubtitles.ws"]
+    assert 'speakerNameDisplayText == GetLocStringByKeyExt("geralt")' in sub
+    assert 'speakerNameDisplayText == GetLocStringByKeyExt("ciri")' in sub
+
+
 def test_validate():
     InstallOptions(sub_x=100, sub_y=-100, sub_width=150, dialog_x=12.5, choice_x=-75, choice_scale=250).validate()
     for bad in (dict(sub_x=100.5), dict(dialog_y=-110), dict(choice_x=101), dict(layout_bg="nope"), dict(sub_width=40), dict(sub_width=12.5), dict(sub_x="1"),

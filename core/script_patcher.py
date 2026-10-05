@@ -96,9 +96,9 @@ SUB_SPLIT = """\
 
 SUB_SPEAKER = """\
 			// mod thai
-			if(speakerNameDisplayText == "Geralt")
+			if(speakerNameDisplayText == "Geralt" || speakerNameDisplayText == GetLocStringByKeyExt("geralt"))
 				speakerNameDisplayText = "<FONT COLOR='#5ACCF7'>" + speakerNameDisplayText + "</FONT>";
-			else if(speakerNameDisplayText == "Ciri")
+			else if(speakerNameDisplayText == "Ciri" || speakerNameDisplayText == GetLocStringByKeyExt("ciri"))
 				speakerNameDisplayText = "<FONT COLOR='#FC5593'>" + speakerNameDisplayText + "</FONT>";
 			else if(speakerNameDisplayText != "" && speakerNameDisplayText != " ")
 				speakerNameDisplayText = "<FONT COLOR='#F8FF56'>" + speakerNameDisplayText + "</FONT>";
@@ -223,6 +223,118 @@ DIALOG_PLACE_FN = """\
 """
 
 
+# The engine hands dialogue lines over without the speaker, so the speaker is whichever actor is
+# speaking when the line arrives, or within DIALOG_SPEAKER_WAIT seconds after it (OnTick).
+DIALOG_SPEAKER_FN = """\
+	// mod thai
+	private var m_spk_raw		: string;
+	private var m_spk_text		: string;
+	private var m_spk_wait		: float;
+	default m_spk_wait = 0.0;
+
+	private function ModThaiFindSpeaker() : CActor
+	{{
+		var actors	: array< CActor >;
+		var i		: int;
+
+		if ( thePlayer.IsSpeaking() )
+		{{
+			return thePlayer;
+		}}
+		actors = GetActorsInRange( thePlayer, 30.0 );
+		for ( i = 0; i < actors.Size(); i += 1 )
+		{{
+			if ( actors[ i ] != thePlayer && actors[ i ].IsSpeaking() )
+			{{
+				return actors[ i ];
+			}}
+		}}
+		return NULL;
+	}}
+
+	private function ModThaiSpeakerPrefix( actor : CActor ) : string
+	{{
+		var speaker	: string;
+		var color	: string;
+
+		if ( !actor )
+		{{
+			return "";
+		}}
+		speaker = actor.GetDisplayName();
+		if ( ( speaker == "" || speaker == " " ) && actor == thePlayer )
+		{{
+			if ( thePlayer.IsCiri() )
+				speaker = GetLocStringByKeyExt( "ciri" );
+			else
+				speaker = GetLocStringByKeyExt( "geralt" );
+		}}
+		if ( speaker == "" || speaker == " " )
+		{{
+			return "";
+		}}
+{color_block}
+		return "<font size = '" + IntToString( 27 + subtitleScale + (m_size1 - m_size_default) ) + "' ><FONT COLOR='" + color + "'>" + speaker + ": </FONT></font>";
+	}}
+
+	private function ModThaiSentenceSet( text : string, alternativeUI : bool )
+	{{
+		var prefix	: string;
+
+		m_spk_wait = 0.0;
+		if ( m_spk_raw == "" || alternativeUI || theGame.isDialogDisplayDisabled )
+		{{
+			m_fxSentenceSetSFF.InvokeSelfOneArg( FlashArgString( text ) );
+			return;
+		}}
+		prefix = ModThaiSpeakerPrefix( ModThaiFindSpeaker() );
+		if ( prefix == "" )
+		{{
+			m_spk_text = text;
+			m_spk_wait = {wait};
+		}}
+		m_fxSentenceSetSFF.InvokeSelfOneArg( FlashArgString( prefix + text ) );
+	}}
+	// mod thai
+
+"""
+
+DIALOG_SPEAKER_COLORS = """\
+		if ( actor == thePlayer && thePlayer.IsCiri() )
+			color = "#FC5593";
+		else if ( actor == thePlayer )
+			color = "#5ACCF7";
+		else
+			color = "#F8FF56";"""
+
+DIALOG_SPEAKER_PLAIN = "\t\tcolor = m_color1;"
+
+DIALOG_SPEAKER_WAIT = 0.5
+
+DIALOG_SPEAKER_TICK = """\
+		// mod thai
+		var prefix : string;
+
+		if ( m_spk_wait > 0.0 )
+		{
+			m_spk_wait = m_spk_wait - timeDelta;
+			prefix = ModThaiSpeakerPrefix( ModThaiFindSpeaker() );
+			if ( prefix != "" )
+			{
+				m_spk_wait = 0.0;
+				m_fxSentenceSetSFF.InvokeSelfOneArg( FlashArgString( prefix + m_spk_text ) );
+			}
+		}
+		// mod thai
+"""
+
+DIALOG_SPEAKER_SET = """\
+		// mod thai
+		ModThaiSentenceSet( text, alternativeUI );
+		// mod thai
+"""
+
+
 def _num(value: float) -> str:
     return f"{float(value):.1f}"
 
@@ -281,6 +393,17 @@ def _edits(name: str, o: ScriptOptions) -> list[Edit]:
             edits.append(Edit("replace_line",
                               r'^\s*text = "<FONT COLOR=\'#5ACCF6\'>" \+ GetLocStringByKeyExt\("Witold"\) \+ ": " \+ text \+ "</FONT>";',
                               DIALOG_WITOLD, optional=True))
+        color_block = DIALOG_SPEAKER_COLORS if o.speaker_colors else DIALOG_SPEAKER_PLAIN
+        edits += [
+            Edit("replace_line", r"^\s*m_fxSentenceSetSFF\.InvokeSelfOneArg\( FlashArgString\( text \) \);",
+                 DIALOG_SPEAKER_SET),
+            Edit("before", r"^\s*function OnDialogSentenceSet\(",
+                 DIALOG_SPEAKER_FN.format(color_block=color_block, wait=_num(DIALOG_SPEAKER_WAIT))),
+            Edit("after", r"^\s*ep1hack = false;", "\t\t// mod thai\n\t\tm_spk_raw = text;\n\t\t// mod thai\n"),
+            Edit("after", r"^\s*event OnTick\( timeDelta : float \)\s*$", "{\n" + DIALOG_SPEAKER_TICK,
+                 replacement="{"),
+            Edit("before", r"^\s*if\(!ep1hack\)\s*$", "\t\t// mod thai\n\t\tm_spk_wait = 0.0;\n\t\t// mod thai\n"),
+        ]
         return edits
     if name == "hudModuleOneliners.ws":
         return [
