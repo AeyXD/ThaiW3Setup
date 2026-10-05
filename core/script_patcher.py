@@ -230,6 +230,13 @@ DIALOG_SPEAKER_FN = """\
 	private var m_spk_raw		: string;
 	private var m_spk_text		: string;
 	private var m_spk_wait		: float;
+	private var m_spk_last		: string;
+	private var m_prev_same		: bool;
+	private var m_choices_alt	: bool;
+	private var m_hdr_on		: bool;
+	private var m_hdr_saved		: bool;
+	private var m_hdr_x0		: float;
+	private var m_hdr_y0		: float;
 	default m_spk_wait = 0.0;
 
 	private function ModThaiFindSpeaker() : CActor
@@ -254,6 +261,11 @@ DIALOG_SPEAKER_FN = """\
 
 	private function ModThaiSpeakerPrefix( actor : CActor ) : string
 	{{
+		return ModThaiSpeakerLabel( actor, 27 + subtitleScale + (m_size1 - m_size_default) );
+	}}
+
+	private function ModThaiSpeakerLabel( actor : CActor, size : int ) : string
+	{{
 		var speaker	: string;
 		var color	: string;
 
@@ -274,7 +286,7 @@ DIALOG_SPEAKER_FN = """\
 			return "";
 		}}
 {color_block}
-		return "<font size = '" + IntToString( 27 + subtitleScale + (m_size1 - m_size_default) ) + "' ><FONT COLOR='" + color + "'>" + speaker + ": </FONT></font>";
+		return "<font size = '" + IntToString( size ) + "' ><FONT COLOR='" + color + "'>" + speaker + ": </FONT></font>";
 	}}
 
 	private function ModThaiSentenceSet( text : string, alternativeUI : bool )
@@ -282,18 +294,127 @@ DIALOG_SPEAKER_FN = """\
 		var prefix	: string;
 
 		m_spk_wait = 0.0;
+		ModThaiHeaderOff();
 		if ( m_spk_raw == "" || alternativeUI || theGame.isDialogDisplayDisabled )
 		{{
 			m_fxSentenceSetSFF.InvokeSelfOneArg( FlashArgString( text ) );
 			return;
 		}}
 		prefix = ModThaiSpeakerPrefix( ModThaiFindSpeaker() );
+		m_spk_last = prefix;
 		if ( prefix == "" )
 		{{
 			m_spk_text = text;
 			m_spk_wait = {wait};
 		}}
 		m_fxSentenceSetSFF.InvokeSelfOneArg( FlashArgString( prefix + text ) );
+	}}
+
+	// the line left on screen above the choices is the last one spoken, so it keeps that speaker
+	private function ModThaiPreviousSet( line : string )
+	{{
+		if ( m_prev_same && !theGame.isDialogDisplayDisabled )
+		{{
+			line = m_spk_last + line;
+		}}
+		m_fxPreviousSentenceSetSFF.InvokeSelfOneArg( FlashArgString( line ) );
+	}}
+
+	// The choice box has no free text field, so the player's name borrows tfSubtitles, which is empty
+	// while the choices are up, and moves it above the first choice. The list is laid out by flash
+	// after the choices arrive, so the position is followed every tick.
+	private function ModThaiHeaderSet( shown : bool )
+	{{
+		if ( !shown || m_choices_alt )
+		{{
+			ModThaiHeaderOff();
+			return;
+		}}
+		m_hdr_on = true;
+		ModThaiHeaderTick();
+	}}
+
+	private function ModThaiHeaderTick()
+	{{
+		var root	: CScriptedFlashSprite;
+		var box		: CScriptedFlashSprite;
+		var choices	: CScriptedFlashSprite;
+		var first	: CScriptedFlashSprite;
+		var field	: CScriptedFlashObject;
+		var label	: CScriptedFlashTextField;
+		var header	: string;
+		var size	: int;
+		var sx		: float;
+		var sy		: float;
+
+		if ( !m_hdr_on )
+		{{
+			return;
+		}}
+		root = GetModuleFlash();
+		box = root.GetChildFlashSprite( "mcSubtitlesContainer" );
+		choices = root.GetChildFlashSprite( "mcOptionContainer" );
+		if ( !box || !choices )
+		{{
+			return;
+		}}
+		first = choices.GetChildFlashSprite( "mcOption1" );
+		field = box.GetMemberFlashObject( "tfSubtitles" );
+		label = box.GetChildFlashTextField( "tfSubtitles" );
+		if ( !first || !field || !label )
+		{{
+			return;
+		}}
+		// flash sprite scales are in percent
+		sx = choices.GetXScale() / 100.0;
+		sy = choices.GetYScale() / 100.0;
+		size = RoundF( ( 23 + choiceScale ) * sy );
+		header = ModThaiSpeakerLabel( thePlayer, size );
+		if ( header == "" )
+		{{
+			return;
+		}}
+		if ( !m_hdr_saved )
+		{{
+			m_hdr_x0 = field.GetMemberFlashNumber( "x" );
+			m_hdr_y0 = field.GetMemberFlashNumber( "y" );
+			m_hdr_saved = true;
+		}}
+		field.SetMemberFlashNumber( "x", choices.GetX() + first.GetX() * sx - box.GetX() - 2.0 );
+		field.SetMemberFlashNumber( "y", choices.GetY() + ( first.GetY() - 14.0 ) * sy - box.GetY() - size * 1.5 );
+		field.SetMemberFlashBool( "visible", true );
+		field.SetMemberFlashNumber( "alpha", 1.0 );
+		label.SetTextHtml( "<p align='left'>" + header + "</p>" );
+	}}
+
+	private function ModThaiHeaderOff()
+	{{
+		var box		: CScriptedFlashSprite;
+		var field	: CScriptedFlashObject;
+		var label	: CScriptedFlashTextField;
+
+		m_hdr_on = false;
+		if ( !m_hdr_saved )
+		{{
+			return;
+		}}
+		m_hdr_saved = false;
+		box = GetModuleFlash().GetChildFlashSprite( "mcSubtitlesContainer" );
+		if ( !box )
+		{{
+			return;
+		}}
+		label = box.GetChildFlashTextField( "tfSubtitles" );
+		if ( label )
+		{{
+			label.SetTextHtml( "" );
+		}}
+		field = box.GetMemberFlashObject( "tfSubtitles" );
+		if ( field )
+		{{
+			field.SetMemberFlashNumber( "x", m_hdr_x0 );
+			field.SetMemberFlashNumber( "y", m_hdr_y0 );
+		}}
 	}}
 	// mod thai
 
@@ -322,9 +443,11 @@ DIALOG_SPEAKER_TICK = """\
 			if ( prefix != "" )
 			{
 				m_spk_wait = 0.0;
+				m_spk_last = prefix;
 				m_fxSentenceSetSFF.InvokeSelfOneArg( FlashArgString( prefix + m_spk_text ) );
 			}
 		}
+		ModThaiHeaderTick();
 		// mod thai
 """
 
@@ -332,6 +455,36 @@ DIALOG_SPEAKER_SET = """\
 		// mod thai
 		ModThaiSentenceSet( text, alternativeUI );
 		// mod thai
+"""
+
+DIALOG_PREVIOUS_SAME = """\
+		// mod thai
+		m_prev_same = ( text == m_spk_raw );
+		// mod thai
+"""
+
+DIALOG_PREVIOUS_SET = """\
+		// mod thai
+		ModThaiPreviousSet( text );
+		// mod thai
+"""
+
+DIALOG_CHOICES_ALT = """\
+		// mod thai
+		m_choices_alt = alternativeUI;
+		// mod thai
+"""
+
+DIALOG_CHOICES_HEADER = """\
+		// mod thai
+		ModThaiHeaderSet( choices.Size() > 0 );
+		// mod thai
+"""
+
+DIALOG_CHOICE_ACCEPTED = """\
+			// mod thai
+			ModThaiHeaderOff();
+			// mod thai
 """
 
 
@@ -403,6 +556,14 @@ def _edits(name: str, o: ScriptOptions) -> list[Edit]:
             Edit("after", r"^\s*event OnTick\( timeDelta : float \)\s*$", "{\n" + DIALOG_SPEAKER_TICK,
                  replacement="{"),
             Edit("before", r"^\s*if\(!ep1hack\)\s*$", "\t\t// mod thai\n\t\tm_spk_wait = 0.0;\n\t\t// mod thai\n"),
+            Edit("after", r"^\s*function OnDialogPreviousSentenceSet\( text : string \)\s*$", "{\n" + DIALOG_PREVIOUS_SAME,
+                 replacement="{"),
+            Edit("replace_line", r"^\s*m_fxPreviousSentenceSetSFF\.InvokeSelfOneArg\( FlashArgString\( text \) \);",
+                 DIALOG_PREVIOUS_SET),
+            Edit("before", r"^\s*SendDialogChoicesToUI\(choices, true\);", DIALOG_CHOICES_ALT),
+            Edit("before", r'^\s*flashValueStorage\.SetFlashArray\( "hud\.dialog\.choices", choiceFlashArray \);',
+                 DIALOG_CHOICES_HEADER),
+            Edit("after", r"^\s*system\.SendSignal\( SSST_Accept, index \);", DIALOG_CHOICE_ACCEPTED, count=2),
         ]
         return edits
     if name == "hudModuleOneliners.ws":

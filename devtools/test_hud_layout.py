@@ -1,5 +1,5 @@
 """HUD position patch and option checks (needs the game scripts)."""
-import os, sys
+import os, re, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from gamepath import GAME
 from dataclasses import replace
@@ -73,6 +73,28 @@ def test_dialog_speaker():
 
     plain = scripts(speaker_colors=False)["hudModuleDialog.ws"]
     assert "color = m_color1;" in plain and '"#5ACCF7"' not in plain
+
+
+def test_choice_speaker():
+    for colors in (True, False):
+        dlg = scripts(speaker_colors=colors)["hudModuleDialog.ws"].replace("\r\n", "\n")
+        assert dlg.count("private function ModThaiPreviousSet( line : string )") == 1
+        assert dlg.count("ModThaiPreviousSet( text );") == 1
+        assert dlg.count("m_fxPreviousSentenceSetSFF.InvokeSelfOneArg( FlashArgString( text ) );") == 0
+        assert dlg.count("m_prev_same = ( text == m_spk_raw );") == 1
+        assert dlg.count("m_spk_last = prefix;") == 2
+        assert dlg.index("m_choices_alt = alternativeUI;") < dlg.index("SendDialogChoicesToUI(choices, true);")
+        # the player's name borrows tfSubtitles above the choice list, apart from the choices themselves
+        assert re.search(r'SetMemberFlashString\( "prefix",\s*prefix \);', dlg)
+        header = dlg.index("ModThaiHeaderSet( choices.Size() > 0 );")
+        assert dlg.index("private function SendDialogChoicesToUI(") < header < dlg.index('"hud.dialog.choices"')
+        assert dlg.count("system.SendSignal( SSST_Accept, index );\n\t\t\t// mod thai\n\t\t\tModThaiHeaderOff();") >= 1
+        assert dlg.count("ModThaiHeaderOff();") == 4  # choices hidden, new line, two accept paths
+        sentence = dlg.index("private function ModThaiSentenceSet(")
+        assert dlg.index("ModThaiHeaderOff();", sentence) < dlg.index("m_fxSentenceSetSFF.InvokeSelfOneArg", sentence)
+        tick = dlg.index("event OnTick( timeDelta : float )")
+        assert dlg.index("ModThaiHeaderTick();", tick) < dlg.index("function UpdateCanBeSkipped", tick)
+        assert dlg.count("{") == dlg.count("}")
 
 
 def test_sub_speaker_colors():
