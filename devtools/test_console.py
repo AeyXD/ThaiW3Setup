@@ -168,6 +168,15 @@ for needle in ("modThaiText-0.0.0.zip", "modThaiFont-0.0.0.zip", "REDkit", "Avai
                "ไล่ตรวจหาสาเหตุตามลำดับ", "เปิด issue",
                "แพ็กเกจทดลอง", "ยังไม่ได้รับการยืนยันบนคอนโซล"):
     assert needle in guide, needle
+assert "โผล่ขึ้นมาใหม่" in guide, "tr build expects a new Thai menu entry"
+
+# the en-slot build replaces the English slot, so the checklist must tell the tester
+# to pick English and expect Thai text — not to hunt for a new Thai entry
+en_guide = console_guide(ConsoleGuideInput(
+    GameInfo(Path("/g"), "remastered"), ["modThaiText"],
+    {"modThaiText": "modThaiText-0.0.0.zip"}, "Sarabun", MODE_THAI, "en", 90, 100, 90.0))
+assert "โหมดแทนภาษาอังกฤษ" in en_guide and "English" in en_guide
+assert "โผล่ขึ้นมาใหม่" not in en_guide, "en build has no new menu entry to look for"
 assert "ชั่วคราว" not in guide, "do not claim trophies come back"
 assert "ไม่ใช่ข้อผิดพลาดของแพ็กเกจ" not in guide, "do not diagnose the language menu upfront"
 
