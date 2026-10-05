@@ -30,6 +30,37 @@ ThaiW3Setup.exe export-console --out D:\ThaiConsole
 # ตัวเลือกที่มีผลจริง: --font --slot --no-storybook --thai-logo --custom --refresh
 ```
 
+### บน macOS โดยไม่มี Windows (เกมฉบับ Steam)
+
+ตัว build อ่านไฟล์เกมเฉย ๆ ไม่ต้องรันเกมหรือมี Wine เลย ใช้ `steamcmd` ดึงไฟล์เกม
+ฝั่ง Windows ลงมาเป็นโฟลเดอร์ธรรมดา (ครั้งแรกจะขอรหัส Steam Guard และโหลด ~50GB):
+
+```bash
+# ครั้งเดียว: ติดตั้ง steamcmd (ไบนารี Intel รันผ่าน Rosetta ได้)
+mkdir -p ~/steamcmd && cd ~/steamcmd
+curl -o steamcmd.tar.gz https://media.steampowered.com/client/installer/steamcmd_osx.tar.gz
+tar -xzf steamcmd.tar.gz && rm steamcmd.tar.gz
+./steamcmd.sh +quit          # ให้มัน self-update รอบแรก
+
+# ทุกครั้งที่ต้องการไฟล์เกมเวอร์ชันใหม่
+./steamcmd.sh \
+  +@sSteamCmdForcePlatformType windows \
+  +login <ชื่อSteam> \
+  +force_install_dir ~/Games/W3 \
+  +app_update 292030 validate \
+  +quit
+
+# build แพ็กเกจคอนโซลจากโฟลเดอร์นั้น
+cd <โฟลเดอร์ ThaiW3Setup>
+.venv/bin/python -m core.cli export-console --game ~/Games/W3 --out ~/ThaiConsole
+```
+
+เกมไร้ DRM แม้บน Steam ไฟล์ที่ได้จึงใช้ทำอย่างอื่นต่อได้ เช่น ลงใน CrossOver/Heroic
+เพื่อทดสอบ mod ด้วยการเล่นจริง
+
+หมายเหตุ: ฉบับ GOG ใช้ทางอื่น — โหลด offline installer แล้วแตกด้วย `innoextract`
+(`brew install innoextract`) ได้โฟลเดอร์เกมแบบเดียวกัน
+
 คำสั่งนี้เป็นงาน build ครั้งเดียวจบ: ตัวเลือกที่ส่งไป (ฟอนต์ ช่องภาษา ชุดคำแปล)
 ใช้เฉพาะตอนสร้างแพ็กเกจและถูกบันทึกไว้ใน `build-info.json` ของผลลัพธ์เท่านั้น
 **ไม่**เขียนทับค่าตั้งของตัวติดตั้ง PC ใน settings เวลาเปิดโปรแกรมครั้งถัดไป
