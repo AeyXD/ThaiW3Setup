@@ -91,7 +91,10 @@ zip ถูกสร้างแบบ deterministic (ไร้ timestamp) — bu
    [How-to: Create Mods for Cross-Platform Mod Support](https://mod.io/g/the-witcher-3/r/how-to-create-mods-for-cross-platform-mod-support)
    และ [CDPR Support: Cross-Platform Mod Support](https://support.cdprojektred.com/en/witcher-3/pc/gameplay/issue/3001/cross-platform-mod-support-how-to)
 3. หนึ่ง zip = หนึ่งหน้า mod ตั้งชื่อหน้า mod ให้ตรงชื่อโฟลเดอร์ (เช่น `modThaiText`)
-   เลือกหมวด Localization ใส่คำอธิบายไทย + อังกฤษ และเครดิตทีมแปล w3tu ตาม README หลัก
+   เลือกหมวด Localization (ถ้า hub ไม่มีให้เลือกหมวดใกล้สุด) คำอธิบายไทย + อังกฤษ
+   ใช้ร่างสำเร็จจาก [modio-descriptions.md](modio-descriptions.md) ได้เลย — ก่อนวาง
+   ให้แทนที่ `<<URL>>` ด้วยลิงก์หน้า mod จริง และตัวเลข % ด้วยค่าจาก build-info.json
+   เครดิตทีมแปล w3tu ตาม README หลัก
 4. ขออนุมัติคอนโซลตามช่องทางในคู่มือ แล้วรอแท็ก **Available on consoles**
 5. ทดสอบตามเช็กลิสต์ใน `อัปโหลด-modio.md` ที่สร้างมาให้ โดยเฉพาะข้อ 1:
    **เมนู Text Language บน PS5 ต้องแสดง "ไทย (Thai)" จากช่องภาษา tr** — เป็นสมมติฐาน
@@ -119,5 +122,8 @@ zip ถูกสร้างแบบ deterministic (ไร้ timestamp) — bu
 - เซฟที่สร้างขณะเปิดใช้ mod ถูกทำเครื่องหมายว่าเป็นเซฟที่ใช้ mod และทรอฟี่/achievements
   จะถูกปิดในเซฟลักษณะนี้
 - การย้ายเซฟข้ามแพลตฟอร์มควรเปิดชุด mod เดียวกันทั้งสองฝั่ง ไม่อย่างนั้นเซฟอาจโหลดไม่ถูกต้อง
+- ผู้เล่น Windows ที่ใช้ตัวติดตั้ง ThaiW3Setup อยู่ **ไม่ควรเปิดใช้ mod ชุดนี้บน mod.io ซ้ำ** —
+  เลือกช่องทางเดียวพอ ไม่อย่างนั้น modThai* สองชุดจะชนกันในโฟลเดอร์ mods
+  (ตัวติดตั้งตรวจพบและเสนอย้ายออกให้ แต่เลี่ยงตั้งแต่ต้นดีกว่า — ใส่คำเตือนนี้ในหน้า mod ด้วย)
 - ตัวติดตั้ง PC (ThaiW3Setup) ยังจำเป็นสำหรับผู้เล่น Windows/macOS ที่อยากปรับแต่ง
   ฟอนต์/สี/ตำแหน่งซับ ซึ่ง mod.io ไม่มี

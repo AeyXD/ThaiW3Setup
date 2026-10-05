@@ -33,6 +33,8 @@
 [b]ข้อจำกัดบนคอนโซล[/b]
 - ซับใช้สี ขนาด และตำแหน่งมาตรฐานของเกม และเป็นซับไทยอย่างเดียว
   (การปรับแต่งซับและโหมดสองภาษามีเฉพาะฉบับ PC)
+- ถ้าคุณใช้ตัวติดตั้ง ThaiW3Setup (ฉบับ PC) อยู่ ไม่ต้องเปิดใช้ mod ชุดนี้ซ้ำ —
+  เลือกช่องทางเดียวพอ
 - เซฟที่สร้างขณะเปิดใช้ mod จะถูกทำเครื่องหมายว่าเป็นเซฟที่ใช้ mod
   และทรอฟี่/achievements จะถูกปิดในเซฟลักษณะนี้
 - การย้ายเซฟข้ามแพลตฟอร์มควรเปิดชุด mod เดียวกันทั้งสองฝั่ง
@@ -62,6 +64,8 @@ spaces.
 [b]Console notes[/b]
 - Subtitles use the game's default style and are Thai-only
   (subtitle styling and the bilingual mode are PC-only)
+- If you already use the ThaiW3Setup installer (PC edition), do not also enable
+  this mod set — pick one channel
 - Saves created with mods enabled are flagged, and trophies/achievements are
   disabled on such saves
 - When moving saves across platforms, enable the same set of mods on both,
