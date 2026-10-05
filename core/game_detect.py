@@ -12,6 +12,7 @@ from pathlib import Path
 
 from .osutil import WINDOWS
 from .pe_version import file_version
+from .wine import Bottle, bottles
 
 log = logging.getLogger(__name__)
 
@@ -347,12 +348,89 @@ def _drive_guesses() -> list[Path]:
     return out
 
 
+# the same stores as on Windows, read out of a bottle's registry instead of the real one
+STEAM_KEYS = (("user", r"Software\Valve\Steam", "SteamPath"),
+              ("machine", r"Software\Wow6432Node\Valve\Steam", "InstallPath"),
+              ("machine", r"Software\Valve\Steam", "InstallPath"))
+GOG_KEY = r"Software\Wow6432Node\GOG.com\Games"
+BOTTLE_GUESSES = (r"Program Files (x86)\Steam\steamapps\common\The Witcher 3",
+                  r"GOG Games\The Witcher 3 Wild Hunt GOTY",
+                  r"Program Files\Epic Games\The Witcher 3",
+                  r"SteamLibrary\steamapps\common\The Witcher 3",
+                  r"Games\The Witcher 3")
+
+
+def _steam_libraries(bottle: Bottle, steam: Path) -> list[Path]:
+    """The Steam root plus every library listed in libraryfolders.vdf, mapped onto this Mac."""
+    out = [steam]
+    vdf = steam / "steamapps" / "libraryfolders.vdf"
+    try:
+        text = vdf.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return out
+    for m in re.finditer(r'"path"\s+"([^"]+)"', text):
+        host = bottle.host_path(m.group(1).replace("\\\\", "\\"))
+        if host and host not in out:
+            out.append(host)
+    return out
+
+
+def _bottle_steam() -> list[Path]:
+    out = []
+    for bottle in bottles():
+        roots = []
+        for hive, key, name in STEAM_KEYS:
+            value = bottle.registry(hive, key, name)
+            host = bottle.host_path(value) if value else None
+            if host and host not in roots:
+                roots.append(host)
+        default = bottle.drive_c / "Program Files (x86)" / "Steam"
+        if default.is_dir() and default not in roots:
+            roots.append(default)
+        for steam in roots:
+            for lib in _steam_libraries(bottle, steam):
+                manifest = lib / "steamapps" / f"appmanifest_{STEAM_APP_ID}.acf"
+                installdir = "The Witcher 3"
+                if manifest.exists():
+                    m = re.search(r'"installdir"\s+"([^"]+)"', manifest.read_text(encoding="utf-8", errors="replace"))
+                    if m:
+                        installdir = m.group(1)
+                out.append(lib / "steamapps" / "common" / installdir)
+    return out
+
+
+def _bottle_gog() -> list[Path]:
+    out = []
+    for bottle in bottles():
+        for sub in bottle.registry_keys("machine", GOG_KEY):
+            key = f"{GOG_KEY}\\{sub}"
+            name = bottle.registry("machine", key, "gameName") or ""
+            if "witcher 3" not in name.lower():
+                continue
+            value = bottle.registry("machine", key, "path")
+            host = bottle.host_path(value) if value else None
+            if host:
+                out.append(host)
+    return out
+
+
+def _bottle_guesses() -> list[Path]:
+    out = []
+    for bottle in bottles():
+        for rel in BOTTLE_GUESSES:
+            host = bottle.host_path(f"C:\\{rel}")
+            if host:
+                out.append(host)
+    return out
+
+
 def find_games() -> list[GameInfo]:
-    """Installs we can find on our own. Off Windows every source is a dead end, so the user browses instead."""
+    """Installs we can find on our own; on macOS that means looking inside Wine bottles."""
     seen = set()
     found = []
     sources = (("Steam", _steam_candidates), ("GOG", _gog_candidates),
-               ("Epic", _epic_candidates), ("Xbox", _xbox_candidates), ("", _drive_guesses)) if WINDOWS else ()
+               ("Epic", _epic_candidates), ("Xbox", _xbox_candidates), ("", _drive_guesses)) if WINDOWS else (
+               ("Steam", _bottle_steam), ("GOG", _bottle_gog), ("", _bottle_guesses))
     for store, fn in sources:
         try:
             candidates = fn()

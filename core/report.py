@@ -17,6 +17,7 @@ from .installer import (MOD_SCRIPT, MOD_TEXT, OUR_MODS, foreign_thai_mods, legac
                         strings_have_thai)
 from .osutil import WINDOWS
 from .paths import app_data_dir
+from .wine import bottle_of
 
 # Cloudflare Worker in worker/; THAIW3_REPORT_URL overrides it for testing
 REPORT_URL = "https://thaiw3setup-report.owltoool.workers.dev/report"
@@ -65,10 +66,16 @@ def documents_dir() -> Path:
     return Path.home() / "Documents"
 
 
-def _mods_settings_paths() -> list[Path]:
-    paths = [documents_dir() / "The Witcher 3" / "mods.settings",
-             Path.home() / "Documents" / "The Witcher 3" / "mods.settings",
-             Path.home() / "OneDrive" / "Documents" / "The Witcher 3" / "mods.settings"]
+def _mods_settings_paths(game: GameInfo | None = None) -> list[Path]:
+    """Where the game keeps mods.settings. Inside a bottle that is the bottle's own Documents."""
+    paths = []
+    bottle = bottle_of(game.path) if game is not None else None
+    if bottle:
+        paths += [d / "The Witcher 3" / "mods.settings" for d in bottle.documents_dirs()]
+    paths.append(documents_dir() / "The Witcher 3" / "mods.settings")
+    paths.append(Path.home() / "Documents" / "The Witcher 3" / "mods.settings")
+    if WINDOWS:  # Documents redirected into OneDrive is a Windows arrangement
+        paths.append(Path.home() / "OneDrive" / "Documents" / "The Witcher 3" / "mods.settings")
     out: list[Path] = []
     for p in paths:
         if p not in out:
@@ -191,7 +198,7 @@ def collect_details(game_path: str) -> str:
             lines.append("(no mods folder)")
         dlc = game.path / "dlc"
         lines += ["", "[dlc]", ", ".join(sorted(d.name for d in dlc.iterdir() if d.is_dir())) if dlc.is_dir() else "(none)"]
-    for path in _mods_settings_paths():
+    for path in _mods_settings_paths(game):
         lines += ["", f"[mods.settings] {path}"]
         try:
             lines.append(path.read_text(encoding="utf-8", errors="replace").strip() or "(empty)")

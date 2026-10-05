@@ -179,8 +179,12 @@ build.bat offline         :: build โดยไม่ดาวน์โหลด
 ### รันบน macOS (ทดลอง สำหรับนักพัฒนา)
 
 เกมไม่มีเวอร์ชัน macOS โปรแกรมบน Mac จึงใช้ได้กับไฟล์เกมที่อยู่ใน bottle ของ
-CrossOver / Whisky / Heroic เท่านั้น และ**ยังหาโฟลเดอร์เกมเองไม่ได้** ต้องกด "เลือก..."
-ชี้ไปที่โฟลเดอร์เกมใน bottle เช่น
+CrossOver / Whisky / Heroic / Porting Kit
+
+โปรแกรมหา bottle ให้เองจากที่ตั้งมาตรฐาน (และจาก `WINEPREFIX` ถ้าตั้งไว้) แล้วอ่าน
+`system.reg` / `user.reg` กับ `libraryfolders.vdf` ข้างในเพื่อหาโฟลเดอร์เกม เหมือนที่ฝั่ง Windows
+อ่าน registry จริง ไดรฟ์ที่ map ไว้ใน `dosdevices/` ถูกแปลงกลับเป็น path ของ Mac ให้ด้วย
+ถ้าหาไม่เจอก็กด "เลือก..." ชี้เองได้ เช่น
 `~/Library/Application Support/CrossOver/Bottles/<bottle>/drive_c/Program Files (x86)/Steam/steamapps/common/The Witcher 3`
 
 ```bash
@@ -202,6 +206,8 @@ python3.12 -m venv .venv
 - `core/text_builder.py` รวมคำแปลเข้ากับข้อความของเกม
 - `core/installer.py` ติดตั้ง / ถอนการติดตั้ง / ตรวจสถานะ
 - `core/report.py` สร้างและส่งรายงานปัญหา (`worker/` คือฝั่งรับรายงาน)
+- `core/pe_version.py` อ่าน version ของ `witcher3.exe` เองบนเครื่องที่ไม่มี Windows API
+- `core/wine.py` หา bottle ของ Wine/CrossOver บน macOS และแปลง path ของ Windows เป็น path ของ Mac
 - `gui/` หน้าต่างโปรแกรม (tkinter)
 
 ## สำหรับผู้ดูแล release
