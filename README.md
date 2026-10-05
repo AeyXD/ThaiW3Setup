@@ -7,6 +7,7 @@
 - ข้อความในเกมเป็นภาษาไทย (แปลแล้วประมาณ 97.8%) พร้อมฟอนต์ไทย 6 แบบ
 - ซับสองภาษา ไทย + อังกฤษ เลือกได้ว่าจะให้ภาษาไหนอยู่บรรทัดแรก
 - ปรับสีและขนาดซับแต่ละบรรทัดได้ และให้ชื่อผู้พูดแสดงเป็นสีได้ มีหน้าตัวอย่างที่ใช้ฟอนต์จริงของเกม
+- แสดงชื่อผู้พูดหน้าซับในฉากสนทนา (เกมปกติไม่แสดง) โดยดูว่าตัวละครไหนกำลังพูดอยู่
 - ย้ายตำแหน่งซับระหว่างเล่น ซับฉากสนทนา และกล่องตัวเลือกบทสนทนาได้อิสระแยกกัน และปรับความกว้างกล่องซับได้ โดยลากในภาพจำลองจอก่อนติดตั้ง (ปุ่ม ปรับตำแหน่ง...)
 - ซับคัตซีน Storybook ภาษาไทย
 - ตัดคำภาษาไทยอัตโนมัติ ข้อความยาวอย่าง Bestiary, journal และคำอธิบายไอเทมจะขึ้นบรรทัดใหม่ระหว่างคำได้ ไม่ต้องรอช่องว่าง บรรทัดจึงเต็มขึ้นและไม่มีช่องห่างใหญ่ ๆ ในโหมดซับสองภาษา ภาษาอังกฤษของข้อความหลายบรรทัดจะเว้นบรรทัดแยกจากภาษาไทย
@@ -53,6 +54,7 @@
 โปรแกรมยังต้องอ่านไฟล์ของเกมเพื่อสร้างข้อความและ script ซับ จึงต้องเลือกโฟลเดอร์เกมให้ถูกต้องเหมือนตอนติดตั้งปกติ
 
 > เกมจากแอป Xbox อยู่ที่ `X:\XboxGames\<ชื่อเกม>\Content` โปรแกรมค้นหาให้เอง และถ้าเลือกโฟลเดอร์ชื่อเกมจะเข้าไปที่ `Content` ให้อัตโนมัติ
+> เวอร์ชัน Xbox เก็บตัวเกมไว้ที่ `bin\gaming.desktop.x64` และ Windows ซ่อนไฟล์ exe ไว้ โปรแกรมจึงดูเวอร์ชันจากโครงสร้างโฟลเดอร์ `content` แทน (มีแค่ `content0` = Remastered)
 
 ## ปรับแต่งคำแปล (คำแปลเสริม)
 
@@ -130,6 +132,25 @@ Windows จึงอาจขึ้นเตือนได้
   (เลือก "Software developer" หรือ "Home customer" > Incorrectly detected as malware)
   เมื่อ Microsoft ตรวจแล้วจะหายเตือนสำหรับทุกคน
 - ถ้าไม่สบายใจ สามารถรันจากซอร์สโค้ดได้เอง (ดูหัวข้อด้านล่าง)
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/)
+
+- Committers and reviewers: [FordenHillson](https://github.com/FordenHillson)
+- Approvers: [FordenHillson](https://github.com/FordenHillson)
+
+ไฟล์ที่เซ็นทุกไฟล์ build โดย GitHub Actions จากซอร์สใน repository นี้เท่านั้น และทุก release ต้องได้รับการอนุมัติก่อนเซ็น
+เซ็นเฉพาะ `ThaiW3Setup.exe` ส่วนไฟล์ของ Python และ Tcl/Tk ใน `_internal` เป็นของโปรเจกต์ต้นทาง ไม่ได้เซ็นด้วยใบรับรองนี้
+
+### Privacy policy
+
+This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.
+
+- ดาวน์โหลดไฟล์คำแปลจาก `docs.google.com` และเช็กเวอร์ชันล่าสุดจาก `api.github.com` โดยไม่ส่งข้อมูลของผู้ใช้ไปด้วย
+- ปุ่ม **ส่งรายงานปัญหา...** ส่งข้อมูลก็ต่อเมื่อผู้ใช้กดส่งเอง ได้แก่ เวอร์ชัน Windows เกม และโปรแกรม รายชื่อ mod ที่ติดตั้ง `mods.settings`
+  ส่วนท้ายของ `install.log` ข้อความและช่องทางติดต่อที่ผู้ใช้กรอก (ถ้ามี) โดยแทนชื่อผู้ใช้ Windows ในข้อมูลด้วย `<user>` ไปที่ Cloudflare Worker ของโปรเจกต์ (`worker/`) เพื่อใช้แก้ปัญหาเท่านั้น
+- นโยบายของบริการที่เกี่ยวข้อง: [Google](https://policies.google.com/privacy), [GitHub](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement), [Cloudflare](https://www.cloudflare.com/privacypolicy/)
 
 ## แก้ปัญหา
 
@@ -228,9 +249,12 @@ python3.12 -m venv .venv
 - push tag `vX.Y.Z` (หลังแก้ `__version__` ใน `core/__init__.py`) แล้ว GitHub Actions จะ build, สแกน และสร้าง Release ให้เอง
 - bootloader ของ PyInstaller ถูก compile ใหม่จากซอร์สใน CI และปิด UPX เพื่อลดโอกาสที่แอนตี้ไวรัสจะตรวจผิด
 - ตั้ง secret `VT_API_KEY` (API key ฟรีจาก virustotal.com) เพื่อแนบลิงก์ผลสแกน VirusTotal ในหน้า Release
-- การเซ็นโค้ด: สมัคร [SignPath Foundation](https://signpath.org/) (ฟรีสำหรับโอเพนซอร์ส) แล้วตั้ง secret `SIGNPATH_API_TOKEN`
-  และ variable `SIGNPATH_ORGANIZATION_ID` workflow จะส่งไฟล์ไปเซ็นก่อน zip ให้อัตโนมัติ
-  ถ้าไม่ผ่าน ใช้ Certum Open Source Code Signing แทนได้ (เซ็นด้วย `signtool` ก่อนขั้นตอน Package)
+- การเซ็นโค้ดผ่าน [SignPath Foundation](https://signpath.org/) (ฟรีสำหรับโอเพนซอร์ส)
+  - ใน SignPath ต้องมี project slug `ThaiW3Setup`, signing policy slug `release-signing`, Trusted Build System "GitHub.com"
+    และ artifact configuration ตาม `packaging/signpath/artifact-configuration.xml`
+  - ตั้ง secret `SIGNPATH_API_TOKEN` และ variable `SIGNPATH_ORGANIZATION_ID` ใน GitHub แล้ว workflow จะส่งไฟล์ไปเซ็นก่อน zip ให้อัตโนมัติ
+  - ทุก release ต้องกดอนุมัติใน SignPath (workflow รอได้สูงสุด 4 ชั่วโมง) แล้ว workflow จะตรวจว่า `ThaiW3Setup.exe` มีลายเซ็นถูกต้องก่อนปล่อย
+  - ถ้าไม่ผ่าน ใช้ Certum Open Source Code Signing แทนได้ (เซ็นด้วย `signtool` ก่อนขั้นตอน Package)
 - อัปเดตชีตข้อความที่ยังไม่แปล: `python devtools/export_untranslated.py --sheet 1kIj-WNi24iy3--NLHNzcIj5szOBXoxHJGdwRQNj0etk`
   (คำแปลและหมายเหตุที่คนใส่ไว้จะคงอยู่ ดูวิธีตั้งค่า Google OAuth ที่หัวไฟล์สคริปต์)
 - อัปเดตแท็บชื่อเฉพาะ (เก็บชื่อไทยที่ใส่ไว้): `python devtools/export_names.py`
@@ -250,4 +274,5 @@ python3.12 -m venv .venv
 - patch ซับสองภาษาต้นฉบับ: svvv
 - ภาพพื้นหลังในหน้าต่างปรับตำแหน่งซับ: MILOGAME_AVIF HDR ([อัลบั้ม Zonerama](https://eu.zonerama.com/PrestigiousCap4934/Album/16612460))
 - ไอคอนปุ่ม: [Material Symbols](https://github.com/google/material-design-icons) ของ Google (Apache License 2.0) สร้างด้วย `devtools/make_ui_icons.py`
+- ซอร์สโค้ดของโปรแกรมใช้ [MIT License](LICENSE) ส่วนคำแปล ฟอนต์ และภาพเป็นลิขสิทธิ์ของเจ้าของแต่ละราย
 - The Witcher 3: Wild Hunt © CD PROJEKT S.A. โปรแกรมนี้เป็นผลงานของแฟนเกม ไม่เกี่ยวข้องกับ CD PROJEKT RED

@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import gzip
-import io
 import json
 import logging
 import time
@@ -13,6 +12,7 @@ from pathlib import Path
 
 from .paths import assets_dir, cache_dir
 from .progress import ProgressFn, noop, scaled
+from .rich_color import ColorWorkbook
 
 log = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ TEXT_SOURCES = [
 ]
 
 CACHE_NAME = "translations.json.gz"
-CACHE_FORMAT = 2
+CACHE_FORMAT = 3
 CACHE_MAX_AGE = 24 * 3600
 USER_AGENT = "ThaiW3Setup (+https://github.com/)"
 
@@ -57,24 +57,22 @@ def _cell_text(value) -> str:
 
 
 def parse_xlsx(data: bytes, sheets: list[str]) -> dict[int, str]:
-    import openpyxl
-
-    wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    """Thai keeps the category colours painted on its text (see rich_color)."""
+    wb = ColorWorkbook(data)
     out: dict[int, str] = {}
     for name in sheets:
         if name not in wb.sheetnames:
             log.warning("sheet %s not found", name)
             continue
-        for row in wb[name].iter_rows(min_row=3, max_col=5, values_only=True):
-            if not row or row[0] is None or len(row) < 5:
+        for _, row in wb.rows(name, min_row=3, max_col=5):
+            if 0 not in row or 4 not in row:
                 continue
             try:
-                sid = int(str(row[0]).strip())
+                sid = int(row[0].text.strip())
             except ValueError:
                 continue
-            thai = _cell_text(row[4])
-            if thai.strip():
-                out[sid] = thai
+            if row[4].text.strip():
+                out[sid] = row[4].tagged
     wb.close()
     return out
 
@@ -84,16 +82,15 @@ def normalize(text: str) -> str:
 
 
 def parse_text_xlsx(data: bytes) -> dict[str, str]:
-    """English -> Thai; when one English line has several translations the most common wins."""
-    import openpyxl
-
-    wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    """English -> Thai; when one English line has several translations the most common wins.
+    Whole cells of this sheet were painted as review marks, so only colours on part of a cell count."""
+    wb = ColorWorkbook(data)
     votes: dict[str, Counter] = {}
-    for ws in wb.worksheets[1:]:
-        for row in ws.iter_rows(min_row=5, max_col=3, values_only=True):
-            if not row or len(row) < 3 or row[0] is None or row[2] is None:
+    for sheet in range(1, len(wb.sheetnames)):
+        for _, row in wb.rows(sheet, min_row=5, max_col=3, cell_colors=False):
+            if 0 not in row or 2 not in row:
                 continue
-            english, thai = normalize(_cell_text(row[0])), _cell_text(row[2]).strip()
+            english, thai = normalize(row[0].text), row[2].tagged.strip()
             if english and thai:
                 votes.setdefault(english, Counter())[thai] += 1
     wb.close()
