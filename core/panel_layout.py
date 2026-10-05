@@ -14,22 +14,48 @@ import zlib
 from dataclasses import dataclass
 from pathlib import Path
 
+import deflate
+
+from .abc_patch import DO_ABC, constant_sets
 from .bundle import BundleFile, iter_bundle
 from .logo import GUI_BUNDLE, _fix_crcs, _read_cr2w
 from .progress import ProgressFn, noop
 
 log = logging.getLogger(__name__)
 
-# the book and letter popup read from the inventory lives in panel_overlay
+# the book and letter popup read from the inventory lives in panel_overlay; item tooltips live in componentslib;
+# in-game videos (cutscenes) are subtitled through hud_dialog like dialogue, storybook videos between chapters by
+# each region's loading panel, the menus' videos by the movie panels
 PANELS = ("gameplay\\gui_new\\swf\\glossary\\", "gameplay\\gui_new\\swf\\journal\\",
           "gameplay\\gui_new\\swf\\overlay\\panel_overlay.redswf",
-          "gameplay\\gui_new\\swf\\noticeboard\\panel_noticeboard.redswf")
+          "gameplay\\gui_new\\swf\\noticeboard\\panel_noticeboard.redswf",
+          "gameplay\\gui_new\\swf\\common\\componentslib.redswf",
+          "gameplay\\gui_new\\swf\\common\\panel_common.redswf",
+          "gameplay\\gui_new\\swf\\character\\panel_character.redswf",
+          "gameplay\\gui_new\\swf\\loading\\",
+          "gameplay\\gui_new\\swf\\mainmenu\\panel_recapmovies.redswf",
+          "gameplay\\gui_new\\swf\\mainmenu\\panel_startupmovies.redswf",
+          "gameplay\\gui_new\\swf\\witcher3\\hud_subtitles.redswf")
+STARTUP_BUNDLE = "startup.bundle"
+STARTUP_PANELS = ("gameplay\\gui_new\\swf\\inventory\\panel_inventory.redswf",
+                  "gameplay\\gui_new\\swf\\popups\\popup_tutorial.redswf",
+                  "gameplay\\gui_new\\swf\\hud\\hud_subtitles.redswf",
+                  "gameplay\\gui_new\\swf\\hud\\hud_dialog.redswf")
 DEFINE_EDIT_TEXT = 37
 DEFINE_SPRITE = 39
 ALIGN_LEFT, ALIGN_JUSTIFY = 0, 3
 TWIPS = 20
-BODY_MIN_HEIGHT = 400 * TWIPS  # description bodies; titles and short blurbs keep their spacing
-BODY_LEADING = 10 * TWIPS
+# multi-line descriptions and blurbs; shorter fields are list labels and buttons sized for their text
+BODY_MIN_HEIGHT = 80 * TWIPS
+BODY_LEADING = 16 * TWIPS
+# tooltip rows (item stats, properties, sockets) are stacked by list components whose itemPadding is set as
+# a byte constant in the tooltips' bytecode; the item tooltip even pulls its stat rows together with -7
+ROW_PANELS = ("gameplay\\gui_new\\swf\\common\\componentslib.redswf",)
+ROW_GAP = 8
+# tooltip descriptions (skills, mutations, simple tooltips) are short wrapping fields that grow with their text
+TOOLTIP_PANELS = ("gameplay\\gui_new\\swf\\common\\componentslib.redswf",
+                  "gameplay\\gui_new\\swf\\character\\panel_character.redswf")
+TOOLTIP_MIN_HEIGHT = 40 * TWIPS
 
 
 class LayoutError(Exception):
@@ -105,29 +131,50 @@ def _text_fields(body: bytes | bytearray) -> list[_Field]:
     return found
 
 
-def _restyle(body: bytearray) -> list[_Field]:
+def wanted_leading(f: _Field, tooltips: bool = False) -> int | None:
+    # tall single-line fields (the storybook glossary's video subtitles) still get line breaks from the game
+    if f.height >= BODY_MIN_HEIGHT or tooltips and f.multiline and f.height >= TOOLTIP_MIN_HEIGHT:
+        return BODY_LEADING
+    return None
+
+
+def row_padding_sites(body: bytes | bytearray) -> list[int]:
+    """Offsets of the itemPadding byte constants in the SWF's bytecode."""
+    return [site for code, start, ln in _tag_spans(body, _rect_len(body, 0) + 4, len(body)) if code == DO_ABC
+            for site in constant_sets(body, start, start + ln, "itemPadding")]
+
+
+def _space_rows(body: bytearray) -> int:
+    """Widen the gap between list rows in place; returns how many constants changed."""
+    sites = row_padding_sites(body)
+    for site in sites:
+        body[site] = (min(127, struct.unpack_from("<b", body, site)[0] + ROW_GAP)) & 0xFF
+    return len(sites)
+
+
+def _restyle(body: bytearray, tooltips: bool = False) -> list[_Field]:
     """Apply the layout changes in place; returns the fields that changed."""
     changed = []
     for f in _text_fields(body):
         before = bytes(body[f.align:f.align + 9])
         if body[f.align] == ALIGN_JUSTIFY:
             body[f.align] = ALIGN_LEFT
-        if f.multiline and f.height >= BODY_MIN_HEIGHT:
+        want = wanted_leading(f, tooltips)
+        if want is not None:
             leading = struct.unpack_from("<h", body, f.align + 7)[0]
-            struct.pack_into("<h", body, f.align + 7, max(leading, BODY_LEADING))
+            struct.pack_into("<h", body, f.align + 7, max(leading, want))
         if body[f.align:f.align + 9] != before:
             changed.append(f)
     return changed
 
 
 def _deflate(body: bytes) -> bytes:
-    def run(level, mem):
-        c = zlib.compressobj(level, zlib.DEFLATED, 15, mem)
-        return c.compress(body) + c.flush()
-    return min((run(level, mem) for level in (6, 9) for mem in (8, 9)), key=len)
+    # zlib-ng (zlib in Python 3.14 on Windows) compresses a little worse than the game's own stream,
+    # which leaves no room for the restyled SWF; libdeflate's top level fits with kilobytes to spare
+    return deflate.zlib_compress(body, 12)
 
 
-def restyle_panel(data: bytes) -> bytes | None:
+def restyle_panel(data: bytes, rows: bool = False, tooltips: bool = False) -> bytes | None:
     """The .redswf with its text fields restyled, or None if nothing changes."""
     cr2w = _read_cr2w(data)
     resource = next((e for e in cr2w.exports if e.cls == "CSwfResource"), None)
@@ -139,8 +186,9 @@ def restyle_panel(data: bytes) -> bytes | None:
     inflater = zlib.decompressobj()
     body = bytearray(inflater.decompress(data[at + 8:resource.offset + resource.size]))
     stream_len = resource.offset + resource.size - at - 8 - len(inflater.unused_data)
-    fields = _restyle(body)
-    if not fields:
+    fields = _restyle(body, tooltips)
+    spaced = _space_rows(body) if rows else 0
+    if not fields and not spaced:
         return None
     stream = _deflate(bytes(body))
     if len(stream) > stream_len:
@@ -159,12 +207,14 @@ def restyle_panel(data: bytes) -> bytes | None:
 def panel_files(content0: Path, progress: ProgressFn = noop) -> list[BundleFile]:
     """The journal, glossary, letter and notice panels of the game with readable text, ready for a mod bundle."""
     files = []
-    for f in iter_bundle(content0 / "bundles" / GUI_BUNDLE,
-                         lambda n, _s: n.startswith(PANELS) and n.endswith(".redswf")):
+    found = [*iter_bundle(content0 / "bundles" / GUI_BUNDLE,
+                          lambda n, _s: n.startswith(PANELS) and n.endswith(".redswf")),
+             *iter_bundle(content0 / "bundles" / STARTUP_BUNDLE, lambda n, _s: n in STARTUP_PANELS)]
+    for f in found:
         name = f.path.rsplit("\\", 1)[-1]
         progress(0.0, f"จัดรูปแบบข้อความ {name}...")
         try:
-            data = restyle_panel(f.data)
+            data = restyle_panel(f.data, f.path in ROW_PANELS, f.path in TOOLTIP_PANELS)
         except (LayoutError, ValueError, struct.error) as exc:
             log.warning("panel %s left as is: %s", name, exc)
             continue
