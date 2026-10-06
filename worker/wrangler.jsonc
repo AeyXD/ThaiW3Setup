@@ -14,6 +14,9 @@
       "namespace_id": "3001",
       "simple": { "limit": 3, "period": 60 }
     }
-  ]
+  ],
+  // macOS reports are posted as comments here while the Mac build is being tested
+  "vars": { "ISSUE_REPO": "FordenHillson/ThaiW3Setup", "ISSUE_NUMBER": "6" }
   // secret ADMIN_PASSWORD: wrangler secret put ADMIN_PASSWORD (local dev: .dev.vars)
+  // secret GITHUB_TOKEN: fine-grained token for this repo with Issues read/write; unset means no forwarding
 }

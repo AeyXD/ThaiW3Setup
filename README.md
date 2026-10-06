@@ -32,12 +32,17 @@
 ถ้าอยากเปลี่ยนฟอนต์ สี หรือขนาดภายหลัง ให้เปิดโปรแกรม ปรับค่า แล้วกดติดตั้งซ้ำ
 เมื่อเกมอัปเดตหรือทีมแปลอัปเดตคำแปลแล้ว ก็กดติดตั้งซ้ำได้เช่นกัน
 
-### บน macOS
+### บน macOS (ทดลอง)
+
+> **รุ่นทดลอง (experimental)** ยังไม่มีใครทดสอบกับเกมจริงใน bottle
+> ไฟล์สำหรับทดสอบอยู่ที่ pre-release [macOS preview](https://github.com/FordenHillson/ThaiW3Setup/releases/tag/macos-preview-0.4.8)
+> (ไม่อยู่ใน release ปกติ และโปรแกรมฝั่ง Windows จะไม่แจ้งอัปเดตเป็นไฟล์นี้)
+> รายงานปัญหาที่ส่งจาก Mac จะถูกโพสต์ลง [#6](https://github.com/FordenHillson/ThaiW3Setup/issues/6) ซึ่งเป็นหน้าสาธารณะ โดยตัดช่องติดต่อออก
 
 เกมไม่มีเวอร์ชัน macOS ถ้าเล่นบน Mac แสดงว่าไฟล์เกมอยู่ใน bottle ของ CrossOver / Whisky / Heroic / Porting Kit
 โปรแกรมหา bottle ให้เอง ถ้าหาไม่เจอก็กด **เลือก...** ชี้ไปที่โฟลเดอร์เกมใน bottle ได้
 
-1. ดาวน์โหลด `ThaiW3Setup-x.y.z-macos-arm64.zip` แล้วแตกไฟล์
+1. ดาวน์โหลด `ThaiW3Setup-x.y.z-macos-arm64.zip` จาก pre-release ด้านบน แล้วแตกไฟล์
 2. **เปิดครั้งแรกต้องปลดล็อกก่อน** เพราะโปรแกรมยังไม่ได้ notarize กับ Apple — เปิด Terminal แล้วพิมพ์
    `xattr -dr com.apple.quarantine ` จากนั้นลากไฟล์ `ThaiW3Setup.app` มาวางต่อท้ายแล้วกด Enter
    (หรือดับเบิลคลิกให้ขึ้นคำเตือนก่อน แล้วไป System Settings > Privacy & Security กด **Open Anyway**)
@@ -203,7 +208,7 @@ build.bat                 :: สร้าง dist\ThaiW3Setup-<version>.zip
 build.bat offline         :: build โดยไม่ดาวน์โหลดคำแปลใหม่
 ```
 
-### รันบน macOS (สำหรับนักพัฒนา)
+### รันบน macOS (ทดลอง สำหรับนักพัฒนา)
 
 เกมไม่มีเวอร์ชัน macOS โปรแกรมบน Mac จึงใช้ได้กับไฟล์เกมที่อยู่ใน bottle ของ
 CrossOver / Whisky / Heroic / Porting Kit
@@ -226,7 +231,7 @@ python3.12 -m venv .venv
 `build.sh` ใช้ `ThaiW3Setup.spec` ตัวเดียวกับ Windows โดย spec เลือกไอคอนและ `BUNDLE()` ตาม platform
 ได้ `.app` ที่มี Tcl/Tk อยู่ข้างใน ไม่ต้องมี Python ในเครื่องปลายทาง และ zip ด้วย `ditto` เพื่อไม่ให้ลายเซ็นเสีย
 
-.app ยังไม่ได้ notarize ผู้ใช้จึงต้องปลดล็อกเองครั้งแรก (ดูหัวข้อ "บน macOS" ด้านบน)
+.app ยังไม่ได้ notarize ผู้ใช้จึงต้องปลดล็อกเองครั้งแรก (ดูหัวข้อ "บน macOS (ทดลอง)" ด้านบน)
 การ notarize ต้องสมัคร Apple Developer Program ปีละ $99
 
 ค่าที่ตั้งไว้เก็บที่ `~/Library/Application Support/ThaiW3Setup` แทน `%APPDATA%`

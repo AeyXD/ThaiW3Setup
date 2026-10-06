@@ -95,7 +95,15 @@ def _describe_mod(path: Path) -> str:
         parts.append(f"{bundles} bundles")
     if notable:
         parts.append(", ".join(notable[:12]))
+    if not (path / "content").is_dir():
+        parts.append("no content folder")
     return "; ".join(parts)
+
+
+def _mods_listing(mods_dir: Path) -> list[str]:
+    entries = sorted(mods_dir.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower()))
+    return [f"{p.name}: {_describe_mod(p)}" if p.is_dir() else f"{p.name} (file, {p.stat().st_size} bytes)"
+            for p in entries] or ["(empty)"]
 
 
 def _conflicts(game: GameInfo) -> list[str]:
@@ -185,7 +193,7 @@ def collect_details(game_path: str) -> str:
         lines += ["", "[conflicts]"] + (_conflicts(game) or ["none found"])
         lines += ["", "[mods]"]
         if game.mods_dir.is_dir():
-            lines += [f"{m.name}: {_describe_mod(m)}" for m in sorted(game.mods_dir.iterdir()) if m.is_dir()] or ["(empty)"]
+            lines += _mods_listing(game.mods_dir)
         else:
             lines.append("(no mods folder)")
         dlc = game.path / "dlc"

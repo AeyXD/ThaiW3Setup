@@ -140,3 +140,53 @@ jobs:
           files: |
             ${{ steps.package.outputs.zip }}
             ${{ steps.package.outputs.zip }}.sha256
+
+  # The macOS half. It only uploads a workflow artifact: the .app is not attached to the
+  # release until someone has installed it against a real game in a bottle.
+  build-macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build requirements
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip install --disable-pip-version-check -q -r requirements-build.txt
+          .venv/bin/python -c "import PyInstaller; print('PyInstaller', PyInstaller.__version__)"
+
+      - name: Test
+        run: |
+          .venv/bin/python devtools/test_pe_version.py
+          .venv/bin/python devtools/test_wine.py
+          .venv/bin/python devtools/test_update.py
+
+      - name: Refresh bundled translations
+        continue-on-error: true
+        run: .venv/bin/python -m core.sheet --export assets/translations.json.gz
+
+      - name: Build
+        id: package
+        run: |
+          ./build.sh offline
+          version=$(.venv/bin/python -c "import core; print(core.__version__)")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "zip=dist/ThaiW3Setup-$version-macos-$(uname -m).zip" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test
+        run: |
+          dist/ThaiW3Setup.app/Contents/MacOS/ThaiW3Setup --version
+          codesign --verify --deep --strict dist/ThaiW3Setup.app
+
+      - name: Upload build
+        uses: actions/upload-artifact@v4
+        with:
+          name: ThaiW3Setup-${{ steps.package.outputs.version }}-macos
+          path: |
+            ${{ steps.package.outputs.zip }}
+            ${{ steps.package.outputs.zip }}.sha256

@@ -265,6 +265,7 @@ def install(opts: InstallOptions, progress: ProgressFn = noop, confirm: ConfirmF
             shutil.copytree(staging / name, game.mods_dir / name)
     finally:
         shutil.rmtree(staging, ignore_errors=True)
+    log.info("installed %s to %s (%.2f%%)", ", ".join(report.mods), game.mods_dir, report.percent)
     progress(1.0, "ติดตั้งเสร็จแล้ว")
     return report
 
@@ -496,4 +497,5 @@ def uninstall(game_path: str | os.PathLike) -> list[str]:
     game = identify(game_path)
     removed = [n for n in OUR_MODS if (game.mods_dir / n).exists()]
     _remove_our_mods(game)
+    log.info("uninstalled %s from %s", ", ".join(removed) or "-", game.mods_dir)
     return removed

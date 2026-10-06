@@ -1,5 +1,10 @@
 """Finding the game inside a Wine bottle: drive mapping, the bottle registry, and mods.settings."""
 import os, sys, tempfile
+
+if sys.platform == "win32":  # a bottle cannot exist here, and "c:" is not a legal file name on Windows
+    print("test_wine skipped: Wine bottles only exist off Windows")
+    raise SystemExit(0)
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from pathlib import Path
 from core import game_detect, wine

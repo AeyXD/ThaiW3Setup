@@ -520,6 +520,7 @@ class App(tk.Tk):
                 report = install(opts, progress, confirm, force_download=refresh)
                 self.events.put(("installed", report))
             except PermissionError as exc:
+                log.warning("install permission denied: %s", exc)
                 self.events.put(("permission", str(exc)))
             except Exception as exc:
                 log.error("install failed\n%s", traceback.format_exc())
@@ -560,10 +561,12 @@ class App(tk.Tk):
             return
         try:
             removed = uninstall(path)
-        except PermissionError:
+        except PermissionError as exc:
+            log.warning("uninstall permission denied: %s", exc)
             self.ask_elevate("ไม่มีสิทธิ์ลบไฟล์ในโฟลเดอร์ mods")
             return
         except OSError as exc:
+            log.warning("uninstall failed: %s", exc)
             messagebox.showerror(APP_TITLE, f"ถอนการติดตั้งไม่สำเร็จ: {exc}\nลองปิดเกมก่อนแล้วลองใหม่", parent=self)
             return
         self.v_status.set("ถอนการติดตั้งแล้ว: " + (", ".join(removed) or "-"))
