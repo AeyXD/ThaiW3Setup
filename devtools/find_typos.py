@@ -27,8 +27,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 DEFAULT_STORE = Path(__file__).resolve().parent.parent / "assets" / "translations.json.gz"
 DEFAULT_OUT = Path(__file__).resolve().parent / "typos.csv"
 
-# สระจ่อย/วรรณยุกต์/ไม้ที่ซ้ำกันเองไม่ได้: ั ิ ี ึ ื ุ ู ฺ ็ ่ ้ ๊ ๋ ์ ํ ๎
-MARK_RUN = re.compile(r"([\u0e31\u0e34-\u0e3a\u0e47-\u0e4e])\1+")
+# สระจ่อย/วรรณยุกต์/ไม้ที่ซ้ำกันเองไม่ได้: ั ิ ี ึ ื ุ ู ็ ่ ้ ๊ ๋ ์
+# (ตั้งใจไม่รวม ฺ ํ ๎ ตามชุดที่ตรวจทาน — และไม่รวม า เพราะซ้ำแบบลากเสียงถูกต้อง)
+DOUBLE_MARKS = "\u0e31\u0e34\u0e35\u0e36\u0e37\u0e38\u0e39\u0e47\u0e48\u0e49\u0e4a\u0e4b\u0e4c"
+MARK_RUN = re.compile("([" + DOUBLE_MARKS + "])\\1+")
 
 WORD_FIXES = [
     ("จักพรรดิ ฯลฯ → จักรพรรดิ",
