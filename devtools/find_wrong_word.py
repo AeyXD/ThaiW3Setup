@@ -67,6 +67,8 @@ ALLOW_PAIRS = {
     # หิน 5 ก้อน = ลักษณนาม, เค้านต์/เค้าท์ = ยศ Count
     ("รัง", "รั้ง"), ("ม้า", "มา"), ("ทีนี้", "ที่นี่"), ("บ่อ", "บอ"),
     ("วันที", "วันที่"), ("ก้อน", "ก่อน"), ("เค้า", "เคา"),
+    # ปวดข้อ, ค่อยย้ำเตือน, ย้อมด้วยกานพลู, ไม้โกย (pitchfork) — รูปเดิมถูกในบริบทเหล่านี้
+    ("ข้อ", "ขอ"), ("ค่อย", "คอย"), ("ย้อม", "ยอม"), ("ไม้", "ไม่"),
 }
 
 
@@ -105,6 +107,51 @@ def load_entries(store: Path):
         yield "text", key, value
 
 
+def runs_of(text: str, wrapper: ThaiWrapper):
+    """[(จุดเริ่มในข้อความ, token)] ต่อช่วงอักษรไทย — แยกช่วงก่อนตัดคำ ไม่ให้เครื่องหมาย
+    หรือแท็กที่ติดคำ (เข้า! / <b>เข้า</b>) เกาะเป็น token เดียวจนหลุดเงื่อนไขภาษาไทย"""
+    out = []
+    for m in re.finditer(r"[\u0e00-\u0e7f]+", text):
+        toks = wrapper.wrap(m.group()).split(BREAK)
+        if len(toks) > 1:
+            out.append((m.start(), toks))
+    return out
+
+
+def scan_text(text: str, runs, confusions: dict, bigrams: Counter):
+    """คืน [(คำที่สงสัย, ข้อเสนอ, จุดเริ่ม)] — เทียบบริบท**ทีละด้าน**ด้วยเกณฑ์เดียวกัน
+
+    ด้านหนึ่งถือเป็นหลักฐานเมื่อคำเดิมแทบไม่เคยอยู่คู่เพื่อนบ้านด้านนั้น (≤ MAX_MINE —
+    typo ชอบซ้ำกันเองในคลัง) ขณะที่คู่สับสนอยู่คู่แบบเดียวกันแน่นอน (≥ MIN_SUPPORT)
+    เกตใช้ **max** ไม่ใช่ผลรวม เพราะคำกลางประโยคมีเพื่อนบ้านสองด้านเสมอ คำที่ปรากฏครั้ง
+    เดียวจึงได้ 1+1=2 แล้วโดนตัดก่อนได้เทียบทางเลือก (เขา|เข่า|ไป — เข่าถูกข้าม) แต่การ
+    หายากต้องเป็น**ทั้งสองด้าน** หลักฐานด้านเดียวไม่พอฟันธง (ขา→ข้า ล้นเมื่อไม่มีเกตนี้)
+    """
+    hits = []
+    for base, toks in runs:
+        for i, tok in enumerate(toks):
+            alts = confusions.get(tok)
+            if not alts:
+                continue
+            prev_t = toks[i - 1] if i > 0 else ""
+            next_t = toks[i + 1] if i + 1 < len(toks) else ""
+            mine = (bigrams[(prev_t, tok)], bigrams[(tok, next_t)])
+            if max(mine) > MAX_MINE:
+                continue  # คำเดิมเคยอยู่คู่เพื่อนบ้านด้านใดด้านหนึ่งแบบปกติ ถือว่าปกติ
+            best, support = None, 0
+            for alt in alts:
+                if (tok, alt) in ALLOW_PAIRS:
+                    continue
+                for m, a in zip(mine, (bigrams[(prev_t, alt)], bigrams[(alt, next_t)])):
+                    if m <= MAX_MINE and a > support:
+                        best, support = alt, a
+            if not (best and support >= MIN_SUPPORT):
+                continue
+            start = base + sum(len(t) for t in toks[:i])
+            hits.append((tok, best, start))
+    return hits
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("-s", "--store", type=Path, default=DEFAULT_STORE, help="ไฟล์ translations.json.gz")
@@ -116,44 +163,22 @@ def main() -> None:
     confusions = confusion_sets(lexicon)
 
     entries = [(src, key, text) for src, key, text in load_entries(args.store) if isinstance(text, str)]
-    # ตัดคำเป็นช่วงอักษรไทยต่อช่วง เพื่อไม่ให้เครื่องหมาย/แท็กที่ติดคำ (เช่น "เข้า!" หรือ
-    # <b>เข้า</b>) เกาะเป็น token เดียวจนหลุดเงื่อนไขภาษาไทย — จุดเริ่มเก็บเป็นตำแหน่งเดิมในข้อความ
     entry_runs = []
     bigrams = Counter()
     for _src, _key, text in entries:
-        runs = []
-        for m in re.finditer(r"[\u0e00-\u0e7f]+", text):
-            toks = wrapper.wrap(m.group()).split(BREAK)
-            if len(toks) > 1:
-                runs.append((m.start(), toks))
-                for a, b in zip(toks, toks[1:]):
-                    bigrams[(a, b)] += 1
+        runs = runs_of(text, wrapper)
         entry_runs.append(runs)
+        for _base, toks in runs:
+            for a, b in zip(toks, toks[1:]):
+                bigrams[(a, b)] += 1
 
     rows = []
     per_form = Counter()
     for (src, key, text), runs in zip(entries, entry_runs):
-        for base, toks in runs:
-            for i, tok in enumerate(toks):
-                alts = confusions.get(tok)
-                if not alts:
-                    continue
-                prev_t = toks[i - 1] if i > 0 else ""
-                next_t = toks[i + 1] if i + 1 < len(toks) else ""
-                mine = bigrams[(prev_t, tok)] + bigrams[(tok, next_t)]
-                if mine > MAX_MINE:
-                    continue  # คำเดิมใช้บริบทนี้เป็นประจำ ถือว่าปกติ
-                best, support = None, 0
-                for alt in alts:
-                    s = bigrams[(prev_t, alt)] + bigrams[(alt, next_t)]
-                    if s > support and (tok, alt) not in ALLOW_PAIRS:
-                        best, support = alt, s
-                if not (best and support >= MIN_SUPPORT):
-                    continue
-                start = base + sum(len(t) for t in toks[:i])
-                ctx = text[max(0, start - 25):start + len(tok) + 25].replace("\n", " ")
-                per_form[f"{tok} → {best}"] += 1
-                rows.append(("ข้อเสนอเครื่องมือ", src, key, tok, best, ctx))
+        for tok, best, start in scan_text(text, runs, confusions, bigrams):
+            ctx = text[max(0, start - 25):start + len(tok) + 25].replace("\n", " ")
+            per_form[f"{tok} → {best}"] += 1
+            rows.append(("ข้อเสนอเครื่องมือ", src, key, tok, best, ctx))
 
     with open(args.out, "w", encoding="utf-8-sig", newline="") as fh:
         writer = csv.writer(fh)
