@@ -5,17 +5,23 @@
     .venv/bin/python devtools/find_ral_swaps.py -o /tmp/x.csv
 
 คลาสนี้ตัวตรวจคำสะกดทั่วไปจับไม่ได้ เพราะทุกพยางค์เป็นคำจริง (บุกลุก = บุก+ลุก)
-จึงตรวจสองระดับบนผลตัดคำของ core/thai_wrap:
+จึงตรวจสองระดับบนผลตัดคำของ core/thai_wrap โดยแยกเป็น**ช่วงอักษรไทยต่อช่วง**ก่อนตัดคำ
+(ตัดทั้งข้อความก้อนเดียวจะทำให้เครื่องหมาย/แท็กที่ติดคำ อย่าง บุกลุก! หรือ <b>บุกลุก</b>
+เกาะเป็น token เดียวแล้วหลุดเงื่อนไขภาษาไทย):
 - token เดี่ยว: คำที่ไม่อยู่ในคลังศัพท์ แต่สลับ ร↔ล หนึ่งตำแหน่งแล้วกลายเป็นคำจริง
 - คำประสม: token ติดกัน 2-3 ตัวที่รวมกันไม่ใช่คำ แต่สลับหนึ่งตำแหน่งแล้วเป็นคำ (บุก+ลุก → บุกรุก)
 
 การกรอง (สำคัญกับ reviewer):
-- ALLOW คือรูปที่ตรวจทานแล้วว่า**ถูกต้อง** — คำทับศัพท์/ชื่อเฉพาะ (วิลโลว์ เฟรย่า บาลิสต้า)
-  คำประสมที่ถูกแต่โดนจับคร่อมขอบ token (การรุก ทำรายได้ ถั่วและ) และคำจริงที่คลังศัพท์ยังไม่มี (จราจล ลางๆ)
-  ชื่อที่เพิ่มเข้า ALLOW ต้องมาจากการตรวจทานของทีมเสมอ
-- OVERRIDES คือรูปที่ผิดจริงแต่คำที่ถูก**ไม่ได้มาจากการสลับ ร↔ล** (รุงแรง→รุนแรง ไหร→ไหร่)
-  รายงานด้วยคำแก้ที่ตรวจทานแล้วแทนคำแก้จากกลไกสลับ
-ผลลัพธ์ทั้งหมดเป็น**ข้อเสนอ**ระดับ id ให้ทีมแปลยืนยันใน Google Sheets ก่อนเข้าคลังเสมอ
+- **ทุกแถวเป็นข้อเสนอของเครื่องมือ ไม่มีแถวไหน "ยืนยันแล้ว" ในตัว** — การยืนยันเกิดทีละ
+  ข้อความโดยทีมแปลใน Google Sheets เท่านั้น (token ที่ดูผิดในบริบทหนึ่ง อาจถูกในอีกบริบท
+  เช่น ตลอดการเดินทาง ถูก แต่ ตลอดการเลย ผิด) จึงไม่มีคอลัมน์ "ข้อความที่แก้แล้ว"
+  ให้ทีมแก้เองจากบริบทที่แนบไว้
+- ALLOW คือรูปที่ตรวจแล้วว่า**ถูกต้อง** — คำทับศัพท์/ชื่อเฉพาะ (วิลโลว์ เฟรย่า บาลิสต้า)
+  คำประสมที่ถูกแต่โดนจับคร่อมขอบ token (การรุก ทำรายได้ ถั่วและ) และคำจริงที่คลังศัพท์
+  ยังไม่มี (จราจล ลางๆ) ชื่อที่เพิ่มเข้า ALLOW ต้องมาจากการตรวจทานของทีมเสมอ
+- HINTS/CONTEXT_HINTS คือคำที่ผิดจริงแต่คำแก้ไม่ได้มาจากการสลับ (รุงแรง→รุนแรง) —
+  ใช้เป็นข้อเสนอที่ดีกว่ากลไกสลับ โดยรูปที่แก้ผิดง่าย (ไหร) จะเสนอเฉพาะเมื่อมี
+  บริบทกำกับ: หลัง เท่า = ไหร่ แต่หลัง สมุน = สมุนไพร
 """
 from __future__ import annotations
 
@@ -42,7 +48,7 @@ ALLOW = {
     # คำทับศัพท์และชื่อเฉพาะ
     "วิลโลว์", "วิล", "โอริโอล", "โอล", "เฟรย่า", "เฟร", "ลินเดน", "ไฮโรด",
     "ริดดิก", "สเกลลิก", "บรูซา", "บาลิสต้า", "คาโนลา", "กางเกงเร", "มารี", "โนลา",
-    "โครต", "โคร",
+    "โครต", "โคร", "มาริน",
     # คำประสมที่ถูกต้องแต่กลไกจับคร่อมขอบ token
     "การแปล", "การแปลง", "ทำรายได้", "ทำราย", "การรุก", "ถั่วและ", "โดยลอบ", "ลับได้",
     "ที่รับ", "นางกลาย", "จะกระ", "รับตัว", "ไร่ที่", "ไรเลย", "ว่ากาล",
@@ -51,15 +57,15 @@ ALLOW = {
     "การออก", "ลังแรก", "รูนะ", "การอ", "ปรี",
     # คำทับศัพท์ที่ตัวตัดคำแยกเป็นชิ้นสั้น (สเกลลิก ริดดิก ไฮโรด ลินเดน บรูซา)
     "ลิก", "ริด", "โรด", "ลิน", "บรู", "แกร",
-    # การลากเสียงในบทพูด (รออออ)
-    "รออออ", "รออ",
+    # การลากเสียงในบทพูด (รออออ) และสำนวนพูดที่ใช้ได้ (หลบๆ ซ่อนๆ)
+    "รออออ", "รออ", "หลบๆ",
 }
 
-# รูปที่ผิดจริง แต่คำที่ถูกไม่ได้มาจากการสลับ ร↔ล — ตรวจทานแล้ว ใช้คำแก้นี้แทน
-# key ต้องเป็นรูปที่สแกนเนอร์รายงานจริง (= token เดี่ยวหรือคำประสมที่แยกได้)
-OVERRIDES = {
+# ข้อเสนอระดับคำ: รูปที่ผิดจริงแต่คำแก้ไม่ได้มาจากการสลับ ร↔ล (รุงแรง→รุนแรง)
+# ทุกรายการเป็น**ข้อเสนอของเครื่องมือ** ไม่ใช่การยืนยัน — ทีมแปลยืนยันทีละข้อความ
+# ใน Google Sheets เท่านั้น จึงจะถือว่ายืนยันแล้ว
+HINTS = {
     "รุง": "รุน",            # รุงแรง → รุนแรง
-    "ไหร": "ไหร่",
     "ลักษ์": "ลักษณ์",       # สัญลักษ์ → สัญลักษณ์
     "ลังค์": "ลังก์",         # บัลลังค์ → บัลลังก์
     "มาละ": "มาล่ะ",
@@ -74,6 +80,16 @@ OVERRIDES = {
     "บรอนด์": "บลอนด์",
     "กลู": "กูล",           # ตระกลู → ตระกูล
 }
+
+# รูปที่การแก้**ต้องอาศัยบริบท** — token เดียวไม่พอ เพราะคำเดียวกันอยู่ในคำตั้งใจ
+# คนละคำ: ไหร หลัง เท่า/เท่าไ = ไหร่ แต่ ไหร หลัง สมุน = สมุนไพร (แก้ทั้งคู่)
+CONTEXT_HINTS = {
+    ("เท่า", "ไหร"): "เท่าไหร่",
+    ("ประมาณ", "ไหร"): "ประมาณไหร่",
+    ("สมุน", "ไหร"): "สมุนไพร",
+}
+# token ที่ไม่มีบริบทกำกับแล้วห้ามเสนอเลย (เสนอผิดง่ายกว่าเสนอถูก)
+CONTEXT_ONLY = {"ไหร"}
 
 THAI = re.compile(r"^[\u0e00-\u0e7f]+$")
 
@@ -93,34 +109,52 @@ def load_entries(store: Path):
 
 
 def scan_text(text: str, wrapper: ThaiWrapper, lexicon: set[str]):
-    """คืน [(รูปผิด, คำแก้, start, end)] ของข้อความหนึ่ง条 พร้อมตัดผลที่ซ้อนในผลที่ยาวกว่า"""
-    toks = wrapper.wrap(text).split(BREAK)
-    starts, pos = [], 0
-    for t in toks:
-        starts.append(pos)
-        pos += len(t)
+    """คืน [(รูปผิด, ข้อเสนอ, start, end)] ตำแหน่งอ้างอิงต้นฉบับ
+
+    ตรวจเป็นช่วงอักษรไทยต่อช่วง: ถ้าตัดคำทั้งข้อความก้อนเดียว เครื่องหมายหรือแท็ก
+    ที่ติดกับคำ (บุกลุก! / <b>บุกลุก</b>) จะเกาะเป็น token เดียวแล้วหลุดเงื่อนไขภาษาไทย
+    """
     hits = []
-    # พาส 1: token เดี่ยว
-    for tok, start in zip(toks, starts):
-        if THAI.match(tok) and len(tok) >= 3 and tok not in lexicon and tok not in ALLOW:
+    for run in re.finditer(r"[\u0e00-\u0e7f]+", text):
+        base = run.start()
+        toks = wrapper.wrap(run.group()).split(BREAK)
+        starts, pos = [], base
+        for t in toks:
+            starts.append(pos)
+            pos += len(t)
+        # พาส 0: ข้อเสนอที่ต้องมีบริบทกำกับ (แก้คู่คำเป็นคำเดียว เช่น สมุนไหร → สมุนไพร)
+        for i, tok in enumerate(toks):
+            if i == 0:
+                continue
+            fix = CONTEXT_HINTS.get((toks[i - 1], tok))
+            if fix:
+                start = starts[i - 1]
+                wrong = text[start:starts[i] + len(tok)]
+                hits.append((wrong, fix, start, starts[i] + len(tok)))
+        # พาส 1: token เดี่ยว
+        for tok, start in zip(toks, starts):
+            if not (THAI.match(tok) and len(tok) >= 3 and tok not in lexicon and tok not in ALLOW):
+                continue
+            if tok in CONTEXT_ONLY:
+                continue  # มีเฉพาะพาส 0 เท่านั้น
             for v in swap_variants(tok):
                 if v in lexicon:
-                    hits.append((tok, OVERRIDES.get(tok, v), start, start + len(tok)))
+                    hits.append((tok, HINTS.get(tok, v), start, start + len(tok)))
                     break
-    # พาส 2: คำประสม 2-3 token ติดกัน
-    for span in (2, 3):
-        for i in range(len(toks) - span + 1):
-            chunk = toks[i:i + span]
-            if not all(THAI.match(t) and len(t) >= 2 for t in chunk):
-                continue
-            joined = "".join(chunk)
-            if joined in lexicon or joined in ALLOW:
-                continue
-            for v in swap_variants(joined):
-                if v in lexicon:
-                    start = starts[i]
-                    hits.append((joined, OVERRIDES.get(joined, v), start, start + len(joined)))
-                    break
+        # พาส 2: คำประสม 2-3 token ติดกัน
+        for span in (2, 3):
+            for i in range(len(toks) - span + 1):
+                chunk = toks[i:i + span]
+                if not all(len(t) >= 2 for t in chunk):
+                    continue
+                joined = "".join(chunk)
+                if joined in lexicon or joined in ALLOW:
+                    continue
+                for v in swap_variants(joined):
+                    if v in lexicon:
+                        start = starts[i]
+                        hits.append((joined, HINTS.get(joined, v), start, start + len(joined)))
+                        break
     # ตัด hit ที่ซ้อนอยู่ใน hit ที่ยาวกว่า (เด็กกำพล้า ครอบ กำพล้า อยู่รายงานเดียว)
     hits.sort(key=lambda h: (h[2], -(h[3] - h[2])))
     kept = []
@@ -144,29 +178,18 @@ def main() -> None:
     for source, key, text in entries:
         if not isinstance(text, str):
             continue
-        hits = scan_text(text, wrapper, lexicon)
-        if not hits:
-            continue
-        unique = sorted(set(hits))
-        for wrong, right, _s, _e in unique:
+        for wrong, right, s, e in sorted(set(scan_text(text, wrapper, lexicon))):
             per_form[wrong] += 1
-        fixed = text
-        # แทนที่ตามตำแหน่งที่จับไว้เท่านั้น (ทำจากท้ายมาหน้า) — text.replace ทั้งข้อความ
-        # จะถูกข้างในคำอื่น เช่น รุง→รุน ทำลายคำว่า ปรุง ในประโยคเดียวกัน
-        for wrong, right, s, e in sorted(unique, key=lambda h: -h[2]):
-            if fixed[s:e] == wrong:
-                fixed = fixed[:s] + right + fixed[e:]
-        for wrong, right, _s, _e in unique:
-            cat = "สลับ ร↔ล (คำแก้ตรวจทาน)" if OVERRIDES.get(wrong) == right else "สลับ ร↔ล"
-            rows.append((cat, source, key, f"{wrong} → {right}", text, fixed))
+            ctx = text[max(0, s - 25):e + 25].replace("\n", " ")
+            rows.append(("ข้อเสนอเครื่องมือ", source, key, wrong, right, ctx))
 
     with open(args.out, "w", encoding="utf-8-sig", newline="") as fh:
         writer = csv.writer(fh)
-        writer.writerow(["ประเภท", "แหล่ง", "id", "คำที่แก้", "ปัจจุบัน", "ที่ควรเป็น"])
+        writer.writerow(["ประเภท", "แหล่ง", "id", "คำที่สงสัย", "ข้อเสนอ", "บริบท"])
         writer.writerows(rows)
 
     print(f"เขียน {args.out} — {len(rows)} แถว จากคลัง {len(entries)} รายการ")
-    print(f"รูปผิด {len(per_form)} รูป รวม {sum(per_form.values())} ครั้ง — 20 อันดับแรก:")
+    print(f"รูปที่สงสัย {len(per_form)} รูป รวม {sum(per_form.values())} ครั้ง — 20 อันดับแรก:")
     for wrong, n in per_form.most_common(20):
         print(f"  {wrong}: {n}")
 

@@ -13,12 +13,16 @@
    - ตัวท้าย ร/ล ต่างกัน (การ/กาล)
 2. คะแนนบริบท: นับ bigram (คำหน้า,คำหลัง) ของทั้งคลัง แล้วดูว่าการปรากฏแต่ละจุด
    คำตัวไหนเคยอยู่คู่เพื่อนบ้านแบบนี้ทั่วคลัง (เข้าไปใน = ทั่วไป / เข่าไปใน = ไม่เคยมี)
-3. รายงานเมื่อคำในข้อความ**ไม่เคย**ปรากฏในบริบทนั้นเลย ขณะที่คู่สับสนตัวอื่นในชุด
-   ปรากฏในบริบทแบบเดียวกัน**แน่นอน** (≥ MIN_SUPPORT ครั้ง) — แปลว่ามีตัวเลือกที่เป็นไปได้
-   สูงกว่าเยอะ ซึ่งมักคือคำที่ตั้งใจจะพิมพ์
+   โดยตัดคำแบบ**แยกช่วงอักษรไทยต่อช่วง** ไม่ให้เครื่องหมายหรือแท็กที่ติดคำ
+   (เข้า! / <b>เข้า</b>) เกาะเป็น token เดียวจนหลุดเงื่อนไข
+3. รายงานเมื่อคำในข้อความ**แทบไม่เคย**ปรากฏในบริบทนั้น (≤ MAX_MINE ครั้ง — typo
+   ชอบซ้ำกันเองในคลัง) ขณะที่คู่สับสนตัวอื่นในชุดปรากฏในบริบทแบบเดียวกัน**แน่นอน**
+   (≥ MIN_SUPPORT ครั้ง) ซึ่งมักคือคำที่ตั้งใจจะพิมพ์
 
 การกรอง (สำคัญกับ reviewer):
-- ค่า MIN_SUPPORT สูงและต้องเป็นศูนย์ฝั่งคำเดิม เพื่อแลกกับจำนวนผลที่น้อย
+- **ทุกแถวเป็นข้อเสนอของเครื่องมือ** — ไม่มีคอลัมน์ "ข้อความที่แก้แล้ว" เพราะการยืนยัน
+  เกิดทีละข้อความโดยทีมแปลใน Google Sheets เท่านั้น ไม่ใช่ที่ระดับคำ
+- ค่า MIN_SUPPORT สูงและ MAX_MINE ต่ำ เพื่อแลกกับจำนวนผลที่น้อย
   เพราะคลาสนี้หายากและ false positive แพง (คำถูกมาสะกดผิดไปเอง)
 - คำฟุ่มเฟือยที่วัดแล้ว noise มาก (คำสั้นมาก/คำที่ครอบคลุมหลายความหมาย) อยู่ใน ALLOW
 - ผลทั้งหมดเป็น**ข้อเสนอ**ระดับ id ให้ทีมแปลยืนยันใน Google Sheets ก่อนเข้าคลังเสมอ
@@ -54,14 +58,15 @@ MIN_LEN = {"tone": 2, "vowel": 4, "final": 4}
 ALLOW_PAIRS = {
     ("นั่น", "นั้น"), ("นั้น", "นั่น"), ("น่ะ", "นะ"), ("นะ", "น่ะ"),
     ("ล่ะ", "ละ"), ("ละ", "ล่ะ"), ("นี่", "นี้"), ("นี้", "นี่"),
-    ("จ๊ะ", "จะ"), ("จ้ะ", "จะ"), ("มั้ย", "ม่าย"), ("มั้ง", "มั่ง"),
-    ("เอ่อ", "เออ"), ("เอ้ย", "เอ๊ย"), ("แหง๋", "แหง"), ("วะ", "ว่ะ"),
-    ("อา", "อ่า"), ("ไม๊", "ไม่"), ("นั่นแหละ", "นั้นแหละ"),
-    # ตรวจกับต้นฉบับอังกฤษแล้วรูปเดิมถูก: รังเจ้าตะขาบ = centipede nests,
+    ("จ๊ะ", "จะ"), ("จ้ะ", "จะ"), ("มั้ย", "ม่าย"), ("มั้ง", "มั่ง"), ("มั่ง", "มั้ง"),
+    ("เอ่อ", "เออ"), ("เอ้ย", "เอ๊ย"), ("เอ่ย", "เอ๊ย"), ("แหง๋", "แหง"),
+    ("วะ", "ว่ะ"), ("ว่ะ", "วะ"), ("อา", "อ่า"), ("ไม๊", "ไม่"),
+    ("นั่นแหละ", "นั้นแหละ"), ("นี่แหละ", "นี้แหละ"), ("นี้แหละ", "นี่แหละ"),
+    # ตรวจกับต้นฉบับ/บริบทแล้วรูปเดิมถูก: รังเจ้าตะขาบ = centipede nests,
     # ม้าดีกว่าวิทเชอร์ = ม้าจริง, ทีนี้ไปไหนต่อ = "now then", ไปที่บ่อ = บ่อน้ำจริง,
-    # วันที = ไม่เคยปรากฏเป็นคู่นี้หลังตัดคำใหม่ (เก็บไว้กัน noise รอบถัดไป)
+    # หิน 5 ก้อน = ลักษณนาม, เค้านต์/เค้าท์ = ยศ Count
     ("รัง", "รั้ง"), ("ม้า", "มา"), ("ทีนี้", "ที่นี่"), ("บ่อ", "บอ"),
-    ("วันที", "วันที่"),
+    ("วันที", "วันที่"), ("ก้อน", "ก่อน"), ("เค้า", "เคา"),
 }
 
 
@@ -111,50 +116,48 @@ def main() -> None:
     confusions = confusion_sets(lexicon)
 
     entries = [(src, key, text) for src, key, text in load_entries(args.store) if isinstance(text, str)]
-    token_lists = []
+    # ตัดคำเป็นช่วงอักษรไทยต่อช่วง เพื่อไม่ให้เครื่องหมาย/แท็กที่ติดคำ (เช่น "เข้า!" หรือ
+    # <b>เข้า</b>) เกาะเป็น token เดียวจนหลุดเงื่อนไขภาษาไทย — จุดเริ่มเก็บเป็นตำแหน่งเดิมในข้อความ
+    entry_runs = []
     bigrams = Counter()
     for _src, _key, text in entries:
-        toks = wrapper.wrap(text).split(BREAK)
-        token_lists.append(toks)
-        for a, b in zip(toks, toks[1:]):
-            bigrams[(a, b)] += 1
+        runs = []
+        for m in re.finditer(r"[\u0e00-\u0e7f]+", text):
+            toks = wrapper.wrap(m.group()).split(BREAK)
+            if len(toks) > 1:
+                runs.append((m.start(), toks))
+                for a, b in zip(toks, toks[1:]):
+                    bigrams[(a, b)] += 1
+        entry_runs.append(runs)
 
     rows = []
     per_form = Counter()
-    for (src, key, text), toks in zip(entries, token_lists):
-        reported = []
-        for i, tok in enumerate(toks):
-            alts = confusions.get(tok)
-            if not alts or not THAI.match(tok):
-                continue
-            prev_t = toks[i - 1] if i > 0 else ""
-            next_t = toks[i + 1] if i + 1 < len(toks) else ""
-            mine = bigrams[(prev_t, tok)] + bigrams[(tok, next_t)]
-            if mine > MAX_MINE:
-                continue  # คำเดิมใช้บริบทนี้เป็นประจำ ถือว่าปกติ
-            best, support = None, 0
-            for alt in alts:
-                s = bigrams[(prev_t, alt)] + bigrams[(alt, next_t)]
-                if s > support and (tok, alt) not in ALLOW_PAIRS:
-                    best, support = alt, s
-            if best and support >= MIN_SUPPORT:
-                reported.append((tok, best, i))
-        if not reported:
-            continue
-        fixed = text
-        # แทนที่ตามตำแหน่ง token จากท้ายมาหน้า เพื่อไม่ให้ offset เลื่อน
-        for tok, best, i in sorted(reported, key=lambda r: -r[2]):
-            start = sum(len(t) for t in toks[:i])
-            end = start + len(tok)
-            if fixed[start:end] == tok:
-                fixed = fixed[:start] + best + fixed[end:]
-        for tok, best, _i in reported:
-            per_form[f"{tok} → {best}"] += 1
-            rows.append(("บริบทผิดความหมาย", src, key, f"{tok} → {best}", text, fixed))
+    for (src, key, text), runs in zip(entries, entry_runs):
+        for base, toks in runs:
+            for i, tok in enumerate(toks):
+                alts = confusions.get(tok)
+                if not alts:
+                    continue
+                prev_t = toks[i - 1] if i > 0 else ""
+                next_t = toks[i + 1] if i + 1 < len(toks) else ""
+                mine = bigrams[(prev_t, tok)] + bigrams[(tok, next_t)]
+                if mine > MAX_MINE:
+                    continue  # คำเดิมใช้บริบทนี้เป็นประจำ ถือว่าปกติ
+                best, support = None, 0
+                for alt in alts:
+                    s = bigrams[(prev_t, alt)] + bigrams[(alt, next_t)]
+                    if s > support and (tok, alt) not in ALLOW_PAIRS:
+                        best, support = alt, s
+                if not (best and support >= MIN_SUPPORT):
+                    continue
+                start = base + sum(len(t) for t in toks[:i])
+                ctx = text[max(0, start - 25):start + len(tok) + 25].replace("\n", " ")
+                per_form[f"{tok} → {best}"] += 1
+                rows.append(("ข้อเสนอเครื่องมือ", src, key, tok, best, ctx))
 
     with open(args.out, "w", encoding="utf-8-sig", newline="") as fh:
         writer = csv.writer(fh)
-        writer.writerow(["ประเภท", "แหล่ง", "id", "คำที่สงสัย", "ปัจจุบัน", "ที่ควรตรวจ"])
+        writer.writerow(["ประเภท", "แหล่ง", "id", "คำที่สงสัย", "ข้อเสนอ", "บริบท"])
         writer.writerows(rows)
 
     print(f"ชุดสับสน: {sum(len(v) for v in confusions.values()) // 2:,} คู่ จากคลังศัพท์ {len(lexicon):,} คำ")
