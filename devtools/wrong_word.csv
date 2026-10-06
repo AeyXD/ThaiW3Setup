@@ -1,9 +1,37 @@
-﻿ประเภท,แหล่ง,id,คำที่สงสัย,ปัจจุบัน,ที่ควรตรวจ
-บริบทผิดความหมาย,strings,1006823,บาง → บ้าง,เป็นยังไงบาง,เป็นยังไงบ้าง
-บริบทผิดความหมาย,strings,1015869,ทอง → ท่อง,ทองไปอยู่ไหนแล้วล่ะ,ท่องไปอยู่ไหนแล้วล่ะ
-บริบทผิดความหมาย,text,Bombs are thrown without any delay.,ขวาง → ขว้าง,ขวางระเบิดโดยไม่ต้องรอดีเลย์,ขว้างระเบิดโดยไม่ต้องรอดีเลย์
-บริบทผิดความหมาย,text,This dh'oine sold fisstech to some young elves. A contaminated batch that killed every other user.,ไอ → ไอ้,ไอมนุษย์คนนี้มันขายยา fisstech ให้เหล่าเอล์ฟหนุ่มสาวพวกนี้ แผงยาปนเปื้อนที่ฆ่าผู้เสพคนอื่นๆ,ไอ้มนุษย์คนนี้มันขายยา fisstech ให้เหล่าเอล์ฟหนุ่มสาวพวกนี้ แผงยาปนเปื้อนที่ฆ่าผู้เสพคนอื่นๆ
-บริบทผิดความหมาย,text,Which I shall do after we've spoken.,ซึ้ง → ซึ่ง,ซึ้งข้าจะจัดการหลังจากที่เราคุยกัน,ซึ่งข้าจะจัดการหลังจากที่เราคุยกัน
-บริบทผิดความหมาย,text,Huh. Could you ask for clearer prints? Sticky from the mead.,เหล้า → เหล่า,หา จะมีร่องรอยอะไรชัดได้เท่านี้อีกไหม? รอยเหนียวจากเหล้า,หา จะมีร่องรอยอะไรชัดได้เท่านี้อีกไหม? รอยเหนียวจากเหล่า
-บริบทผิดความหมาย,text,That slag's sellin' us to the Black Ones! Wanna watch? Go on in!,ไอ → ไอ้,ไอสวะนั่นกำลังขายเราให้พวกเกราะดำอยู่ไง อยากดูไหมล่ะ? เข้าไปดูด้วยตาเจ้าเองเลย!,ไอ้สวะนั่นกำลังขายเราให้พวกเกราะดำอยู่ไง อยากดูไหมล่ะ? เข้าไปดูด้วยตาเจ้าเองเลย!
-บริบทผิดความหมาย,text,There's a wolf den nearby. Wolf cubs inside. Carry them out of the swamp.,ที → ที่,มีถ้ำหมาป่าอยู่ใกล้ๆ มีลูกหมาป่าอยู่ข้างในนั้น พาพวกมันออกมาจากหนองน้ำที,มีถ้ำหมาป่าอยู่ใกล้ๆ มีลูกหมาป่าอยู่ข้างในนั้น พาพวกมันออกมาจากหนองน้ำที่
+﻿ประเภท,แหล่ง,id,คำที่สงสัย,ข้อเสนอ,บริบท
+ข้อเสนอเครื่องมือ,strings,380705,เข้า,เขา,"พวกเขา เข้าเดิน บ้านโทรล  โทรลบอก ""อ"
+ข้อเสนอเครื่องมือ,strings,478905,ที,ที่,[บอกพวกเขาที ล้างมลทินให้ข้า]
+ข้อเสนอเครื่องมือ,strings,531113,ป๋า,ป้า,"ถ้าข้าจำไม่ผิด บทเรียนของป๋า Vesemir บอกว่า ""วิทเชอร์"
+ข้อเสนอเครื่องมือ,strings,534478,เข้า,เขา,อตกลง? คุยกับเขา? เชื่อใจเข้า? ข้าอยากจะฆ่าเขาซะมากกว่
+ข้อเสนอเครื่องมือ,strings,573477,ไอ,ไอ้,เจ้้าจะไปไหน! ไอหน้าโง่!
+ข้อเสนอเครื่องมือ,strings,1010830,ฮึม,ฮึ่ม,ฮึมม ไม่มีอะไรพิเศษ
+ข้อเสนอเครื่องมือ,strings,1015869,ทอง,ท่อง,ทองไปอยู่ไหนแล้วล่ะ
+ข้อเสนอเครื่องมือ,strings,1039517,ไร่,ไร้,ศพของคนไร่ - อยู่ไหน?
+ข้อเสนอเครื่องมือ,strings,1054997,ซึง,ซึ่ง,้งในขณะที่วิญญาณปรากฎตัว.ซึงนั่นหมายความว่ามันแทบจะเป
+ข้อเสนอเครื่องมือ,strings,1074929,เข้า,เขา,เข้าทำได้แล้ว!
+ข้อเสนอเครื่องมือ,strings,1077743,พ่อ,พอ,ายุหกขวบ พ่ออายุสามสิบปี พ่อยังหนุ่มยังแน่น แต่ตอนนี้
+ข้อเสนอเครื่องมือ,strings,1077907,ขา,ข้า,งปกคลุมด้วยเกล็ดสีเงินแทนขา เมื่อกะลาสีไร้เดียงสาเข้
+ข้อเสนอเครื่องมือ,strings,1080770,ย้อม,ยอม,เครื่องจักสานเป็นสีขาวและย้อม ปอกเปลือกหรือไม่ปอกเปลือ
+ข้อเสนอเครื่องมือ,strings,1080858,หม้อ,หมอ,"n Cats"" เท่านั้น! มีทโลฟ หม้อของนักล่าและหมูปรุงรส ลดเ"
+ข้อเสนอเครื่องมือ,strings,1090928,ไอ,ไอ้,"แกจะมอดไหม้, ไอปีศาจ"
+ข้อเสนอเครื่องมือ,strings,1095549,เนีย,เนี่ย,แหมๆ เราเจออะไรเนีย เกราะแมว เหรียญหัวหมาป่า
+ข้อเสนอเครื่องมือ,strings,1168017,ที,ที่,บอกเราที ว่าเจ้ามาคนเดียว หรือท่า
+ข้อเสนอเครื่องมือ,strings,1191929,โอ๋,โอ,โอ๊ะโอ๋! เวรแล้ว...
+ข้อเสนอเครื่องมือ,strings,1194396,เข่า,เขา,ด้ตลอดชีวิตล่ะ? น้ำสูงถึงเข่า มีราขึ้นทุกที่ และลมก็แร
+ข้อเสนอเครื่องมือ,strings,1206938,บาง,บ้าง,้าอาจจะลบล้างบาปของข้าได้บาง อย่างน้อยบางทีในที่สุดข้
+ข้อเสนอเครื่องมือ,strings,1222603,ล่อ,ล้อ,ต้องถามด้วยหรอ?  miasmal ล่อเจ้ามาที่นี่  ข้าอ่อนแอเก
+ข้อเสนอเครื่องมือ,text,"Noonwraiths are only known to haunt rural areas, and usually stay near the place of their deaths. They prey on peasants working in the fields or children playing nearby. <br><br> Noonwraiths do not bleed and are for the most part immune to the effects of witcher signs. They can create mirror images of themselves which circle their victims in a kind of morbid parody of a dance. This ghastly ritual drains their victims' life energy while adding to their own strength. Noonwraiths are also able to manipulate the physical world to a limited degree, kicking up clouds of dust which temporarily blind and disorient their opponents. <br><br>Noonwraiths can turn immaterial and are at such times very difficult to wound. In order to force a noonwraith to take corporeal form, one must first trap it with the Yrden sign or strike it with a Moon Dust bomb. Once the monster has regained physical presence, one can mount a fast attack with a silver blade, preferably one coated in veil oil. <br><br>Contrary to popular belief, noonwraiths can also be encountered at night, but are significantly weaker then than during the day.",นู่น,นูน,มกับความเชื่อที่แพร่หลาย นู่นเรธสามารถพบได้ในเวลากลางค
+ข้อเสนอเครื่องมือ,text,Won't letcha!,หร๊อก,หรอก,ไม่ยอมแกหร๊อก!
+ข้อเสนอเครื่องมือ,text,"Advising, at best… Boy never managed to forge the blade, but would never let me at the anvil. Just pestered me with questions. Wanted to do it all by himself, as always. But then the whole plan went to the devil. Literally!",เล้ย,เลย,็พังพินาศย่อยยับหมด จริงๆเล้ย!
+ข้อเสนอเครื่องมือ,text,"Malicious beings usually haunt the ruins of castles, fortresses or, as a last resort, towers. The wraith of White Orchard, however, chose a much more everyday site for her haunting: a well. Geralt decided to drive this being off - perhaps to prevent it from harming anyone dwelling nearby, or perhaps in hope that someone would pay him for his trouble.<br>",ประสาท,ปราสาท,"อนอยู่ ณ ซากปรักหักพังของประสาท, หรือป้อมปราการ, หรือที่"
+ข้อเสนอเครื่องมือ,text,Talk to th Redanian liason.,คุ้ย,คุย,คุ้ยกับ th Redanian liason.
+ข้อเสนอเครื่องมือ,text,Bombs are thrown without any delay.,ขวาง,ขว้าง,ขวางระเบิดโดยไม่ต้องรอดีเลย์
+ข้อเสนอเครื่องมือ,text,Dammit. Supposed to keep the fires lit.,เอ่ย,เอ้ย,บ้าเอ่ย. ข้าควรจะเลี้ยงไฟไว้ไม่ใ
+ข้อเสนอเครื่องมือ,text,This dh'oine sold fisstech to some young elves. A contaminated batch that killed every other user.,ไอ,ไอ้,ไอมนุษย์คนนี้มันขายยา fisst
+ข้อเสนอเครื่องมือ,text,"Ah-ha, our defender of the downtrodden. Greetings.",ฮ้า,ฮ่า,อาฮ้า นี้มันผู้ผดุงความยุติธรร
+ข้อเสนอเครื่องมือ,text,Huh. Could you ask for clearer prints? Sticky from the mead.,เหล้า,เหล่า,่านี้อีกไหม? รอยเหนียวจากเหล้า
+ข้อเสนอเครื่องมือ,text,"Ugh, that was horrible…",อู่,อู้,อู่ววว น่ากลัวอะ
+ข้อเสนอเครื่องมือ,text,Not a problem. We'll sleep on the floor. Spread out a hide and…,กลิ่ง,กลิ้ง,ีปัญหา เราจะนอนกันบนพื้น กลิ่งตัวกันไปมาและ....
+ข้อเสนอเครื่องมือ,text,That slag's sellin' us to the Black Ones! Wanna watch? Go on in!,ไอ,ไอ้,ไอสวะนั่นกำลังขายเราให้พวกเ
+ข้อเสนอเครื่องมือ,text,There's a wolf den nearby. Wolf cubs inside. Carry them out of the swamp.,ที,ที่,น พาพวกมันออกมาจากหนองน้ำที
+ข้อเสนอเครื่องมือ,text,Who else knows?,บาง,บ้าง,ใครรู้เรื่องนี้บาง?
