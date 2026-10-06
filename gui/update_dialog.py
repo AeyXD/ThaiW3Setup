@@ -10,7 +10,7 @@ from tkinter import ttk
 from core import __version__
 from core.paths import app_data_label
 from core.update import UpdateInfo
-from gui.theme import P, ui
+from gui.theme import BIG_BUTTON, P, ui
 
 MAX_LINE_BYTES = 180  # Tk on Windows splits drawing near 200 UTF-8 bytes and detaches Thai marks there
 
@@ -85,6 +85,6 @@ class UpdateDialog(tk.Toplevel):
             row=2, column=0, sticky="w")
         buttons = ttk.Frame(root)
         buttons.grid(row=3, column=0, sticky="e", pady=(8, 0))
-        ttk.Button(buttons, text="ดาวน์โหลด", style="Big.TButton",
+        ttk.Button(buttons, text="ดาวน์โหลด", style=BIG_BUTTON,
                    command=lambda: webbrowser.open(info.download_url)).pack(side="left")
         ttk.Button(buttons, text="ปิด", command=self.destroy).pack(side="left", padx=(4, 0))

@@ -1,9 +1,12 @@
 """Live subtitle preview rendered with the selected in-game font."""
 from __future__ import annotations
 
+from functools import lru_cache
+
 from PIL import Image
 
 from core.assets import font_files
+from core.custom import NAME_DOUBLE, NAME_THAI, TAB_CHARACTERS, cached_thai_name, is_name_tab, name_settings
 from core.options import MODE_DOUBLE, InstallOptions
 from core.swf_font import EM, Font, best_font, load_fonts, render_line, text_width
 
@@ -21,6 +24,22 @@ SPEAKER_COLOR = "#F8FF56"
 BACKGROUND = (22, 24, 28, 255)
 
 _fonts: dict[str, Font] = {}
+
+
+@lru_cache(maxsize=1)
+def _speaker_th() -> str | None:
+    return cached_thai_name(TAB_CHARACTERS, SPEAKER_EN)
+
+
+def speaker_name(opts: InstallOptions) -> str:
+    """The speaker as the character names tab shows it in game."""
+    enabled, mode = name_settings(opts.custom_sheets)
+    thai = _speaker_th() if TAB_CHARACTERS in enabled else None
+    if not thai:
+        return SPEAKER_EN
+    mode = mode or next((s.get("name_mode") for s in opts.custom_sheets
+                         if is_name_tab(s) and s["tab"] == TAB_CHARACTERS), "") or NAME_DOUBLE
+    return thai if mode == NAME_THAI else f"{SPEAKER_EN} ({thai})"
 
 
 def _rgb(hex_color: str) -> tuple[int, int, int]:
@@ -144,7 +163,7 @@ def _subtitle_lines(opts: InstallOptions, scale: float, max_width: float | None)
         add([(SPEAKER_EN + ": ", speaker_color), (LINE_EN, c1)], s1)
         add([(f"[{LINE_TH}]", c2)], s2)
     else:
-        add([(SPEAKER_EN + ": ", speaker_color), (thai, c1)], s1)
+        add([(speaker_name(opts) + ": ", speaker_color), (thai, c1)], s1)
         if opts.mode == MODE_DOUBLE:
             add([(english, c2)], s2)
     return rows

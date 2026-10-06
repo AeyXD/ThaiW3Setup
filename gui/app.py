@@ -14,16 +14,22 @@ from tkinter import colorchooser, filedialog, messagebox
 import tkinter as tk
 from tkinter import ttk
 
+from PIL import Image, ImageTk
+
 from core import APP_TITLE, __version__
 from core.assets import help_image
+from core.custom import (COMMUNITY_ID, NAME_DOUBLE, NAME_TABS, NAME_THAI, apply_name_settings, cached_stats,
+                         is_name_tab, name_modes, name_settings)
 from core.game_detect import find_games, game_root, identify
+from core.logo import logo_image
 from core.installer import EXPORT_README, check_coverage, export, install, status, uninstall
 from core.options import FONTS, MODE_DOUBLE, MODE_THAI, SLOT_EN, SLOT_TR, load_options, save_options
 from core.osutil import MACOS, WINDOWS, open_folder
 from core.paths import app_data_dir
+from gui.custom_dialog import MODE_CHOICES, MODE_LABELS
 from gui.notice_dialog import show_notice
-from gui.theme import NATIVE_CONTROLS, P, init as init_theme, ui
-from gui.widgets import Tooltip, icon, ttk_image
+from gui.theme import BIG_BUTTON, DARK_THEME, NATIVE_CONTROLS, P, init as init_theme, ui
+from gui.widgets import ACCENT_ICON_COLOR, Tooltip, icon, ttk_image
 
 log = logging.getLogger(__name__)
 
@@ -31,6 +37,8 @@ UI_FONT = ui(10)
 UI_BOLD = ui(10, "bold")
 UI_TITLE = ui(15, "bold")
 PREVIEW_SIZE = (620, 150)
+PREVIEW_BG = "#16181c"
+LOGO_PREVIEW_HEIGHT = 110
 ICON_SIZE = 20
 T_UPGRADE_NOTICE = ("\u0e2a\u0e33\u0e2b\u0e23\u0e31\u0e1a\u0e15\u0e31\u0e27\u0e40\u0e01\u0e21\u0e17\u0e35\u0e48\u0e2d\u0e31\u0e1b\u0e40\u0e27\u0e2d\u0e23\u0e4c\u0e0a\u0e31\u0e19\u0e08\u0e32\u0e01 Classic / Next-gen "
                     "\u0e43\u0e2b\u0e49\u0e25\u0e1a mod \u0e41\u0e1b\u0e25\u0e40\u0e01\u0e48\u0e32 \u0e41\u0e25\u0e30 \u0e0b\u0e48\u0e2d\u0e21\u0e44\u0e1f\u0e25\u0e4c\u0e40\u0e01\u0e21 "
@@ -50,6 +58,11 @@ T_FIX_PERMISSION = ("\u0e43\u0e2b\u0e49\u0e41\u0e01\u0e49\u0e2a\u0e34\u0e17\u0e1
                     "(\u0e04\u0e25\u0e34\u0e01\u0e02\u0e27\u0e32 > Get Info > Sharing & Permissions) "
                     "\u0e41\u0e25\u0e49\u0e27\u0e25\u0e2d\u0e07\u0e43\u0e2b\u0e21\u0e48")
 T_SLOT_EN_HINT = "\u0e43\u0e19\u0e40\u0e01\u0e21\u0e43\u0e2b\u0e49\u0e15\u0e31\u0e49\u0e07\u0e20\u0e32\u0e29\u0e32\u0e02\u0e49\u0e2d\u0e04\u0e27\u0e32\u0e21\u0e40\u0e1b\u0e47\u0e19 English"
+T_TAB_STYLE = "สี ขนาด ตำแหน่ง"
+T_TAB_NAMES = "ชื่อเฉพาะ"
+T_NAMES_HINT = ("แปลชื่อตัวละคร เมือง เควส มอนสเตอร์ และอื่นๆ เป็นภาษาไทย "
+                "หมวดที่ไม่เลือก และชื่อที่ยังไม่มีคำแปล จะแสดงเป็นภาษาอังกฤษตามเกม")
+T_NAMES_MIXED = "ตอนนี้ตั้งแยกรายหมวดอยู่ เลือกด้านบนเพื่อใช้แบบเดียวกันทุกหมวด"
 
 
 class App(tk.Tk):
@@ -59,20 +72,27 @@ class App(tk.Tk):
         self.minsize(700, 640)
         init_theme(self)
         style = ttk.Style(self)
-        if "vista" in style.theme_names():
+        if not DARK_THEME and "vista" in style.theme_names():
             style.theme_use("vista")
         if not NATIVE_CONTROLS:  # aqua already uses the system font and its own control metrics
             self.option_add("*TCombobox*Listbox.font", UI_FONT)
             style.configure(".", font=UI_FONT)
-            style.configure("Big.TButton", font=UI_BOLD, padding=(16, 6))
-            style.configure("Icon.TButton", padding=(6, 6))
-            style.configure("More.TButton", padding=(10, 6))
-            style.configure("Split.TButton", padding=(2, 6))
+            style.configure(BIG_BUTTON, font=UI_BOLD, padding=(18, 7))
+            style.configure("Icon.TButton", padding=(7, 7))
+            style.configure("Danger.TButton", padding=(12, 7))
+            style.configure("Split.TButton", padding=(3, 7))
+            style.configure("TNotebook.Tab", padding=(16, 6))
+            style.configure("Switch.TCheckbutton", font=UI_FONT)
         style.configure("Title.TLabel", font=UI_TITLE)
+        style.configure("Sub.TLabel", foreground=P.hint)
+        style.configure("Section.TLabel", font=UI_BOLD, foreground=P.accent)
         style.configure("Bold.TLabel", font=UI_BOLD)
         style.configure("Ok.TLabel", foreground=P.ok)
         style.configure("Bad.TLabel", foreground=P.bad)
         style.configure("Warn.TLabel", foreground=P.warn)
+        if not DARK_THEME:  # the dark theme draws Danger.TButton red itself, see gui/theme.py
+            style.configure("Danger.TButton", foreground=P.bad)
+            style.map("Danger.TButton", foreground=[("disabled", P.hint)])
 
         self.opts = load_options()
         self.events: queue.Queue = queue.Queue()
@@ -97,11 +117,19 @@ class App(tk.Tk):
         self.v_slot = tk.StringVar(value=self.opts.slot)
         self.v_refresh = tk.BooleanVar(value=False)
         self.v_status = tk.StringVar(value="พร้อม")
+        self.v_names = {tab: tk.BooleanVar() for tab in NAME_TABS}
+        self.v_tab_modes = {tab: tk.StringVar() for tab in NAME_TABS}
+        # the mode every switched-on name tab shares, empty when they differ
+        self.v_name_mode = tk.StringVar()
 
         self._build()
+        self.load_name_vars(self.opts.custom_sheets)
         for var in (self.v_font, self.v_mode, self.v_thai_first, self.v_color1, self.v_color2,
-                    self.v_size1, self.v_size2, self.v_speaker, self.v_style):
+                    self.v_size1, self.v_size2, self.v_speaker, self.v_style,
+                    *self.v_names.values(), *self.v_tab_modes.values()):
             var.trace_add("write", lambda *_: self.schedule_preview())
+        for var in (*self.v_names.values(), *self.v_tab_modes.values()):
+            var.trace_add("write", lambda *_: self.update_names_state())
         self.v_game.trace_add("write", lambda *_: self.refresh_game())
         self.after(50, self.detect_games)
         self.after(100, self.poll_events)
@@ -111,7 +139,7 @@ class App(tk.Tk):
 
     # ---------- layout ----------
     def _build(self):
-        root = ttk.Frame(self, padding=12)
+        root = ttk.Frame(self, padding=(16, 12))
         root.pack(fill="both", expand=True)
         self.root_frame = root
         self.banner = None
@@ -119,10 +147,10 @@ class App(tk.Tk):
 
         ttk.Label(root, text="ติดตั้งภาษาไทย The Witcher 3: Wild Hunt - Remastered", style="Title.TLabel").grid(
             row=0, column=0, sticky="w")
-        ttk.Label(root, text="ติดตั้งลงโฟลเดอร์ mods เท่านั้น ไม่แก้ไขไฟล์ของตัวเกม ถอนการติดตั้งได้ทุกเมื่อ").grid(
-            row=1, column=0, sticky="w", pady=(0, 8))
+        ttk.Label(root, text="ติดตั้งลงโฟลเดอร์ mods เท่านั้น ไม่แก้ไขไฟล์ของตัวเกม ถอนการติดตั้งได้ทุกเมื่อ",
+                  style="Sub.TLabel").grid(row=1, column=0, sticky="w", pady=(0, 10))
 
-        game = ttk.LabelFrame(root, text="โฟลเดอร์เกม", padding=8)
+        game = ttk.LabelFrame(root, text="โฟลเดอร์เกม", padding=10)
         game.grid(row=2, column=0, sticky="ew")
         game.columnconfigure(0, weight=1)
         self.cb_game = ttk.Combobox(game, textvariable=self.v_game)
@@ -139,52 +167,57 @@ class App(tk.Tk):
         self.lbl_notes = ttk.Label(game, text="", style="Warn.TLabel")
         self.lbl_notes.grid(row=4, column=0, columnspan=3, sticky="w")
 
-        body = ttk.Frame(root)
-        body.grid(row=3, column=0, sticky="nsew", pady=8)
-        body.columnconfigure(0, weight=1)
-        body.columnconfigure(1, weight=1)
+        self.notebook = ttk.Notebook(root)
+        self.notebook.grid(row=3, column=0, sticky="nsew", pady=8)
         root.rowconfigure(3, weight=1)
 
-        left = ttk.LabelFrame(body, text="ข้อความและฟอนต์", padding=8)
-        left.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
+        subs = ttk.Frame(self.notebook, padding=12)
+        self.notebook.add(subs, text="ซับและฟอนต์")
+        subs.columnconfigure(0, weight=1, uniform="subs")
+        subs.columnconfigure(1, weight=1, uniform="subs")
+        left = ttk.Frame(subs)
+        left.grid(row=0, column=0, sticky="nw")
         ttk.Label(left, text="ฟอนต์").grid(row=0, column=0, sticky="w")
         ttk.Combobox(left, textvariable=self.v_font, values=list(FONTS.values()), state="readonly", width=18).grid(
-            row=0, column=1, sticky="w", pady=2)
+            row=0, column=1, sticky="w", pady=2, padx=(8, 0))
+        ttk.Label(left, text="รูปแบบซับ", style="Section.TLabel").grid(row=1, column=0, columnspan=2, sticky="w",
+                                                                   pady=(10, 0))
         ttk.Radiobutton(left, text="ภาษาไทยอย่างเดียว", variable=self.v_mode, value=MODE_THAI).grid(
-            row=1, column=0, columnspan=2, sticky="w", pady=(6, 0))
-        ttk.Radiobutton(left, text="ซับสองภาษา (ไทย + อังกฤษ)", variable=self.v_mode, value=MODE_DOUBLE).grid(
             row=2, column=0, columnspan=2, sticky="w")
+        ttk.Radiobutton(left, text="ซับสองภาษา (ไทย + อังกฤษ)", variable=self.v_mode, value=MODE_DOUBLE).grid(
+            row=3, column=0, columnspan=2, sticky="w")
         self.chk_first = ttk.Checkbutton(left, text="ให้ภาษาไทยอยู่บรรทัดแรก", variable=self.v_thai_first)
-        self.chk_first.grid(row=3, column=0, columnspan=2, sticky="w", padx=(20, 0))
-        ttk.Checkbutton(left, text="ซับคัตซีน Storybook ภาษาไทย", variable=self.v_storybook).grid(
-            row=4, column=0, columnspan=2, sticky="w", pady=(6, 0))
-        ttk.Checkbutton(left, text="โลโก้ภาษาไทยในเมนูหลัก", variable=self.v_logo).grid(
-            row=5, column=0, columnspan=2, sticky="w")
-        ttk.Label(left, text="ช่องภาษาในเกม", style="Bold.TLabel").grid(row=6, column=0, columnspan=2, sticky="w",
-                                                                       pady=(8, 0))
-        ttk.Radiobutton(left, text="แทน Turkish (เมนูแสดงเป็น \"ไทย\") - แนะนำ", variable=self.v_slot,
-                        value=SLOT_TR).grid(row=7, column=0, columnspan=2, sticky="w")
-        ttk.Radiobutton(left, text="แทนภาษาอังกฤษ (สำหรับเกมจาก Xbox)", variable=self.v_slot, value=SLOT_EN).grid(
-            row=8, column=0, columnspan=2, sticky="w")
-        ttk.Checkbutton(left, text="ดาวน์โหลดคำแปลล่าสุดทุกครั้ง", variable=self.v_refresh).grid(
-            row=9, column=0, columnspan=2, sticky="w", pady=(8, 0))
-        custom = ttk.Frame(left)
-        custom.grid(row=10, column=0, columnspan=2, sticky="w", pady=(6, 0))
-        ttk.Button(custom, text="ปรับแต่งคำแปล...", command=self.open_custom).pack(side="left")
-        self.lbl_custom = ttk.Label(custom, text="")
-        self.lbl_custom.pack(side="left", padx=(6, 0))
-        self.update_custom_label()
+        self.chk_first.grid(row=4, column=0, columnspan=2, sticky="w", padx=(20, 0))
+        ttk.Label(left, text="อื่นๆ", style="Section.TLabel").grid(row=5, column=0, columnspan=2, sticky="w",
+                                                               pady=(10, 0))
+        ttk.Checkbutton(left, text="ซับคัตซีน Storybook ภาษาไทย", variable=self.v_storybook,
+                        style="Switch.TCheckbutton").grid(
+            row=6, column=0, columnspan=2, sticky="w")
 
-        right = ttk.LabelFrame(body, text="\u0e2a\u0e35 \u0e02\u0e19\u0e32\u0e14 \u0e41\u0e25\u0e30\u0e15\u0e33\u0e41\u0e2b\u0e19\u0e48\u0e07\u0e0b\u0e31\u0e1a", padding=8)
-        right.grid(row=0, column=1, sticky="nsew", padx=(4, 0))
+        logo = ttk.Frame(subs)
+        logo.grid(row=0, column=1, sticky="nw")
+        ttk.Checkbutton(logo, text="โลโก้ภาษาไทยในเมนูหลัก", variable=self.v_logo,
+                        style="Switch.TCheckbutton").pack(anchor="w")
+        self.logo_preview = tk.Label(logo, bg=PREVIEW_BG, cursor="hand2", borderwidth=0)
+        self.logo_preview.pack(anchor="w", pady=(6, 0))
+        self.logo_preview.bind("<Button-1>", lambda _e: self.v_logo.set(not self.v_logo.get()))
+        self.logo_images = self._logo_images()
+        self.v_logo.trace_add("write", lambda *_: self.update_logo_preview())
+        self.update_logo_preview()
+
+        self._build_names_tab()
+
+        right = ttk.Frame(self.notebook, padding=12)
+        self.notebook.add(right, text=T_TAB_STYLE)
         right.columnconfigure(1, weight=1)
         ttk.Checkbutton(right, text="\u0e1b\u0e23\u0e31\u0e1a\u0e2a\u0e35 \u0e02\u0e19\u0e32\u0e14 \u0e41\u0e25\u0e30\u0e15\u0e33\u0e41\u0e2b\u0e19\u0e48\u0e07\u0e0b\u0e31\u0e1a (\u0e41\u0e01\u0e49 script \u0e43\u0e19 mods)", variable=self.v_style,
-                        command=self.update_states).grid(row=0, column=0, columnspan=3, sticky="w")
+                        command=self.update_states, style="Switch.TCheckbutton").grid(row=0, column=0, columnspan=3, sticky="w")
         self.style_widgets = []
         for row, (label, cvar, svar) in enumerate((("บรรทัดที่ 1", self.v_color1, self.v_size1),
                                                     ("บรรทัดที่ 2", self.v_color2, self.v_size2)), start=1):
             ttk.Label(right, text=label).grid(row=row * 2 - 1, column=0, sticky="w", pady=(8, 0))
-            swatch = tk.Label(right, width=4, relief="groove", bg=cvar.get(), cursor="hand2")
+            swatch = tk.Label(right, width=4, relief="flat", bg=cvar.get(), cursor="hand2",
+                              highlightthickness=1, highlightbackground="#5a5a5a")
             swatch.grid(row=row * 2 - 1, column=1, sticky="w", pady=(8, 0), padx=6)
             swatch.bind("<Button-1>", lambda _e, v=cvar: self.pick_color(v))
             cvar.trace_add("write", lambda *_, v=cvar, s=swatch: s.configure(bg=v.get()))
@@ -198,7 +231,8 @@ class App(tk.Tk):
             size_lbl = ttk.Label(right, textvariable=svar, width=3)
             size_lbl.grid(row=row * 2, column=2, sticky="e")
             self.style_widgets += [swatch, btn, scale]
-        self.chk_speaker = ttk.Checkbutton(right, text="ชื่อผู้พูดเป็นสี", variable=self.v_speaker)
+        self.chk_speaker = ttk.Checkbutton(right, text="ชื่อผู้พูดเป็นสี", variable=self.v_speaker,
+                                           style="Switch.TCheckbutton")
         self.chk_speaker.grid(row=5, column=0, columnspan=3, sticky="w", pady=(8, 0))
         self.style_widgets.append(self.chk_speaker)
         layout = ttk.Frame(right)
@@ -214,9 +248,27 @@ class App(tk.Tk):
                                                                            sticky="w", pady=(8, 0))
         self.v_mode.trace_add("write", lambda *_: self.update_states())
 
+        adv = ttk.Frame(self.notebook, padding=12)
+        self.notebook.add(adv, text="ขั้นสูง")
+        ttk.Label(adv, text="ช่องภาษาในเกม", style="Section.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Radiobutton(adv, text="แทน Turkish (เมนูแสดงเป็น \"ไทย\") - แนะนำ", variable=self.v_slot,
+                        value=SLOT_TR).grid(row=1, column=0, sticky="w")
+        ttk.Radiobutton(adv, text="แทนภาษาอังกฤษ (สำหรับเกมจาก Xbox)", variable=self.v_slot, value=SLOT_EN).grid(
+            row=2, column=0, sticky="w")
+        ttk.Label(adv, text="คำแปล", style="Section.TLabel").grid(row=3, column=0, sticky="w", pady=(10, 0))
+        ttk.Checkbutton(adv, text="ดาวน์โหลดคำแปลล่าสุดทุกครั้ง", variable=self.v_refresh,
+                        style="Switch.TCheckbutton").grid(
+            row=4, column=0, sticky="w")
+        custom = ttk.Frame(adv)
+        custom.grid(row=5, column=0, sticky="w", pady=(6, 0))
+        ttk.Button(custom, text="คำแปลเสริมอื่นๆ...", command=self.open_custom).pack(side="left")
+        self.lbl_custom = ttk.Label(custom, text="")
+        self.lbl_custom.pack(side="left", padx=(6, 0))
+        self.update_custom_label()
+
         prev = ttk.LabelFrame(root, text="ตัวอย่างซับในเกม", padding=6)
         prev.grid(row=4, column=0, sticky="ew")
-        self.preview = tk.Canvas(prev, bg="#16181c", width=PREVIEW_SIZE[0], height=PREVIEW_SIZE[1],
+        self.preview = tk.Canvas(prev, bg=PREVIEW_BG, width=PREVIEW_SIZE[0], height=PREVIEW_SIZE[1],
                                  highlightthickness=0)
         self.preview.pack(fill="x")
         self.preview.bind("<Configure>", lambda _e: self.schedule_preview())
@@ -240,20 +292,131 @@ class App(tk.Tk):
 
         right = ttk.Frame(bottom)
         right.grid(row=2, column=1, sticky="e")
-        self.btn_install = ttk.Button(right, text="ติดตั้ง / อัปเดต", image=ttk_image(self, "download", ICON_SIZE),
-                                      compound="left", style="Big.TButton", command=self.do_install)
+        self.btn_install = ttk.Button(right, text="ติดตั้ง / อัปเดต", image=ttk_image(self, "download", ICON_SIZE, ACCENT_ICON_COLOR),
+                                      compound="left", style=BIG_BUTTON, command=self.do_install)
         self.btn_install.pack(side="left")
         self.menu_install = self._make_menu((("drive_file_move", T_EXPORT_BUTTON, self.do_export),))
         self.btn_install_more = ttk.Button(right, image=ttk_image(self, "expand_more", ICON_SIZE), style="Split.TButton",
                                            command=lambda: self.popup_menu(self.menu_install, self.btn_install))
         self.btn_install_more.pack(side="left", fill="y")
         Tooltip(self.btn_install_more, T_EXPORT_BUTTON.rstrip("."))
-        self.menu_more = self._make_menu((("delete", "ถอนการติดตั้ง", self.do_uninstall),))
-        self.btn_more = ttk.Button(right, text="เพิ่มเติม", image=ttk_image(self, "expand_more", ICON_SIZE),
-                                   compound="right", style="More.TButton",
-                                   command=lambda: self.popup_menu(self.menu_more, self.btn_more, align_right=True))
-        self.btn_more.pack(side="left", padx=(6, 0), fill="y")
+        self.btn_uninstall = ttk.Button(right, text="ถอนการติดตั้ง",
+                                        image=ttk_image(self, "delete", ICON_SIZE, "#ffffff" if DARK_THEME else P.bad),
+                                        compound="left",
+                                        style="Danger.TButton", command=self.do_uninstall)
+        self.btn_uninstall.pack(side="left", padx=(6, 0), fill="y")
         self.update_states()
+
+    def _logo_images(self) -> dict[bool, ImageTk.PhotoImage] | None:
+        """The Thai logo on the preview background, bright when switched on and dimmed when off."""
+        try:
+            logo = Image.open(logo_image()).convert("RGBA")
+        except OSError as exc:
+            log.warning("logo preview: %s", exc)
+            return None
+        logo = logo.crop(logo.getbbox())
+        height = round(LOGO_PREVIEW_HEIGHT * self.winfo_fpixels("1i") / 96)
+        logo = logo.resize((max(1, logo.width * height // logo.height), height), Image.LANCZOS)
+        pad = height // 10
+        images = {}
+        for on in (True, False):
+            img = logo if on else logo.copy()
+            if not on:
+                img.putalpha(img.getchannel("A").point(lambda a: a * 30 // 100))
+            bg = Image.new("RGBA", (img.width + 2 * pad, img.height + 2 * pad), PREVIEW_BG)
+            bg.alpha_composite(img, (pad, pad))
+            images[on] = ImageTk.PhotoImage(bg.convert("RGB"), master=self)
+        return images
+
+    def update_logo_preview(self):
+        if self.logo_images:
+            self.logo_preview.configure(image=self.logo_images[bool(self.v_logo.get())])
+        else:
+            self.logo_preview.pack_forget()
+
+    def _build_names_tab(self):
+        tab = ttk.Frame(self.notebook, padding=12)
+        self.names_tab = tab
+        self.notebook.add(tab, text=T_TAB_NAMES)
+        tab.columnconfigure(0, weight=1)
+        tab.columnconfigure(1, weight=1)
+        hint = ttk.Label(tab, text=T_NAMES_HINT, wraplength=640, justify="left")
+        hint.grid(row=0, column=0, columnspan=2, sticky="ew")
+        tab.bind("<Configure>", lambda e: hint.configure(wraplength=max(200, e.width - 24)))
+
+        grid = ttk.Frame(tab)
+        grid.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+        grid.columnconfigure(2, weight=1, minsize=24)
+        grid.columnconfigure(5, weight=1)
+        self.name_checks = {}
+        self.name_combos = {}
+        for i, name in enumerate(NAME_TABS):
+            r, c = i // 2, (i % 2) * 3
+            chk = ttk.Checkbutton(grid, variable=self.v_names[name])
+            chk.grid(row=r, column=c, sticky="w", pady=1)
+            combo = ttk.Combobox(grid, textvariable=self.v_tab_modes[name], values=list(MODE_LABELS.values()),
+                                 state="readonly", width=7)
+            combo.grid(row=r, column=c + 1, sticky="w", padx=(8, 0), pady=1)
+            self.name_checks[name] = chk
+            self.name_combos[name] = combo
+        self.update_name_labels()
+        buttons = ttk.Frame(tab)
+        buttons.grid(row=2, column=0, columnspan=2, sticky="w", pady=(6, 0))
+        ttk.Button(buttons, text="เลือกทั้งหมด", command=lambda: self.set_all_names(True)).pack(side="left")
+        ttk.Button(buttons, text="ไม่เลือกเลย", command=lambda: self.set_all_names(False)).pack(
+            side="left", padx=(6, 0))
+
+        ttk.Label(tab, text="รูปแบบชื่อทุกหมวด", style="Section.TLabel").grid(row=3, column=0, columnspan=2,
+                                                                           sticky="w", pady=(10, 0))
+        modes = ttk.Frame(tab)
+        modes.grid(row=4, column=0, columnspan=2, sticky="w")
+        self.name_mode_radios = []
+        for mode in (NAME_THAI, NAME_DOUBLE):
+            radio = ttk.Radiobutton(modes, text=MODE_CHOICES[mode], variable=self.v_name_mode, value=mode,
+                                    command=lambda m=mode: self.set_all_name_modes(m))
+            radio.pack(side="left", padx=(0, 16))
+            self.name_mode_radios.append(radio)
+        self.lbl_name_mixed = ttk.Label(tab, text="", foreground=P.hint)
+        self.lbl_name_mixed.grid(row=5, column=0, columnspan=2, sticky="w")
+
+    def update_name_labels(self):
+        for name, chk in self.name_checks.items():
+            percent = cached_stats(COMMUNITY_ID, name)[1]
+            label = name.removeprefix("ชื่อ")
+            chk.configure(text=f"{label} (แปลแล้ว {percent:.0%})" if percent is not None else label)
+
+    def set_all_names(self, on: bool):
+        for var in self.v_names.values():
+            var.set(on)
+
+    def set_all_name_modes(self, mode: str):
+        for var in self.v_tab_modes.values():
+            var.set(MODE_LABELS[mode])
+
+    def tab_modes(self) -> dict[str, str]:
+        return {tab: next(k for k, v in MODE_LABELS.items() if v == var.get())
+                for tab, var in self.v_tab_modes.items()}
+
+    def load_name_vars(self, sheets: list[dict]):
+        enabled, _mode = name_settings(sheets)
+        for name, var in self.v_names.items():
+            var.set(name in enabled)
+        for name, mode in name_modes(sheets).items():
+            self.v_tab_modes[name].set(MODE_LABELS[mode])
+        self.update_names_state()
+
+    def update_names_state(self):
+        on = {tab for tab, var in self.v_names.items() if var.get()}
+        self.notebook.tab(self.names_tab, text=f"{T_TAB_NAMES} ({len(on)}/{len(self.v_names)})")
+        for tab, combo in self.name_combos.items():
+            combo.configure(state="readonly" if tab in on else "disabled")
+        for radio in self.name_mode_radios:
+            radio.configure(state="normal" if on else "disabled")
+        shared = {mode for tab, mode in self.tab_modes().items() if tab in on}
+        mode = shared.pop() if len(shared) == 1 else ""
+        if self.v_name_mode.get() != mode:
+            self.v_name_mode.set(mode)
+        self.lbl_name_mixed.configure(text=T_NAMES_MIXED if len(on) and not mode else "")
 
     def _make_menu(self, items) -> tk.Menu:
         menu = tk.Menu(self, tearoff=False) if NATIVE_CONTROLS else tk.Menu(self, tearoff=False, font=UI_FONT)
@@ -280,12 +443,15 @@ class App(tk.Tk):
                        thai_first=self.v_thai_first.get(), color1=self.v_color1.get(), color2=self.v_color2.get(),
                        size1=int(self.v_size1.get()), size2=int(self.v_size2.get()),
                        speaker_colors=self.v_speaker.get(), storybook=self.v_storybook.get(),
-                       thai_logo=self.v_logo.get(), subtitle_style=self.v_style.get(), slot=self.v_slot.get())
+                       thai_logo=self.v_logo.get(), subtitle_style=self.v_style.get(), slot=self.v_slot.get(),
+                       custom_sheets=apply_name_settings(
+                           self.opts.custom_sheets, {t for t, v in self.v_names.items() if v.get()},
+                           self.tab_modes()))
 
     def update_custom_label(self):
-        sheets = self.opts.custom_sheets
+        sheets = [s for s in self.opts.custom_sheets if not is_name_tab(s)]
         on = sum(1 for s in sheets if s.get("enabled"))
-        self.lbl_custom.configure(text=f"เปิดใช้ {on} จาก {len(sheets)} ไฟล์")
+        self.lbl_custom.configure(text=f"เปิดใช้ {on} จาก {len(sheets)} ไฟล์ (ไม่นับแท็บ{T_TAB_NAMES})")
 
     def open_report(self):
         from gui.report_dialog import ReportDialog
@@ -298,8 +464,10 @@ class App(tk.Tk):
         def on_save(sheets):
             self.opts = replace(self.current_options(), custom_sheets=sheets)
             save_options(self.opts)
+            self.load_name_vars(sheets)
+            self.update_name_labels()
             self.update_custom_label()
-        CustomSheetsDialog(self, self.opts.custom_sheets, on_save)
+        CustomSheetsDialog(self, self.current_options().custom_sheets, on_save)
 
     def update_layout_label(self):
         o = self.opts
@@ -422,6 +590,7 @@ class App(tk.Tk):
             self.btn_install.configure(state="disabled")
             self.btn_check.configure(state="disabled")
             self._set_more_states(False, False)
+            self._fit_status_labels()
             return
         game = identify(path)
         ok = game.supported
@@ -447,12 +616,20 @@ class App(tk.Tk):
             text += "  |  ไฟล์ mod ถูกเปลี่ยนหลังติดตั้ง กดติดตั้งใหม่"
         self.lbl_installed.configure(text=text)
         self.lbl_latest.configure(**self._latest_text(path, st if ok else None))
+        self._fit_status_labels()
         self._set_more_states(ok, bool(st and st.installed))
+
+    def _fit_status_labels(self):
+        """Empty status lines take no room."""
+        for lbl in (self.lbl_installed, self.lbl_latest, self.lbl_notes):
+            if lbl.cget("text"):
+                lbl.grid()
+            else:
+                lbl.grid_remove()
 
     def _set_more_states(self, export_ok: bool, uninstall_ok: bool):
         self.btn_install_more.configure(state="normal" if export_ok and not self.busy else "disabled")
-        self.btn_more.configure(state="disabled" if self.busy else "normal")
-        self.menu_more.entryconfigure(0, state="normal" if uninstall_ok and not self.busy else "disabled")
+        self.btn_uninstall.configure(state="normal" if uninstall_ok and not self.busy else "disabled")
 
     def _latest_text(self, path: str, st) -> dict:
         if not self.latest or self.latest[0] != path or st is None:

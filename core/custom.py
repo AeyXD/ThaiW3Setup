@@ -108,7 +108,7 @@ DEFAULT_SHEETS = [
                 "\u0e04\u0e33\u0e41\u0e1b\u0e25\u0e40\u0e1e\u0e34\u0e48\u0e21\u0e40\u0e15\u0e34\u0e21\u0e08\u0e32\u0e01\u0e0a\u0e38\u0e21\u0e0a\u0e19", True,
                 UNTRANSLATED_TAB, 0),
     # proper names shown as "English (Thai)", see devtools/export_names.py
-    *(CustomSheet(COMMUNITY_ID, name_label(tab), False, tab, NAME_GIDS.get(tab), NAME_DOUBLE) for tab in NAME_TABS),
+    *(CustomSheet(COMMUNITY_ID, name_label(tab), True, tab, NAME_GIDS.get(tab), NAME_DOUBLE) for tab in NAME_TABS),
 ]
 
 # unlocked by typing UNLOCK_CODE in the custom sheets dialog; move into DEFAULT_SHEETS once released
@@ -131,6 +131,40 @@ def sheet_key(sheet: dict) -> str:
 
 def default_sheets() -> list[dict]:
     return [asdict(s) for s in DEFAULT_SHEETS]
+
+
+def name_settings(sheets: list[dict]) -> tuple[set[str], str]:
+    """(switched-on name tabs, the name mode they share); the mode is empty when the tabs differ."""
+    tabs = [s for s in sheets if is_name_tab(s)]
+    modes = {s.get("name_mode") or NAME_DOUBLE for s in tabs}
+    return {s["tab"] for s in tabs if s.get("enabled")}, modes.pop() if len(modes) == 1 else ""
+
+
+def name_modes(sheets: list[dict]) -> dict[str, str]:
+    """Name mode of every name tab, removed tabs as the default."""
+    modes = {tab: NAME_DOUBLE for tab in NAME_TABS}
+    modes.update({s["tab"]: s.get("name_mode") or NAME_DOUBLE for s in sheets if is_name_tab(s)})
+    return modes
+
+
+def apply_name_settings(sheets: list[dict], enabled: set[str], mode: str | dict[str, str]) -> list[dict]:
+    """Copy of sheets with the name tabs switched to enabled. mode is one mode for every tab or one per tab;
+    an empty mode keeps the tab's own. A tab removed from the list comes back when switched on."""
+    def mode_of(tab: str) -> str:
+        return mode.get(tab, "") if isinstance(mode, dict) else mode
+
+    out = [dict(s) for s in sheets]
+    have = set()
+    for s in out:
+        if is_name_tab(s):
+            have.add(s["tab"])
+            s["enabled"] = s["tab"] in enabled
+            if mode_of(s["tab"]):
+                s["name_mode"] = mode_of(s["tab"])
+    for s in default_sheets():
+        if is_name_tab(s) and s["tab"] in enabled and s["tab"] not in have:
+            out.append(dict(s, enabled=True, name_mode=mode_of(s["tab"]) or NAME_DOUBLE))
+    return out
 
 
 def hidden_sheets() -> list[dict]:
@@ -316,6 +350,21 @@ def cached_stats(sheet_id: str, tab: str = "") -> tuple[int | None, float | None
             except (OSError, ValueError, KeyError):
                 pass
     return None, None
+
+
+def cached_thai_name(tab: str, english: str) -> str | None:
+    """Thai of a name in a community name tab, from the cache or the bundled snapshot."""
+    prefix = f"{english} ("
+    for path in (_cache_path(COMMUNITY_ID, tab), _bundled_path(COMMUNITY_ID, tab)):
+        if path.exists():
+            try:
+                data = load_custom(path)[0]
+            except (OSError, ValueError, KeyError):
+                continue
+            for sid, text in data.strings.items():
+                if text.startswith(prefix) and data.thai.get(sid):
+                    return data.thai[sid]
+    return None
 
 
 def get_custom_data(sheet_id: str, force_download: bool = False, allow_online: bool = True,

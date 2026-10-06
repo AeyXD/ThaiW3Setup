@@ -12,7 +12,7 @@ from PIL import Image, ImageDraw, ImageTk
 
 from core.assets import layout_background
 from core.options import LAYOUT_BGS, MODE_DOUBLE, OFFSET_LIMIT, SCALE_RANGE, WIDTH_RANGE, InstallOptions
-from gui.theme import P, ui
+from gui.theme import BIG_BUTTON, P, ui
 from gui.preview import descent_px, subtitle_block, text_rows
 
 REF_W, REF_H = 1920, 1080
@@ -267,7 +267,7 @@ class HudLayoutDialog(tk.Toplevel):
         self.note = ttk.Label(root, foreground=P.note, text=T_NOTE_APPROX)
         self.bottom = bottom = ttk.Frame(root)
         ttk.Button(bottom, text=T_CANCEL, command=self.destroy).pack(side="right")
-        ttk.Button(bottom, text=T_OK, style="Big.TButton", command=self.save).pack(side="right", padx=(0, 6))
+        ttk.Button(bottom, text=T_OK, style=BIG_BUTTON, command=self.save).pack(side="right", padx=(0, 6))
         self._pack_panels()
 
     def _pack_panels(self):

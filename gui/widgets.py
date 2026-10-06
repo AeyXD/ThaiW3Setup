@@ -7,36 +7,45 @@ import tkinter as tk
 from PIL import Image, ImageTk
 
 from core.paths import assets_dir
-from gui.theme import P, ui
+from gui.theme import DARK_THEME, TEXT, P, ui
 
 log = logging.getLogger(__name__)
 
 DISABLED_ALPHA = 0.35
-_cache: dict[tuple[str, int, bool], ImageTk.PhotoImage] = {}
+ICON_COLOR = TEXT if DARK_THEME else None
+# icons on an Accent button sit on the light accent colour, like its black text
+ACCENT_ICON_COLOR = "#000000" if DARK_THEME else None
+_cache: dict[tuple, ImageTk.PhotoImage] = {}
 
 
-def icon(widget: tk.Misc, name: str, size: int = 20, disabled: bool = False) -> ImageTk.PhotoImage | None:
-    """The icon scaled for the screen DPI, or None when the file is missing (callers fall back to text)."""
+def icon(widget: tk.Misc, name: str, size: int = 20, disabled: bool = False,
+         color: str | None = ICON_COLOR) -> ImageTk.PhotoImage | None:
+    """The icon scaled for the screen DPI and painted in color (None keeps the file's own), or None when the
+    file is missing (callers fall back to text)."""
     px = max(8, round(size * widget.winfo_fpixels("1i") / 96))
-    key = (name, px, disabled)
+    key = (name, px, disabled, color)
     if key not in _cache:
         try:
             img = Image.open(assets_dir() / "icons" / f"{name}.png").convert("RGBA").resize((px, px), Image.LANCZOS)
         except OSError as exc:
             log.warning("icon %s: %s", name, exc)
             return None
+        if color:
+            alpha = img.getchannel("A")
+            img = Image.new("RGBA", img.size, color)
+            img.putalpha(alpha)
         if disabled:
             img.putalpha(img.getchannel("A").point(lambda a: int(a * DISABLED_ALPHA)))
         _cache[key] = ImageTk.PhotoImage(img, master=widget)
     return _cache[key]
 
 
-def ttk_image(widget: tk.Misc, name: str, size: int = 20) -> tuple | str:
+def ttk_image(widget: tk.Misc, name: str, size: int = 20, color: str | None = ICON_COLOR) -> tuple | str:
     """Value for a ttk widget's image option, dimmed while the widget is disabled."""
-    normal = icon(widget, name, size)
+    normal = icon(widget, name, size, color=color)
     if normal is None:
         return ""
-    return (normal, "disabled", icon(widget, name, size, disabled=True))
+    return (normal, "disabled", icon(widget, name, size, disabled=True, color=color))
 
 
 class Tooltip:

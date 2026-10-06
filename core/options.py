@@ -118,6 +118,8 @@ def _add_new_default_sheets(opts: InstallOptions) -> None:
     known = {_legacy_key(k) for k in opts.known_default_sheets}
     for s in default_sheets():
         if sheet_key(s) not in known and sheet_key(s) not in have:
+            if is_name_tab(s):  # on for new installs only; existing settings opt in from the names tab
+                s["enabled"] = False
             opts.custom_sheets.append(s)
     opts.known_default_sheets = sorted(known | {sheet_key(s) for s in default_sheets()})
 

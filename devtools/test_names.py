@@ -132,6 +132,37 @@ settings_path().write_text(json.dumps({"custom_sheets": opts.custom_sheets,
                                        "known_default_sheets": opts.known_default_sheets}), encoding="utf-8")
 assert all(s["name_mode"] == NAME_DOUBLE for s in load_options().custom_sheets if is_name_tab(s))
 
+# new installs translate every name tab; the main window reads and writes them through name_settings
+from core.custom import apply_name_settings, name_settings
+from core.options import InstallOptions
+fresh = InstallOptions().custom_sheets
+assert name_settings(fresh) == (set(NAME_TABS), NAME_DOUBLE), name_settings(fresh)
+some = apply_name_settings(fresh, {TAB_CHARACTERS, TAB_SKILLS}, NAME_THAI)
+assert name_settings(some) == ({TAB_CHARACTERS, TAB_SKILLS}, NAME_THAI), name_settings(some)
+assert name_settings(fresh) == (set(NAME_TABS), NAME_DOUBLE)  # the input list is left alone
+assert [sheet_key(s) for s in some] == [sheet_key(s) for s in fresh]
+# an empty mode keeps each tab's own, and mixed modes read back as empty
+mixed = [dict(s, name_mode=NAME_THAI) if s.get("tab") == TAB_SKILLS else s for s in some]
+mixed = apply_name_settings(mixed, set(NAME_TABS), NAME_DOUBLE)
+mixed = [dict(s, name_mode=NAME_THAI) if s.get("tab") == TAB_SKILLS else s for s in mixed]
+assert name_settings(apply_name_settings(mixed, set(NAME_TABS), "")) == (set(NAME_TABS), "")
+# one mode per tab, as the names tab of the main window sets them
+from core.custom import name_modes
+per_tab = apply_name_settings(fresh, set(NAME_TABS), {TAB_SKILLS: NAME_THAI, TAB_CHARACTERS: NAME_DOUBLE})
+assert name_modes(per_tab)[TAB_SKILLS] == NAME_THAI and name_modes(per_tab)[TAB_CHARACTERS] == NAME_DOUBLE
+assert name_settings(per_tab) == (set(NAME_TABS), "")
+assert name_modes([s for s in per_tab if s.get("tab") != TAB_SKILLS])[TAB_SKILLS] == NAME_DOUBLE
+# a tab removed in the dialog comes back when switched on, and stays out when off
+removed = [s for s in fresh if s.get("tab") != TAB_QUESTS]
+assert TAB_QUESTS not in [s.get("tab") for s in apply_name_settings(removed, {TAB_CHARACTERS}, NAME_DOUBLE)]
+back = apply_name_settings(removed, {TAB_QUESTS}, NAME_THAI)
+quest = [s for s in back if s.get("tab") == TAB_QUESTS]
+assert len(quest) == 1 and quest[0]["enabled"] and quest[0]["name_mode"] == NAME_THAI, quest
+# saved settings keep their own switches
+settings_path().write_text(json.dumps({"custom_sheets": some, "known_default_sheets": [sheet_key(s) for s in some]}),
+                           encoding="utf-8")
+assert name_settings(load_options().custom_sheets) == ({TAB_CHARACTERS, TAB_SKILLS}, NAME_THAI)
+
 # two-language mode does not repeat the English name
 assert combine(f"Yennefer ({YEN_TH})", "Yennefer", True) == f"Yennefer ({YEN_TH})"
 assert combine(YEN_TH, "Yennefer", True) == f"{YEN_TH}  [Yennefer]"

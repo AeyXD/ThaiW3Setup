@@ -8,7 +8,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 from core.report import collect_details, compose_report, format_contact, report_url, send_report
-from gui.theme import P, mono, ui
+from gui.theme import BIG_BUTTON, P, mono, ui
 
 log = logging.getLogger(__name__)
 
@@ -114,7 +114,7 @@ class ReportDialog(tk.Toplevel):
         ttk.Button(bottom, text=T_CLOSE, command=self.destroy).pack(side="right")
         self.btn_copy = ttk.Button(bottom, text=T_COPY, command=self.copy)
         self.btn_copy.pack(side="right", padx=(0, 4))
-        self.btn_send = ttk.Button(bottom, text=T_SEND, style="Big.TButton", command=self.send)
+        self.btn_send = ttk.Button(bottom, text=T_SEND, style=BIG_BUTTON, command=self.send)
         self.btn_send.pack(side="right", padx=(0, 4))
         self.btn_send.state(["disabled"])
         self.btn_copy.state(["disabled"])

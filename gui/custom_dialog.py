@@ -10,7 +10,7 @@ from tkinter import messagebox, simpledialog, ttk
 
 from core.custom import (NAME_DOUBLE, NAME_THAI, UNLOCK_CODE, cached_stats, default_sheets, download_custom,
                          hidden_sheets, is_name_tab, parse_sheet_id, progress_of, sheet_key, sheet_url)
-from gui.theme import P
+from gui.theme import BIG_BUTTON, P
 
 ON, OFF = "☑", "☐"
 MODE_LABELS = {NAME_THAI: "\u0e44\u0e17\u0e22", NAME_DOUBLE: "2 \u0e20\u0e32\u0e29\u0e32"}
@@ -70,7 +70,7 @@ class CustomSheetsDialog(tk.Toplevel):
         ttk.Button(side, text="ดู", command=self.view).pack(fill="x", pady=(16, 0))
         ttk.Button(side, text="อัปเดต", command=self.update_selected).pack(fill="x", pady=(4, 0))
         ttk.Button(side, text="เปลี่ยนชื่อ", command=self.rename).pack(fill="x", pady=(4, 0))
-        ttk.Button(side, text="บันทึก", style="Big.TButton", command=self.save).pack(side="bottom", fill="x")
+        ttk.Button(side, text="บันทึก", style=BIG_BUTTON, command=self.save).pack(side="bottom", fill="x")
 
         bottom = ttk.Frame(root)
         bottom.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 0))

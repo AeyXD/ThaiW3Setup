@@ -2,6 +2,8 @@
 # -*- mode: python ; coding: utf-8 -*-
 import sys
 
+from PyInstaller.utils.hooks import collect_data_files
+
 sys.path.insert(0, SPECPATH)
 from core import APP_NAME, APP_TITLE, __version__
 
@@ -12,7 +14,8 @@ a = Analysis(
     ["main.py"],
     pathex=[],
     binaries=[],
-    datas=[("assets", "assets")],
+    # sv_ttk is Tcl code and sprite sheets next to its __init__.py
+    datas=[("assets", "assets"), *collect_data_files("sv_ttk")],
     hiddenimports=["PIL._tkinter_finder"],
     excludes=["numpy", "pandas", "matplotlib", "scipy", "IPython", "pytest", "unittest", "pydoc",
               "lxml", "PIL.ImageQt", "PyQt5", "PySide2", "PySide6"],
