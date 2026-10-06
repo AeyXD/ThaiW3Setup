@@ -32,12 +32,16 @@
 ถ้าอยากเปลี่ยนฟอนต์ สี หรือขนาดภายหลัง ให้เปิดโปรแกรม ปรับค่า แล้วกดติดตั้งซ้ำ
 เมื่อเกมอัปเดตหรือทีมแปลอัปเดตคำแปลแล้ว ก็กดติดตั้งซ้ำได้เช่นกัน
 
-### บน macOS
+### บน macOS (ทดลอง)
+
+> **รุ่นทดลอง (experimental)** ยังไม่มีใครทดสอบกับเกมจริงใน bottle และ**ยังไม่มีไฟล์ให้ดาวน์โหลดในหน้า Releases**
+> ตอนนี้ต้อง build เองตามหัวข้อ "รันบน macOS (ทดลอง สำหรับนักพัฒนา)" ด้านล่าง
+> ถ้าเล่นบน Mac และอยากช่วยทดสอบ ดูที่ [#6](https://github.com/FordenHillson/ThaiW3Setup/issues/6)
 
 เกมไม่มีเวอร์ชัน macOS ถ้าเล่นบน Mac แสดงว่าไฟล์เกมอยู่ใน bottle ของ CrossOver / Whisky / Heroic / Porting Kit
 โปรแกรมหา bottle ให้เอง ถ้าหาไม่เจอก็กด **เลือก...** ชี้ไปที่โฟลเดอร์เกมใน bottle ได้
 
-1. ดาวน์โหลด `ThaiW3Setup-x.y.z-macos-arm64.zip` แล้วแตกไฟล์
+1. เมื่อมีไฟล์ให้ดาวน์โหลดแล้ว: ดาวน์โหลด `ThaiW3Setup-x.y.z-macos-arm64.zip` แล้วแตกไฟล์
 2. **เปิดครั้งแรกต้องปลดล็อกก่อน** เพราะโปรแกรมยังไม่ได้ notarize กับ Apple — เปิด Terminal แล้วพิมพ์
    `xattr -dr com.apple.quarantine ` จากนั้นลากไฟล์ `ThaiW3Setup.app` มาวางต่อท้ายแล้วกด Enter
    (หรือดับเบิลคลิกให้ขึ้นคำเตือนก่อน แล้วไป System Settings > Privacy & Security กด **Open Anyway**)
@@ -213,7 +217,7 @@ python3.12 -m venv .venv
 `build.sh` ใช้ `ThaiW3Setup.spec` ตัวเดียวกับ Windows โดย spec เลือกไอคอนและ `BUNDLE()` ตาม platform
 ได้ `.app` ที่มี Tcl/Tk อยู่ข้างใน ไม่ต้องมี Python ในเครื่องปลายทาง และ zip ด้วย `ditto` เพื่อไม่ให้ลายเซ็นเสีย
 
-.app ยังไม่ได้ notarize ผู้ใช้จึงต้องปลดล็อกเองครั้งแรก (ดูหัวข้อ "บน macOS" ด้านบน)
+.app ยังไม่ได้ notarize ผู้ใช้จึงต้องปลดล็อกเองครั้งแรก (ดูหัวข้อ "บน macOS (ทดลอง)" ด้านบน)
 การ notarize ต้องสมัคร Apple Developer Program ปีละ $99
 
 ค่าที่ตั้งไว้เก็บที่ `~/Library/Application Support/ThaiW3Setup` แทน `%APPDATA%`
