@@ -52,6 +52,17 @@ conflicts = report._conflicts(identify(game))
 assert any("modOther has tr.w3strings" in c for c in conflicts), conflicts
 assert any("modkuntoonw3thai_1" in c for c in conflicts), conflicts
 
+# loose files in mods and mod folders without content\ show up instead of "(empty)"
+(game / "mods" / "modThaiText.zip").write_bytes(b"zip")
+(game / "mods" / "modNested" / "modNested" / "content").mkdir(parents=True)
+mods = report._mods_listing(game / "mods")
+assert "modThaiText.zip (file, 3 bytes)" in mods, mods
+assert any(m.startswith("modNested:") and "no content folder" in m for m in mods), mods
+assert not any(m.startswith("modOther:") and "no content folder" in m for m in mods), mods
+assert "(empty)" not in mods, mods
+empty = Path(tempfile.mkdtemp())
+assert report._mods_listing(empty) == ["(empty)"]
+
 os.environ["THAIW3_REPORT_URL"] = "http://127.0.0.1:8787/report"
 try:
     print("uploaded", send_report(text))
