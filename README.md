@@ -265,6 +265,7 @@ python3.12 -m venv .venv
 - คำแปลส่วนเติม: ผู้ร่วมแปลใน [Google Sheet ของกลุ่มนักแปล The Witcher 3 ภาษาไทย](https://docs.google.com/spreadsheets/d/1Ar5MVSc4Mdr7YAFssOmTJcJ9IyHrtxUZxt649-DhnA4)
 - patch ซับสองภาษาต้นฉบับ: svvv
 - ภาพพื้นหลังในหน้าต่างปรับตำแหน่งซับ: MILOGAME_AVIF HDR ([อัลบั้ม Zonerama](https://eu.zonerama.com/PrestigiousCap4934/Album/16612460))
+- พจนานุกรมตัดคำ (65,758 คำ): union ของ [pythainlp corpus](https://github.com/PyThaiNLP/pythainlp) (Apache License 2.0) และ ICU thaidict (Unicode License) — รวมผ่าน [thaiwrap](https://github.com/AeyXD/thaiwrap)
 - ไอคอนปุ่ม: [Material Symbols](https://github.com/google/material-design-icons) ของ Google (Apache License 2.0) สร้างด้วย `devtools/make_ui_icons.py`
 - ซอร์สโค้ดของโปรแกรมใช้ [MIT License](LICENSE) ส่วนคำแปล ฟอนต์ และภาพเป็นลิขสิทธิ์ของเจ้าของแต่ละราย
 - The Witcher 3: Wild Hunt © CD PROJEKT S.A. โปรแกรมนี้เป็นผลงานของแฟนเกม ไม่เกี่ยวข้องกับ CD PROJEKT RED
