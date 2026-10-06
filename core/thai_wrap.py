@@ -13,7 +13,7 @@ from functools import lru_cache
 from .paths import assets_dir
 
 BREAK = "\u200a"
-WORDS_FILE = "thai_words.txt.gz"  # ICU thaidict, Unicode license
+WORDS_FILE = "thai_words.txt.gz"  # union: pythainlp corpus (Apache-2.0) + ICU thaidict (Unicode License) — ที่มาดูหัวไฟล์ข้างใน
 
 THAI_RUN = re.compile("[\u0e01-\u0e4e]+")
 # a cluster never starts with a following vowel, upper/lower vowel, tone mark or repetition mark
