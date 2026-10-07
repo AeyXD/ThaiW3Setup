@@ -138,17 +138,12 @@ Windows จึงอาจขึ้นเตือนได้
   เมื่อ Microsoft ตรวจแล้วจะหายเตือนสำหรับทุกคน
 - ถ้าไม่สบายใจ สามารถรันจากซอร์สโค้ดได้เอง (ดูหัวข้อด้านล่าง)
 
-## Code signing policy
+## Code signing
 
-Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/)
+ตอนนี้ไฟล์ใน Release ยังไม่ได้เซ็นด้วยใบรับรอง (code signing certificate)
+ทุกไฟล์ build โดย GitHub Actions จากซอร์สใน repository นี้เท่านั้น ตรวจสอบได้ด้วยค่า SHA256 และผลสแกน VirusTotal ในหน้า Release
 
-- Committers and reviewers: [FordenHillson](https://github.com/FordenHillson)
-- Approvers: [FordenHillson](https://github.com/FordenHillson)
-
-ไฟล์ที่เซ็นทุกไฟล์ build โดย GitHub Actions จากซอร์สใน repository นี้เท่านั้น และทุก release ต้องได้รับการอนุมัติก่อนเซ็น
-เซ็นเฉพาะ `ThaiW3Setup.exe` ส่วนไฟล์ของ Python และ Tcl/Tk ใน `_internal` เป็นของโปรเจกต์ต้นทาง ไม่ได้เซ็นด้วยใบรับรองนี้
-
-### Privacy policy
+## Privacy policy
 
 This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.
 
@@ -241,7 +236,9 @@ python3.12 -m venv .venv
 - push tag `vX.Y.Z` (หลังแก้ `__version__` ใน `core/__init__.py`) แล้ว GitHub Actions จะ build, สแกน และสร้าง Release ให้เอง
 - bootloader ของ PyInstaller ถูก compile ใหม่จากซอร์สใน CI และปิด UPX เพื่อลดโอกาสที่แอนตี้ไวรัสจะตรวจผิด
 - ตั้ง secret `VT_API_KEY` (API key ฟรีจาก virustotal.com) เพื่อแนบลิงก์ผลสแกน VirusTotal ในหน้า Release
-- การเซ็นโค้ดผ่าน [SignPath Foundation](https://signpath.org/) (ฟรีสำหรับโอเพนซอร์ส)
+- การเซ็นโค้ดผ่าน [SignPath Foundation](https://signpath.org/) (ฟรีสำหรับโอเพนซอร์ส) ยังไม่ได้เปิดใช้:
+  ใบสมัครครั้งแรกถูกปฏิเสธเพราะโปรเจกต์ยังไม่เป็นที่รู้จักพอ (ดาว/fork/การพูดถึงภายนอก) สมัครใหม่ได้เมื่อมีผู้ใช้มากขึ้น
+  ระหว่างนี้ workflow จะข้ามขั้นตอนเซ็นเองเพราะไม่มี secret `SIGNPATH_API_TOKEN`
   - ใน SignPath ต้องมี project slug `ThaiW3Setup`, signing policy slug `release-signing`, Trusted Build System "GitHub.com"
     และ artifact configuration ตาม `packaging/signpath/artifact-configuration.xml`
   - ตั้ง secret `SIGNPATH_API_TOKEN` และ variable `SIGNPATH_ORGANIZATION_ID` ใน GitHub แล้ว workflow จะส่งไฟล์ไปเซ็นก่อน zip ให้อัตโนมัติ
