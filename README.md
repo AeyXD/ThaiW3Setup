@@ -182,6 +182,19 @@ ThaiW3Setup.exe uninstall
 
 `export` ใช้ตัวเลือกเดียวกับ `install` แต่สร้างไฟล์ไว้ที่ `<out>\ThaiW3_mods` ให้คัดลอกลง `mods` ของเกมเอง
 
+### สร้างแพ็กเกจสำหรับคอนโซล (PS5 / Xbox) ผ่าน mod.io
+
+```
+ThaiW3Setup.exe export-console --out D:\ThaiConsole
+```
+
+สร้าง zip หนึ่งไฟล์ต่อ mod (พร้อม `build-info.json` และคู่มืออัปโหลด) ไว้ที่ `<out>\ThaiW3_console`
+สำหรับอัปโหลดขึ้น mod.io ให้ผู้เล่นคอนโซลดาวน์โหลดผ่านเมนู Mods ในเกมได้
+ตัวเลือกที่มีผลต่อแพ็กเกจคือ `--font --slot --no-storybook --thai-logo --custom` เท่านั้น
+(ค่าสี ขนาด และตำแหน่งซับมาจาก mod สคริปต์ซึ่งกติกาคอนโซลของ CD Projekt RED ไม่รับ จึงถูกตัดออก
+และซับจำกัดไว้ที่ภาษาไทยอย่างเดียว เพราะโหมดสองภาษาพึ่งสคริปต์ตัวเดียวกันในการแบ่งบรรทัดซับ)
+รายละเอียดเต็มและเช็กลิสต์ทดสอบอยู่ที่ [modio-console.md](modio-console.md)
+
 ดูตัวเลือกทั้งหมดได้จาก `ThaiW3Setup.exe install --help`
 
 ## Build จากซอร์ส
