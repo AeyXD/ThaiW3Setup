@@ -55,6 +55,8 @@ DIALOG_WITOLD = (
     '<FONT COLOR=\'#5ACCF6\'>" + text + "</FONT>";\n'
 )
 
+DIALOG_WITOLD_HIDDEN = '\t\t\ttext = "<FONT COLOR=\'#5ACCF6\'>" + text + "</FONT>";\n'
+
 ONELINER = """\
 		// mod thai
 		value = StrReplaceAll(value, "<br><br>[", "  [");
@@ -108,6 +110,12 @@ SUB_SPEAKER = """\
 SUB_WITOLD = (
     '\t\t\tspeakerNameDisplayText = "<FONT COLOR=\'#F8FF55\'>" + GetLocStringByKeyExt("Witold")  + ": </FONT>";\n'
 )
+
+SUB_HIDE = """\
+			// mod thai
+			speakerNameDisplayText = "";
+			// mod thai
+"""
 
 SUB_COLOR = """\
 		// mod thai
@@ -522,6 +530,8 @@ class ScriptOptions:
     choice_x: float = 0.0
     choice_y: float = 0.0
     choice_scale: int = 100
+    show_speaker_dialog: bool = True
+    show_speaker_sub: bool = True
 
 
 def _edits(name: str, o: ScriptOptions) -> list[Edit]:
@@ -542,10 +552,12 @@ def _edits(name: str, o: ScriptOptions) -> list[Edit]:
             Edit("after", r"^\s*for \( i = 0; i < lastSetChoices\.Size\(\); i \+= 1 \)\s*$", "{\n" + DIALOG_CHOICE,
                  replacement="{"),
         ]
+        witold = r'^\s*text = "<FONT COLOR=\'#5ACCF6\'>" \+ GetLocStringByKeyExt\("Witold"\) \+ ": " \+ text \+ "</FONT>";'
+        if not o.show_speaker_dialog:
+            edits.append(Edit("replace_line", witold, DIALOG_WITOLD_HIDDEN, optional=True))
+            return edits
         if o.speaker_colors:
-            edits.append(Edit("replace_line",
-                              r'^\s*text = "<FONT COLOR=\'#5ACCF6\'>" \+ GetLocStringByKeyExt\("Witold"\) \+ ": " \+ text \+ "</FONT>";',
-                              DIALOG_WITOLD, optional=True))
+            edits.append(Edit("replace_line", witold, DIALOG_WITOLD, optional=True))
         color_block = DIALOG_SPEAKER_COLORS if o.speaker_colors else DIALOG_SPEAKER_PLAIN
         edits += [
             Edit("replace_line", r"^\s*m_fxSentenceSetSFF\.InvokeSelfOneArg\( FlashArgString\( text \) \);",
@@ -591,7 +603,12 @@ def _edits(name: str, o: ScriptOptions) -> list[Edit]:
                  replacement="IntToString( 26 + subScale + (m_size1 - m_size_default) )", count=2),
             Edit("before", r"^\s*m_fxAddSubtitleSFF\.InvokeSelfThreeArgs\(", SUB_COLOR),
         ]
-        if o.speaker_colors:
+        if not o.show_speaker_sub:
+            edits += [
+                Edit("before", r'^\s*if\(speakerNameDisplayText != "" && speakerNameDisplayText != " "\)', SUB_HIDE),
+                Edit("before", r"^\s*m_fxAddSubtitleSFF\.InvokeSelfThreeArgs\(", SUB_HIDE.replace("\t\t\t", "\t\t")),
+            ]
+        elif o.speaker_colors:
             edits.append(Edit("after", r'^\s*htmlString = ": "\s*\+ htmlString;', SUB_SPEAKER, optional=True))
             edits.append(Edit("replace_line",
                               r'^\s*speakerNameDisplayText = "<FONT COLOR=\'#5ACCF6\'>" \+ GetLocStringByKeyExt\("Witold"\)\s*\+ ": </FONT>";',

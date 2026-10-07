@@ -104,6 +104,27 @@ def test_sub_speaker_colors():
     assert 'speakerNameDisplayText == GetLocStringByKeyExt("ciri")' in sub
 
 
+def test_hide_speaker():
+    for dialog in (True, False):
+        for sub in (True, False):
+            out = scripts(show_speaker_dialog=dialog, show_speaker_sub=sub)
+            dlg = out["hudModuleDialog.ws"].replace("\r\n", "\n")
+            subs = out["hudModuleSubtitles.ws"].replace("\r\n", "\n")
+            assert ("private function ModThaiFindSpeaker() : CActor" in dlg) == dialog
+            assert ("ModThaiSentenceSet( text, alternativeUI );" in dlg) == dialog
+            assert ('GetLocStringByKeyExt("Witold")' in dlg) == dialog
+            assert ("ModThaiPreviousSet( text );" in dlg) == dialog
+            if not dialog:
+                assert dlg.count("m_fxSentenceSetSFF.InvokeSelfOneArg( FlashArgString( text ) );") == 1
+                assert "m_fxPreviousSentenceSetSFF.InvokeSelfOneArg( FlashArgString( text ) );" in dlg
+            hide = '\t\t\tspeakerNameDisplayText = "";\n\t\t\t// mod thai\n\t\t\tif(speakerNameDisplayText != ""'
+            assert (hide in subs) == (not sub)
+            assert ('speakerNameDisplayText == GetLocStringByKeyExt("geralt")' in subs) == sub
+            if not sub:
+                assert subs.index('speakerNameDisplayText = "";\n\t\t// mod thai\n\t\tm_fxAddSubtitleSFF') > 0
+            assert dlg.count("{") == dlg.count("}") and subs.count("{") == subs.count("}")
+
+
 def test_validate():
     InstallOptions(sub_x=100, sub_y=-100, sub_width=150, dialog_x=12.5, choice_x=-75, choice_scale=250).validate()
     for bad in (dict(sub_x=100.5), dict(dialog_y=-110), dict(choice_x=101), dict(layout_bg="nope"), dict(sub_width=40), dict(sub_width=12.5), dict(sub_x="1"),

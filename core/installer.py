@@ -309,7 +309,8 @@ def _build_mods(game: GameInfo, opts: InstallOptions, staging: Path, report: Ins
             scripts = build_scripts(game.script_modules, ScriptOptions(
                 opts.color1, opts.color2, opts.size1, opts.size2, opts.speaker_colors,
                 opts.sub_x, opts.sub_y, opts.sub_width, opts.dialog_x, opts.dialog_y,
-                opts.choice_x, opts.choice_y, opts.choice_scale))
+                opts.choice_x, opts.choice_y, opts.choice_scale,
+                show_speaker_dialog=opts.show_speaker_dialog, show_speaker_sub=opts.show_speaker_sub))
             target = staging / MOD_SCRIPT / "content" / MODULES_REL
             target.mkdir(parents=True)
             for name, data in scripts.items():

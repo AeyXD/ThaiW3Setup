@@ -151,6 +151,7 @@ def _subtitle_lines(opts: InstallOptions, scale: float, max_width: float | None)
     s1 = max(8, round((opts.size1 if styled else 28) * scale))
     s2 = max(8, round((opts.size2 if styled else 28) * scale))
     speaker_color = SPEAKER_COLOR if styled and opts.speaker_colors else c1
+    show_speaker = not styled or opts.show_speaker_dialog or opts.show_speaker_sub
 
     thai, english = LINE_TH, f"[{SPEAKER_EN}: {LINE_EN}]"
     rows = []
@@ -160,10 +161,12 @@ def _subtitle_lines(opts: InstallOptions, scale: float, max_width: float | None)
             rows.append((_row(font, line, px), px))
 
     if opts.mode == MODE_DOUBLE and not opts.thai_first:
-        add([(SPEAKER_EN + ": ", speaker_color), (LINE_EN, c1)], s1)
+        speaker = [(SPEAKER_EN + ": ", speaker_color)] if show_speaker else []
+        add(speaker + [(LINE_EN, c1)], s1)
         add([(f"[{LINE_TH}]", c2)], s2)
     else:
-        add([(speaker_name(opts) + ": ", speaker_color), (thai, c1)], s1)
+        speaker = [(speaker_name(opts) + ": ", speaker_color)] if show_speaker else []
+        add(speaker + [(thai, c1)], s1)
         if opts.mode == MODE_DOUBLE:
             add([(english, c2)], s2)
     return rows

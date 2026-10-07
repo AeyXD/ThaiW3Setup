@@ -111,6 +111,8 @@ class App(tk.Tk):
         self.v_size1 = tk.IntVar(value=self.opts.size1)
         self.v_size2 = tk.IntVar(value=self.opts.size2)
         self.v_speaker = tk.BooleanVar(value=self.opts.speaker_colors)
+        self.v_speaker_dialog = tk.BooleanVar(value=self.opts.show_speaker_dialog)
+        self.v_speaker_sub = tk.BooleanVar(value=self.opts.show_speaker_sub)
         self.v_storybook = tk.BooleanVar(value=self.opts.storybook)
         self.v_logo = tk.BooleanVar(value=self.opts.thai_logo)
         self.v_style = tk.BooleanVar(value=self.opts.subtitle_style)
@@ -125,7 +127,7 @@ class App(tk.Tk):
         self._build()
         self.load_name_vars(self.opts.custom_sheets)
         for var in (self.v_font, self.v_mode, self.v_thai_first, self.v_color1, self.v_color2,
-                    self.v_size1, self.v_size2, self.v_speaker, self.v_style,
+                    self.v_size1, self.v_size2, self.v_speaker, self.v_speaker_dialog, self.v_speaker_sub, self.v_style,
                     *self.v_names.values(), *self.v_tab_modes.values()):
             var.trace_add("write", lambda *_: self.schedule_preview())
         for var in (*self.v_names.values(), *self.v_tab_modes.values()):
@@ -193,6 +195,13 @@ class App(tk.Tk):
         ttk.Checkbutton(left, text="ซับคัตซีน Storybook ภาษาไทย", variable=self.v_storybook,
                         style="Switch.TCheckbutton").grid(
             row=6, column=0, columnspan=2, sticky="w")
+        self.speaker_widgets = []
+        for row, (text, var) in enumerate((("ชื่อผู้พูดในคัตซีน/บทสนทนา", self.v_speaker_dialog),
+                                           ("ชื่อผู้พูดระหว่างเล่น", self.v_speaker_sub)), start=7):
+            chk = ttk.Checkbutton(left, text=text, variable=var, command=self.update_states,
+                                  style="Switch.TCheckbutton")
+            chk.grid(row=row, column=0, columnspan=2, sticky="w", pady=(4, 0))
+            self.speaker_widgets.append(chk)
 
         logo = ttk.Frame(subs)
         logo.grid(row=0, column=1, sticky="nw")
@@ -212,7 +221,8 @@ class App(tk.Tk):
         right.columnconfigure(1, weight=1)
         ttk.Checkbutton(right, text="\u0e1b\u0e23\u0e31\u0e1a\u0e2a\u0e35 \u0e02\u0e19\u0e32\u0e14 \u0e41\u0e25\u0e30\u0e15\u0e33\u0e41\u0e2b\u0e19\u0e48\u0e07\u0e0b\u0e31\u0e1a (\u0e41\u0e01\u0e49 script \u0e43\u0e19 mods)", variable=self.v_style,
                         command=self.update_states, style="Switch.TCheckbutton").grid(row=0, column=0, columnspan=3, sticky="w")
-        self.style_widgets = []
+        # the speaker name switches on the first tab also need the script mod
+        self.style_widgets = list(self.speaker_widgets)
         for row, (label, cvar, svar) in enumerate((("บรรทัดที่ 1", self.v_color1, self.v_size1),
                                                     ("บรรทัดที่ 2", self.v_color2, self.v_size2)), start=1):
             ttk.Label(right, text=label).grid(row=row * 2 - 1, column=0, sticky="w", pady=(8, 0))
@@ -442,7 +452,8 @@ class App(tk.Tk):
         return replace(self.opts, game_path=self.v_game.get().strip(), font=font_key, mode=self.v_mode.get(),
                        thai_first=self.v_thai_first.get(), color1=self.v_color1.get(), color2=self.v_color2.get(),
                        size1=int(self.v_size1.get()), size2=int(self.v_size2.get()),
-                       speaker_colors=self.v_speaker.get(), storybook=self.v_storybook.get(),
+                       speaker_colors=self.v_speaker.get(), show_speaker_dialog=self.v_speaker_dialog.get(),
+                       show_speaker_sub=self.v_speaker_sub.get(), storybook=self.v_storybook.get(),
                        thai_logo=self.v_logo.get(), subtitle_style=self.v_style.get(), slot=self.v_slot.get(),
                        custom_sheets=apply_name_settings(
                            self.opts.custom_sheets, {t for t, v in self.v_names.items() if v.get()},
@@ -496,6 +507,8 @@ class App(tk.Tk):
                 w.configure(state=state)
             except tk.TclError:
                 pass
+        if not (self.v_speaker_dialog.get() or self.v_speaker_sub.get()):
+            self.chk_speaker.configure(state="disabled")
         self.chk_first.configure(state="normal" if self.v_mode.get() == MODE_DOUBLE else "disabled")
         self.schedule_preview()
 

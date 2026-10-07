@@ -41,6 +41,8 @@ class InstallOptions:
     size1: int = 28
     size2: int = 28
     speaker_colors: bool = True
+    show_speaker_dialog: bool = True
+    show_speaker_sub: bool = True
     storybook: bool = True
     subtitle_style: bool = True
     thai_logo: bool = False
@@ -89,6 +91,8 @@ class InstallOptions:
                 raise ValueError(f"HUD offset {v} out of range -{OFFSET_LIMIT}-{OFFSET_LIMIT}")
         if not isinstance(self.hide_upgrade_notice_v2, bool) or not isinstance(self.hide_done_notice_v2, bool):
             raise ValueError("notice flags must be true/false")
+        if not isinstance(self.show_speaker_dialog, bool) or not isinstance(self.show_speaker_sub, bool):
+            raise ValueError("speaker name flags must be true/false")
         if self.layout_bg not in LAYOUT_BGS:
             raise ValueError(f"unknown layout background {self.layout_bg}")
         if not isinstance(self.sub_width, int) or not WIDTH_RANGE[0] <= self.sub_width <= WIDTH_RANGE[1]:

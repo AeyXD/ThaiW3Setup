@@ -34,6 +34,8 @@ def _add_style_args(inst: argparse.ArgumentParser) -> None:
     inst.add_argument("--size1", type=int)
     inst.add_argument("--size2", type=int)
     inst.add_argument("--no-speaker-colors", action="store_true")
+    inst.add_argument("--no-speaker-dialog", action="store_true", help="hide speaker names in dialogue and cutscenes")
+    inst.add_argument("--no-speaker-sub", action="store_true", help="hide speaker names in gameplay subtitles")
     inst.add_argument("--no-storybook", action="store_true")
     inst.add_argument("--thai-logo", action=argparse.BooleanOptionalAction,
                       help="Thai game logo on the main menu and start screen")
@@ -138,6 +140,10 @@ def main(argv: list[str] | None = None) -> int:
         opts.thai_first = False
     if args.no_speaker_colors:
         opts.speaker_colors = False
+    if args.no_speaker_dialog:
+        opts.show_speaker_dialog = False
+    if args.no_speaker_sub:
+        opts.show_speaker_sub = False
     if args.no_storybook:
         opts.storybook = False
     if args.no_subtitle_style:
