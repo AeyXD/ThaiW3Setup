@@ -321,12 +321,40 @@ def alias_glyphs(redswf: bytes, aliases: dict[int, int]) -> bytes:
     return _edit_fonts(redswf, lambda d: _alias_glyphs_font3(d, aliases))
 
 
+def merge_glyphs(target: bytes, source: bytes) -> bytes:
+    """fonts redswf target with every glyph it lacks copied from the source font of the same style.
+
+    Both must use the DefineFont3 EM; the donor is matched on the bold/italic flags, else the regular font.
+    """
+    donors: dict[int, _Font3] = {}
+    for code, d in _tags(_swf_body(source)):
+        if code == 75:
+            f = _read_font3(d)
+            donors.setdefault(f.flags & 0x03, f)
+    if not donors:
+        raise ValueError("source has no DefineFont3")
+
+    def edit(d: bytes) -> bytes | None:
+        f = _read_font3(d)
+        src = donors.get(f.flags & 0x03) or donors.get(0) or next(iter(donors.values()))
+        have = set(f.codes)
+        missing = [i for i, c in enumerate(src.codes) if c not in have]
+        for i in missing:
+            f.put(src.codes[i], src.shapes[i], src.advances[i], src.bounds[i] or EMPTY_RECT)
+        return _write_font3(f) if missing else None
+
+    return _edit_fonts(target, edit)
+
+
 def _edit_fonts(redswf: bytes, edit) -> bytes:
-    at = redswf.find(b"FWS")
-    if at < 0 or at != CR2W_SWF_SIZE + 4:
-        raise ValueError("not an uncompressed fonts redswf")
-    swf_len = struct.unpack_from("<I", redswf, at + 4)[0]
-    swf = redswf[at:at + swf_len]
+    at = CR2W_SWF_SIZE + 4
+    sig = redswf[at:at + 3]
+    if sig not in (b"FWS", b"GFX", b"CWS", b"CFX"):
+        raise ValueError("not a fonts redswf")
+    stored = struct.unpack_from("<I", redswf, CR2W_SWF_SIZE)[0]
+    packed = sig in (b"CWS", b"CFX")
+    raw = redswf[at:at + stored]
+    swf = raw[:8] + zlib.decompress(raw[8:]) if packed else raw
     nbits = swf[8] >> 3
     p = 8 + (5 + 4 * nbits + 7) // 8 + 4
     out = [swf[8:p]]
@@ -351,8 +379,10 @@ def _edit_fonts(redswf: bytes, edit) -> bytes:
         return redswf
     body = b"".join(out)
     new_swf = swf[:4] + struct.pack("<I", len(body) + 8) + body
-    delta = len(new_swf) - swf_len
+    if packed:
+        new_swf = new_swf[:8] + zlib.compress(new_swf[8:], 9)
+    delta = len(new_swf) - stored
     head = bytearray(redswf[:at])
     for off in CR2W_FILE_SIZES + (CR2W_EXPORT_SIZE, CR2W_SWF_SIZE):
         struct.pack_into("<I", head, off, struct.unpack_from("<I", head, off)[0] + delta)
-    return bytes(head) + new_swf + redswf[at + swf_len:]
+    return bytes(head) + new_swf + redswf[at + stored:]

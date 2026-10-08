@@ -9,7 +9,8 @@ from PIL import Image, ImageDraw, ImageFont
 
 BASE = "https://raw.githubusercontent.com/google/material-design-icons/master/variablefont/"
 FONT = "MaterialSymbolsRounded[FILL,GRAD,opsz,wght]"
-ICONS = ("update", "bug_report", "folder_open", "download", "expand_more", "drive_file_move", "delete")
+ICONS = ("update", "bug_report", "folder_open", "download", "expand_more", "drive_file_move", "delete",
+         "open_in_new")
 SIZE = 48
 SCALE = 4
 COLOR = (51, 51, 51, 255)

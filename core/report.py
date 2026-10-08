@@ -1,7 +1,6 @@
 """Problem report: game version, installed mods, conflicts and mods.settings, sent to the report Worker."""
 from __future__ import annotations
 
-import ctypes
 import getpass
 import json
 import os
@@ -13,11 +12,11 @@ from pathlib import Path
 
 from . import __version__
 from .game_detect import EDITION_UNKNOWN, GameInfo, identify
-from .installer import (MOD_SCRIPT, MOD_TEXT, OUR_MODS, foreign_thai_mods, legacy_mods, script_overlaps, status,
-                        strings_have_thai)
-from .osutil import WINDOWS
+from .compat import OK
+from .installer import (MOD_SCRIPT, MOD_TEXT, OUR_MODS, PATCH_MODS, foreign_thai_mods, legacy_mods, script_overlaps,
+                        status, strings_have_thai)
+from .mods_settings import documents_dir, settings_paths
 from .paths import app_data_dir
-from .wine import bottle_of
 
 # Cloudflare Worker in worker/; THAIW3_REPORT_URL overrides it for testing
 REPORT_URL = "https://thaiw3setup-report.owltoool.workers.dev/report"
@@ -55,32 +54,8 @@ def _launcher_config(game: GameInfo) -> str:
         return f"(unreadable: {exc})"
 
 
-def documents_dir() -> Path:
-    if WINDOWS:  # Documents may be redirected to OneDrive or another drive
-        try:
-            buf = ctypes.create_unicode_buffer(260)
-            if ctypes.windll.shell32.SHGetFolderPathW(None, 5, None, 0, buf) == 0 and buf.value:
-                return Path(buf.value)
-        except (AttributeError, OSError):
-            pass
-    return Path.home() / "Documents"
-
-
 def _mods_settings_paths(game: GameInfo | None = None) -> list[Path]:
-    """Where the game keeps mods.settings. Inside a bottle that is the bottle's own Documents."""
-    paths = []
-    bottle = bottle_of(game.path) if game is not None else None
-    if bottle:
-        paths += [d / "The Witcher 3" / "mods.settings" for d in bottle.documents_dirs()]
-    paths.append(documents_dir() / "The Witcher 3" / "mods.settings")
-    paths.append(Path.home() / "Documents" / "The Witcher 3" / "mods.settings")
-    if WINDOWS:  # Documents redirected into OneDrive is a Windows arrangement
-        paths.append(Path.home() / "OneDrive" / "Documents" / "The Witcher 3" / "mods.settings")
-    out: list[Path] = []
-    for p in paths:
-        if p not in out:
-            out.append(p)
-    return out
+    return settings_paths(game.path if game is not None else None)
 
 
 def _describe_mod(path: Path) -> str:
@@ -119,9 +94,13 @@ def _conflicts(game: GameInfo) -> list[str]:
     st = status(game)
     if st.modified:
         out.append(f"our files changed since install: {', '.join(st.modified[:8])}")
+    for c in st.compat:
+        if c.state != OK:
+            out.append(f"{c.mod.label} patch {c.state}: parts {', '.join(c.parts) or '-'}; patch {c.patch or '-'}"
+                       + (f"; loads ahead of patch: {', '.join(c.ahead)}" if c.ahead else ""))
     if game.mods_dir.is_dir():
         for mod in sorted(game.mods_dir.iterdir()):
-            if not mod.is_dir() or mod.name in OUR_MODS:
+            if not mod.is_dir() or mod.name in OUR_MODS + PATCH_MODS:
                 continue
             for lang in STRING_LANGS:
                 if list(mod.rglob(f"{lang}.w3strings")):

@@ -16,8 +16,9 @@ def _u30(d: bytes | bytearray, p: int) -> tuple[int, int]:
         shift += 7
 
 
-def _multiname_names(d: bytes | bytearray, p: int) -> list[str | None]:
-    """Names of the constant pool's multinames (None for runtime and generic ones); p points at the pool."""
+def string_pool(d: bytes | bytearray, p: int) -> tuple[int, list[tuple[int, int]], int]:
+    """(start of the string count, (start, end) of each string's bytes from index 1, end of the strings);
+    p points at the ABC version in front of the constant pool."""
     p += 4
     for _pool in ("int", "uint"):
         n, p = _u30(d, p)
@@ -25,12 +26,20 @@ def _multiname_names(d: bytes | bytearray, p: int) -> list[str | None]:
             _, p = _u30(d, p)
     n, p = _u30(d, p)
     p += 8 * max(0, n - 1)
+    start = p
     n, p = _u30(d, p)
-    strings = [""]
+    spans = []
     for _ in range(max(0, n - 1)):
         ln, p = _u30(d, p)
-        strings.append(bytes(d[p:p + ln]).decode("utf-8", "replace"))
+        spans.append((p, p + ln))
         p += ln
+    return start, spans, p
+
+
+def _multiname_names(d: bytes | bytearray, p: int) -> list[str | None]:
+    """Names of the constant pool's multinames (None for runtime and generic ones); p points at the pool."""
+    _, spans, p = string_pool(d, p)
+    strings = [""] + [bytes(d[a:b]).decode("utf-8", "replace") for a, b in spans]
     n, p = _u30(d, p)
     for _ in range(max(0, n - 1)):
         _, p = _u30(d, p + 1)

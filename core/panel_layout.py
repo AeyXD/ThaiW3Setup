@@ -13,6 +13,7 @@ import struct
 import zlib
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 import deflate
 
@@ -174,8 +175,10 @@ def _deflate(body: bytes) -> bytes:
     return deflate.zlib_compress(body, 12)
 
 
-def restyle_panel(data: bytes, rows: bool = False, tooltips: bool = False) -> bytes | None:
-    """The .redswf with its text fields restyled, or None if nothing changes."""
+def restyle_panel(data: bytes, rows: bool = False, tooltips: bool = False,
+                  texts: Callable[[bytes], bytes | None] | None = None, layout: bool = True) -> bytes | None:
+    """The .redswf with its text fields restyled, or None if nothing changes.
+    texts rewrites the uncompressed SWF body first (None if it changes nothing); layout=False only does that."""
     cr2w = _read_cr2w(data)
     resource = next((e for e in cr2w.exports if e.cls == "CSwfResource"), None)
     if resource is None:
@@ -186,9 +189,12 @@ def restyle_panel(data: bytes, rows: bool = False, tooltips: bool = False) -> by
     inflater = zlib.decompressobj()
     body = bytearray(inflater.decompress(data[at + 8:resource.offset + resource.size]))
     stream_len = resource.offset + resource.size - at - 8 - len(inflater.unused_data)
-    fields = _restyle(body, tooltips)
-    spaced = _space_rows(body) if rows else 0
-    if not fields and not spaced:
+    rewritten = texts(bytes(body)) if texts else None
+    if rewritten is not None:
+        body = bytearray(rewritten)
+    fields = _restyle(body, tooltips) if layout else []
+    spaced = _space_rows(body) if rows and layout else 0
+    if not fields and not spaced and rewritten is None:
         return None
     stream = _deflate(bytes(body))
     if len(stream) > stream_len:
@@ -199,6 +205,7 @@ def restyle_panel(data: bytes, rows: bool = False, tooltips: bool = False) -> by
     if len(stream) > stream_len:
         raise LayoutError(f"recompressed SWF is {len(stream) - stream_len} bytes larger")
     out = bytearray(data)
+    struct.pack_into("<I", out, at + 4, len(body) + 8)
     out[at + 8:at + 8 + stream_len] = stream + bytes(stream_len - len(stream))
     _fix_crcs(out, cr2w, {resource.index})
     return bytes(out)

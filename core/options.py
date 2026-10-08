@@ -61,6 +61,9 @@ class InstallOptions:
     hide_upgrade_notice_v2: bool = False
     hide_done_notice_v2: bool = False
     slot: str = SLOT_TR
+    # keys of core.compat.COMPAT_MODS patched on install, and the zip / folder last picked for each
+    compat: list[str] = field(default_factory=list)
+    compat_sources: dict[str, str] = field(default_factory=dict)
     custom_sheets: list[dict] = field(default_factory=default_sheets)
     # default sheet keys (see core.custom.sheet_key) already offered; newer defaults get appended once
     known_default_sheets: list[str] = field(default_factory=lambda: [sheet_key(s) for s in default_sheets()])
@@ -99,6 +102,12 @@ class InstallOptions:
             raise ValueError(f"subtitle width {self.sub_width} out of range {WIDTH_RANGE[0]}-{WIDTH_RANGE[1]}")
         if not isinstance(self.choice_scale, int) or not SCALE_RANGE[0] <= self.choice_scale <= SCALE_RANGE[1]:
             raise ValueError(f"choice box scale {self.choice_scale} out of range {SCALE_RANGE[0]}-{SCALE_RANGE[1]}")
+        from .compat import COMPAT_MODS
+        if not isinstance(self.compat, list) or any(k not in COMPAT_MODS for k in self.compat):
+            raise ValueError(f"unknown compat mod in {self.compat}")
+        if not isinstance(self.compat_sources, dict) or any(
+                k not in COMPAT_MODS or not isinstance(v, str) for k, v in self.compat_sources.items()):
+            raise ValueError("invalid compat sources")
 
 
 def settings_path():

@@ -22,10 +22,12 @@ from core.custom import (COMMUNITY_ID, NAME_DOUBLE, NAME_TABS, NAME_THAI, apply_
                          is_name_tab, name_modes, name_settings)
 from core.game_detect import find_games, game_root, identify
 from core.logo import logo_image
-from core.installer import EXPORT_README, check_coverage, export, install, status, uninstall
+from core.compat import COMPAT_MODS, MISSING
+from core.installer import EXPORT_README, EXPORT_ZIP, check_coverage, export, export_zip, install, status, uninstall
 from core.options import FONTS, MODE_DOUBLE, MODE_THAI, SLOT_EN, SLOT_TR, load_options, save_options
 from core.osutil import MACOS, WINDOWS, open_folder
 from core.paths import app_data_dir
+from gui.compat_tab import CompatTab, T_TAB as T_TAB_COMPAT
 from gui.custom_dialog import MODE_CHOICES, MODE_LABELS
 from gui.notice_dialog import show_notice
 from gui.theme import BIG_BUTTON, DARK_THEME, NATIVE_CONTROLS, P, dpi_scale, init as init_theme, on_palette_change, ui
@@ -53,7 +55,9 @@ T_DONE_NOTICE = (f"{T_DONE} \u0e16\u0e49\u0e32\u0e20\u0e32\u0e29\u0e32\u0e43\u0e
                  "\u0e43\u0e2b\u0e49\u0e40\u0e02\u0e49\u0e32 \u0e15\u0e31\u0e49\u0e07\u0e04\u0e48\u0e32 > \u0e20\u0e32\u0e29\u0e32 > \u0e44\u0e17\u0e22")
 T_REPORT_BUTTON = "\u0e2a\u0e48\u0e07\u0e23\u0e32\u0e22\u0e07\u0e32\u0e19\u0e1b\u0e31\u0e0d\u0e2b\u0e32..."
 T_EXPORT_BUTTON = "สร้างไฟล์ไว้ copy เอง..."
+T_EXPORT_ZIP_BUTTON = "สร้างไฟล์ zip ไว้ copy เอง..."
 T_EXPORTED = "สร้างไฟล์เสร็จแล้ว"
+T_ZIP_EXPORTED = "สร้างไฟล์ zip เสร็จแล้ว"
 T_FIX_PERMISSION = ("\u0e43\u0e2b\u0e49\u0e41\u0e01\u0e49\u0e2a\u0e34\u0e17\u0e18\u0e34\u0e4c\u0e02\u0e2d\u0e07\u0e42\u0e1f\u0e25\u0e40\u0e14\u0e2d\u0e23\u0e4c\u0e40\u0e01\u0e21 "
                     "(\u0e04\u0e25\u0e34\u0e01\u0e02\u0e27\u0e32 > Get Info > Sharing & Permissions) "
                     "\u0e41\u0e25\u0e49\u0e27\u0e25\u0e2d\u0e07\u0e43\u0e2b\u0e21\u0e48")
@@ -63,8 +67,6 @@ T_TAB_NAMES = "ชื่อเฉพาะ"
 T_NAMES_HINT = ("แปลชื่อตัวละคร เมือง เควส มอนสเตอร์ และอื่นๆ เป็นภาษาไทย "
                 "หมวดที่ไม่เลือก และชื่อที่ยังไม่มีคำแปล จะแสดงเป็นภาษาอังกฤษตามเกม")
 T_NAMES_MIXED = "ตอนนี้ตั้งแยกรายหมวดอยู่ เลือกด้านบนเพื่อใช้แบบเดียวกันทุกหมวด"
-
-
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -121,6 +123,7 @@ class App(tk.Tk):
         self.v_slot = tk.StringVar(value=self.opts.slot)
         self.v_refresh = tk.BooleanVar(value=False)
         self.v_status = tk.StringVar(value="พร้อม")
+        self.v_compat = {key: tk.BooleanVar(value=key in self.opts.compat) for key in COMPAT_MODS}
         self.v_names = {tab: tk.BooleanVar() for tab in NAME_TABS}
         self.v_tab_modes = {tab: tk.StringVar() for tab in NAME_TABS}
         # the mode every switched-on name tab shares, empty when they differ
@@ -281,6 +284,8 @@ class App(tk.Tk):
         self.lbl_custom.pack(side="left", padx=(6, 0))
         self.update_custom_label()
 
+        self._build_compat_tab()
+
         prev = ttk.LabelFrame(root, text="ตัวอย่างซับในเกม", padding=6)
         prev.grid(row=4, column=0, sticky="ew")
         self.preview = tk.Canvas(prev, bg=PREVIEW_BG, width=PREVIEW_SIZE[0], height=PREVIEW_SIZE[1],
@@ -310,11 +315,11 @@ class App(tk.Tk):
         self.btn_install = ttk.Button(right, text="ติดตั้ง / อัปเดต", image=ttk_image(self, "download", ICON_SIZE, ACCENT_ICON_COLOR),
                                       compound="left", style=BIG_BUTTON, command=self.do_install)
         self.btn_install.pack(side="left")
-        self.menu_install = self._make_menu((("drive_file_move", T_EXPORT_BUTTON, self.do_export),))
+        self.menu_install = self._build_install_menu()
         self.btn_install_more = ttk.Button(right, image=ttk_image(self, "expand_more", ICON_SIZE), style="Split.TButton",
                                            command=lambda: self.popup_menu(self.menu_install, self.btn_install))
         self.btn_install_more.pack(side="left", fill="y")
-        Tooltip(self.btn_install_more, T_EXPORT_BUTTON.rstrip("."))
+        Tooltip(self.btn_install_more, "ตัวเลือกเพิ่มเติม: สร้างไฟล์ไว้ copy เอง / zip")
         self.btn_uninstall = ttk.Button(right, text="ถอนการติดตั้ง",
                                         image=ttk_image(self, "delete", ICON_SIZE, "#ffffff" if DARK_THEME else P.bad),
                                         compound="left",
@@ -436,6 +441,58 @@ class App(tk.Tk):
             self.v_name_mode.set(mode)
         self.lbl_name_mixed.configure(text=T_NAMES_MIXED if len(on) and not mode else "")
 
+    def _build_compat_tab(self):
+        self.compat_ui = CompatTab(self.notebook, self.v_compat, self._on_compat_toggle)
+        self.compat_tab = self.compat_ui.tab
+        self.update_compat_state()
+
+    def _on_compat_toggle(self):
+        self.opts = self.current_options()
+        save_options(self.opts)
+        self.update_compat_state()
+
+    def _build_install_menu(self) -> tk.Menu:
+        return self._make_menu((
+            ("drive_file_move", T_EXPORT_BUTTON, self.do_export),
+            ("drive_file_move", T_EXPORT_ZIP_BUTTON, self.do_export_zip),
+        ))
+
+    def update_compat_state(self, statuses=None):
+        self.compat_ui.set_sources(self.opts.compat_sources)
+        self.compat_ui.set_busy(self.busy)
+        self.compat_ui.update(statuses)
+
+    def pick_compat_source(self, key: str, folder: bool):
+        mod = COMPAT_MODS[key]
+        start = os.path.dirname(self.opts.compat_sources.get(key, "")) or str(Path.home() / "Downloads")
+        if folder:
+            path = filedialog.askdirectory(parent=self, title=f"เลือกโฟลเดอร์ {mod.label} ที่แตกไฟล์แล้ว",
+                                           initialdir=start)
+        else:
+            path = filedialog.askopenfilename(parent=self, title=f"เลือกไฟล์ {mod.label} ที่ดาวน์โหลดมา",
+                                              initialdir=start, filetypes=[("zip", "*.zip"), ("ทุกไฟล์", "*.*")])
+        if not path:
+            return False
+        self.opts.compat_sources[key] = os.path.normpath(path)
+        save_options(self.opts)
+        self.update_compat_state()
+        return True
+
+    def _ensure_compat_sources(self, opts):
+        """Ask for a zip/folder for each toggled compat mod that is not in the game. None if cancelled."""
+        for key in opts.compat:
+            mod = COMPAT_MODS[key]
+            st = self.compat_ui.statuses.get(key)
+            in_game = st is not None and st.state != MISSING and st.parts
+            if in_game or opts.compat_sources.get(key):
+                continue
+            messagebox.showinfo(APP_TITLE, f"เปิดแพตช์ {mod.label} ไว้ แต่ยังไม่พบในโฟลเดอร์ mods ของเกม\n"
+                                           f"ให้เลือกไฟล์ zip ของ {mod.label} ที่ดาวน์โหลดมา", parent=self)
+            if not self.pick_compat_source(key, folder=False):
+                return None
+            opts = self.current_options()
+        return opts
+
     def _make_menu(self, items) -> tk.Menu:
         menu = tk.Menu(self, tearoff=False) if NATIVE_CONTROLS else tk.Menu(self, tearoff=False, font=UI_FONT)
         for name, label, command in items:
@@ -463,6 +520,8 @@ class App(tk.Tk):
                        speaker_colors=self.v_speaker.get(), show_speaker_dialog=self.v_speaker_dialog.get(),
                        show_speaker_sub=self.v_speaker_sub.get(), storybook=self.v_storybook.get(),
                        thai_logo=self.v_logo.get(), subtitle_style=self.v_style.get(), slot=self.v_slot.get(),
+                       compat=[k for k, v in self.v_compat.items() if v.get()],
+                       compat_sources=dict(self.opts.compat_sources),
                        custom_sheets=apply_name_settings(
                            self.opts.custom_sheets, {t for t, v in self.v_names.items() if v.get()},
                            self.tab_modes()))
@@ -608,6 +667,7 @@ class App(tk.Tk):
             self.lbl_installed.configure(text="")
             self.lbl_latest.configure(text="")
             self.lbl_notes.configure(text="")
+            self.update_compat_state([])
             self.btn_install.configure(state="disabled")
             self.btn_check.configure(state="disabled")
             self._set_more_states(False, False)
@@ -636,6 +696,7 @@ class App(tk.Tk):
         if st and st.modified:
             text += "  |  ไฟล์ mod ถูกเปลี่ยนหลังติดตั้ง กดติดตั้งใหม่"
         self.lbl_installed.configure(text=text)
+        self.update_compat_state(st.compat if st else [])
         self.lbl_latest.configure(**self._latest_text(path, st if ok else None))
         self._fit_status_labels()
         self._set_more_states(ok, bool(st and st.installed))
@@ -688,6 +749,8 @@ class App(tk.Tk):
         self.busy = busy
         self.cb_game.configure(state="disabled" if busy else "normal")
         self.configure(cursor="watch" if busy else "")
+        if hasattr(self, "compat_ui"):
+            self.compat_ui.set_busy(busy)
         self.refresh_game()
 
     def do_install(self):
@@ -696,6 +759,9 @@ class App(tk.Tk):
             opts.validate()
         except ValueError as exc:
             messagebox.showerror(APP_TITLE, str(exc), parent=self)
+            return
+        opts = self._ensure_compat_sources(opts)
+        if opts is None:
             return
         self.opts = opts
         save_options(opts)
@@ -732,6 +798,9 @@ class App(tk.Tk):
         except ValueError as exc:
             messagebox.showerror(APP_TITLE, str(exc), parent=self)
             return
+        opts = self._ensure_compat_sources(opts)
+        if opts is None:
+            return
         out_dir = filedialog.askdirectory(parent=self, title="เลือกที่เก็บไฟล์ภาษาไทย (จะสร้างโฟลเดอร์ ThaiW3_mods ในนี้)",
                                           initialdir=str(Path.home() / "Desktop"))
         if not out_dir:
@@ -750,6 +819,37 @@ class App(tk.Tk):
                 self.events.put(("exported", export(opts, out_dir, progress, force_download=refresh)))
             except Exception as exc:
                 log.error("export failed\n%s", traceback.format_exc())
+                self.events.put(("export_error", str(exc)))
+        threading.Thread(target=work, daemon=True).start()
+
+    def do_export_zip(self):
+        opts = self.current_options()
+        try:
+            opts.validate()
+        except ValueError as exc:
+            messagebox.showerror(APP_TITLE, str(exc), parent=self)
+            return
+        opts = self._ensure_compat_sources(opts)
+        if opts is None:
+            return
+        out_dir = filedialog.askdirectory(parent=self, title=f"เลือกที่เก็บไฟล์ {EXPORT_ZIP}",
+                                          initialdir=str(Path.home() / "Desktop"))
+        if not out_dir:
+            return
+        self.opts = opts
+        save_options(opts)
+        self.set_busy(True)
+        self.progress["value"] = 0
+        refresh = self.v_refresh.get()
+
+        def progress(fraction, message):
+            self.events.put(("progress", fraction, message))
+
+        def work():
+            try:
+                self.events.put(("zip_exported", export_zip(opts, out_dir, progress, force_download=refresh)))
+            except Exception as exc:
+                log.error("zip export failed\n%s", traceback.format_exc())
                 self.events.put(("export_error", str(exc)))
         threading.Thread(target=work, daemon=True).start()
 
@@ -833,6 +933,9 @@ class App(tk.Tk):
                 elif kind == "exported":
                     self.set_busy(False)
                     self.on_exported(event[1])
+                elif kind == "zip_exported":
+                    self.set_busy(False)
+                    self.on_zip_exported(event[1])
                 elif kind == "export_error":
                     self.set_busy(False)
                     self.v_status.set("สร้างไฟล์ไม่สำเร็จ")
@@ -869,6 +972,20 @@ class App(tk.Tk):
         messagebox.showinfo(APP_TITLE, "\n".join(lines), parent=self)
         if os.path.isdir(report.output):
             open_folder(report.output)
+
+    def on_zip_exported(self, report):
+        self.v_status.set(f"{T_ZIP_EXPORTED}  แปลแล้ว {report.percent:.2f}%  {report.output}")
+        folders = ", ".join(f"mods/{m}" for m in report.mods)
+        lines = [f"{T_ZIP_EXPORTED} ที่ {report.output}", "",
+                 f"ใน zip มีโฟลเดอร์ {folders}",
+                 "คัดลอกไปไว้ในโฟลเดอร์ mods ของเกม หรือติดตั้ง zip ใน Mod Manager", "",
+                 f"แปลแล้ว {report.percent:.2f}% ({report.translated:,}/{report.total:,} ข้อความ)"]
+        if report.warnings:
+            lines += ["", "ข้อควรทราบ:"] + [f"- {w}" for w in report.warnings]
+        messagebox.showinfo(APP_TITLE, "\n".join(lines), parent=self)
+        folder = os.path.dirname(report.output)
+        if os.path.isdir(folder):
+            open_folder(folder)
 
     def on_installed(self, report):
         lines = [f"\u0e41\u0e1b\u0e25\u0e41\u0e25\u0e49\u0e27 {report.percent:.2f}% ({report.translated:,}/{report.total:,} \u0e02\u0e49\u0e2d\u0e04\u0e27\u0e32\u0e21)",
