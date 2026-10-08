@@ -45,16 +45,19 @@ def fetch_latest(timeout: float = 8.0) -> UpdateInfo:
         version=str(data.get("tag_name", "")).lstrip("v"),
         notes=str(data.get("body") or "").strip(),
         page_url=str(data.get("html_url") or RELEASES_URL),
-        download_url=pick_download(data.get("assets", [])) or str(data.get("html_url") or RELEASES_URL),
+        # the release list rather than this release's page: regular releases carry only the Windows
+        # zip, and the macOS build lives in a separate pre-release further down that list
+        download_url=pick_download(data.get("assets", [])) or RELEASES_URL,
     )
 
 
 def pick_download(assets: list[dict]) -> str:
-    """The zip built for this platform. A release holding only the other one still links somewhere useful."""
-    zips = [a for a in assets if str(a.get("name") or "").lower().endswith(".zip")]
-    ours = [a for a in zips if (MAC_TAG in str(a.get("name") or "").lower()) == MACOS]
-    chosen = ours or zips
-    return str(chosen[0].get("browser_download_url") or "") if chosen else ""
+    """The zip built for this platform, or "" when the release has none; the other platform's zip is never it."""
+    for a in assets:
+        name = str(a.get("name") or "").lower()
+        if name.endswith(".zip") and (MAC_TAG in name) == MACOS:
+            return str(a.get("browser_download_url") or "")
+    return ""
 
 
 def check_for_update() -> UpdateInfo | None:
