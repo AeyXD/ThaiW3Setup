@@ -35,14 +35,14 @@
 ### บน macOS (ทดลอง)
 
 > **รุ่นทดลอง (experimental)** ยังไม่มีใครทดสอบกับเกมจริงใน bottle
-> ไฟล์สำหรับทดสอบอยู่ที่ pre-release [macOS preview](https://github.com/FordenHillson/ThaiW3Setup/releases/tag/macos-preview-0.4.8)
-> (ไม่อยู่ใน release ปกติ และโปรแกรมฝั่ง Windows จะไม่แจ้งอัปเดตเป็นไฟล์นี้)
+> ไฟล์ของ Mac แนบอยู่ใน [Release ล่าสุด](https://github.com/FordenHillson/ThaiW3Setup/releases/latest) เดียวกับของ Windows
+> (โปรแกรมแต่ละฝั่งแจ้งอัปเดตเป็นไฟล์ของตัวเองเท่านั้น)
 > รายงานปัญหาที่ส่งจาก Mac จะถูกโพสต์ลง [#6](https://github.com/FordenHillson/ThaiW3Setup/issues/6) ซึ่งเป็นหน้าสาธารณะ โดยตัดช่องติดต่อออก
 
 เกมไม่มีเวอร์ชัน macOS ถ้าเล่นบน Mac แสดงว่าไฟล์เกมอยู่ใน bottle ของ CrossOver / Whisky / Heroic / Porting Kit
 โปรแกรมหา bottle ให้เอง ถ้าหาไม่เจอก็กด **เลือก...** ชี้ไปที่โฟลเดอร์เกมใน bottle ได้
 
-1. ดาวน์โหลด `ThaiW3Setup-x.y.z-macos-arm64.zip` จาก pre-release ด้านบน แล้วแตกไฟล์
+1. ดาวน์โหลด `ThaiW3Setup-x.y.z-macos-arm64.zip` จาก Release ล่าสุด แล้วแตกไฟล์
 2. **เปิดครั้งแรกต้องปลดล็อกก่อน** เพราะโปรแกรมยังไม่ได้ notarize กับ Apple — เปิด Terminal แล้วพิมพ์
    `xattr -dr com.apple.quarantine ` จากนั้นลากไฟล์ `ThaiW3Setup.app` มาวางต่อท้ายแล้วกด Enter
    (หรือดับเบิลคลิกให้ขึ้นคำเตือนก่อน แล้วไป System Settings > Privacy & Security กด **Open Anyway**)

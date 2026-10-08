@@ -50,7 +50,12 @@ def main() -> None:
         "2. เปิด `ThaiW3Setup.exe` แล้วกด **ติดตั้ง / อัปเดต**",
         "3. ถ้า Windows ขึ้น \"Windows protected your PC\" ให้กด **More info** > **Run anyway**",
         "",
-        f"SHA256: `{sha256}`",
+        "### บน macOS (ทดลอง)",
+        f"ดาวน์โหลด `ThaiW3Setup-{version}-macos-arm64.zip` (Mac ชิป Apple เท่านั้น)"
+        " เปิดครั้งแรกต้องปลดล็อกก่อน ดู[วิธีติดตั้งบน macOS]"
+        "(https://github.com/FordenHillson/ThaiW3Setup#บน-macos-ทดลอง)",
+        "",
+        f"SHA256 (Windows): `{sha256}`",
     ]
     if analysis:
         lines += ["", "ผลสแกน VirusTotal:"]

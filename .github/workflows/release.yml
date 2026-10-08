@@ -11,6 +11,8 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
+    outputs:
+      version: ${{ steps.package.outputs.version }}
     env:
       VT_API_KEY: ${{ secrets.VT_API_KEY }}
       SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
@@ -131,20 +133,12 @@ jobs:
           path: |
             ${{ steps.package.outputs.zip }}
             ${{ steps.package.outputs.zip }}.sha256
+            dist/notes.md
 
-      - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          body_path: dist/notes.md
-          files: |
-            ${{ steps.package.outputs.zip }}
-            ${{ steps.package.outputs.zip }}.sha256
-
-  # The macOS half. It only uploads a workflow artifact: the .app is not attached to the
-  # release until someone has installed it against a real game in a bottle.
   build-macos:
     runs-on: macos-14
+    outputs:
+      version: ${{ steps.package.outputs.version }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -190,3 +184,29 @@ jobs:
           path: |
             ${{ steps.package.outputs.zip }}
             ${{ steps.package.outputs.zip }}.sha256
+
+  # One job publishes both platforms' zips: two jobs creating the same release race into duplicates.
+  # A failed macOS build leaves the release Windows-only, which the macOS app then skips over.
+  publish:
+    needs: [build, build-macos]
+    if: always() && startsWith(github.ref, 'refs/tags/') && needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ThaiW3Setup-${{ needs.build.outputs.version }}
+          path: release
+
+      - uses: actions/download-artifact@v4
+        if: needs.build-macos.result == 'success'
+        with:
+          name: ThaiW3Setup-${{ needs.build-macos.outputs.version }}-macos
+          path: release
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: release/notes.md
+          files: |
+            release/*.zip
+            release/*.zip.sha256
