@@ -15,6 +15,7 @@ REPO = "FordenHillson/ThaiW3Setup"
 # the macOS build carries the tag in its file name; the Windows one is just ThaiW3Setup-<version>.zip
 MAC_TAG = "macos"
 LATEST_URL = f"https://api.github.com/repos/{REPO}/releases/latest"
+RELEASES_API = f"https://api.github.com/repos/{REPO}/releases?per_page=30"
 RELEASES_URL = f"https://github.com/{REPO}/releases"
 
 
@@ -34,21 +35,39 @@ def parse_version(text: str) -> tuple[int, ...]:
     return tuple(int(p) for p in re.findall(r"\d+", text)[:4]) or (0,)
 
 
-def fetch_latest(timeout: float = 8.0) -> UpdateInfo:
-    req = urllib.request.Request(LATEST_URL, headers={
+def _get(url: str, timeout: float):
+    req = urllib.request.Request(url, headers={
         "Accept": "application/vnd.github+json",
         "User-Agent": f"{APP_NAME}/{__version__}",
     })
     with urllib.request.urlopen(req, timeout=timeout) as resp:
-        data = json.load(resp)
+        return json.load(resp)
+
+
+def _info(data: dict, download_url: str) -> UpdateInfo:
     return UpdateInfo(
         version=str(data.get("tag_name", "")).lstrip("v"),
         notes=str(data.get("body") or "").strip(),
         page_url=str(data.get("html_url") or RELEASES_URL),
-        # the release list rather than this release's page: regular releases carry only the Windows
-        # zip, and the macOS build lives in a separate pre-release further down that list
-        download_url=pick_download(data.get("assets", [])) or RELEASES_URL,
+        download_url=download_url,
     )
+
+
+def fetch_latest(timeout: float = 8.0) -> UpdateInfo | None:
+    """The newest release carrying this platform's build, or None when there is none."""
+    if not MACOS:
+        data = _get(LATEST_URL, timeout)
+        return _info(data, pick_download(data.get("assets", [])) or RELEASES_URL)
+    # a release whose macOS build failed carries only the Windows zip; /releases/latest would offer
+    # it anyway, so look through the list (pre-releases included) for the newest one with ours
+    found = []
+    for data in _get(RELEASES_API, timeout):
+        if data.get("draft"):
+            continue
+        url = pick_download(data.get("assets", []))
+        if url:
+            found.append(_info(data, url))
+    return max(found, key=lambda i: parse_version(i.version), default=None)
 
 
 def pick_download(assets: list[dict]) -> str:
@@ -63,4 +82,4 @@ def pick_download(assets: list[dict]) -> str:
 def check_for_update() -> UpdateInfo | None:
     """Newer release, or None if up to date. Network errors propagate."""
     info = fetch_latest()
-    return info if info.newer else None
+    return info if info and info.newer else None
