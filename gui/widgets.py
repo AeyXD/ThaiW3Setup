@@ -7,7 +7,7 @@ import tkinter as tk
 from PIL import Image, ImageTk
 
 from core.paths import assets_dir
-from gui.theme import DARK_THEME, TEXT, P, ui
+from gui.theme import DARK_THEME, TEXT, P, dpi_scale, ui
 
 log = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ def icon(widget: tk.Misc, name: str, size: int = 20, disabled: bool = False,
          color: str | None = ICON_COLOR) -> ImageTk.PhotoImage | None:
     """The icon scaled for the screen DPI and painted in color (None keeps the file's own), or None when the
     file is missing (callers fall back to text)."""
-    px = max(8, round(size * widget.winfo_fpixels("1i") / 96))
+    px = max(8, round(size * dpi_scale(widget)))
     key = (name, px, disabled, color)
     if key not in _cache:
         try:

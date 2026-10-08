@@ -28,7 +28,7 @@ from core.osutil import MACOS, WINDOWS, open_folder
 from core.paths import app_data_dir
 from gui.custom_dialog import MODE_CHOICES, MODE_LABELS
 from gui.notice_dialog import show_notice
-from gui.theme import BIG_BUTTON, DARK_THEME, NATIVE_CONTROLS, P, init as init_theme, ui
+from gui.theme import BIG_BUTTON, DARK_THEME, NATIVE_CONTROLS, P, dpi_scale, init as init_theme, on_palette_change, ui
 from gui.widgets import ACCENT_ICON_COLOR, Tooltip, icon, ttk_image
 
 log = logging.getLogger(__name__)
@@ -92,7 +92,9 @@ class App(tk.Tk):
         style.configure("Warn.TLabel", foreground=P.warn)
         if not DARK_THEME:  # the dark theme draws Danger.TButton red itself, see gui/theme.py
             style.configure("Danger.TButton", foreground=P.bad)
-            style.map("Danger.TButton", foreground=[("disabled", P.hint)])
+            # aqua's own disabled grey, matching the other buttons and following light / dark
+            style.map("Danger.TButton", foreground=[
+                ("disabled", "systemDisabledControlTextColor" if NATIVE_CONTROLS else P.hint)])
 
         self.opts = load_options()
         self.events: queue.Queue = queue.Queue()
@@ -171,6 +173,9 @@ class App(tk.Tk):
 
         self.notebook = ttk.Notebook(root)
         self.notebook.grid(row=3, column=0, sticky="nsew", pady=8)
+        # Tk 8.6 on macOS (the one the release build bundles) leaves part of a tab undrawn the first
+        # time it is shown, e.g. the left column of the names tab, until something forces a redraw
+        self.notebook.bind("<<NotebookTabChanged>>", lambda _e: self.update_idletasks(), add="+")
         root.rowconfigure(3, weight=1)
 
         subs = ttk.Frame(self.notebook, padding=12)
@@ -315,6 +320,9 @@ class App(tk.Tk):
                                         compound="left",
                                         style="Danger.TButton", command=self.do_uninstall)
         self.btn_uninstall.pack(side="left", padx=(6, 0), fill="y")
+        if not DARK_THEME:  # the icon is drawn in the palette's red, which differs between light and dark
+            on_palette_change.append(lambda: self.btn_uninstall.configure(
+                image=ttk_image(self, "delete", ICON_SIZE, P.bad)))
         self.update_states()
 
     def _logo_images(self) -> dict[bool, ImageTk.PhotoImage] | None:
@@ -325,7 +333,7 @@ class App(tk.Tk):
             log.warning("logo preview: %s", exc)
             return None
         logo = logo.crop(logo.getbbox())
-        height = round(LOGO_PREVIEW_HEIGHT * self.winfo_fpixels("1i") / 96)
+        height = round(LOGO_PREVIEW_HEIGHT * dpi_scale(self))
         logo = logo.resize((max(1, logo.width * height // logo.height), height), Image.LANCZOS)
         pad = height // 10
         images = {}

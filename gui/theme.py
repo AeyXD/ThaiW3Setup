@@ -7,6 +7,7 @@ import logging
 import tkinter as tk
 from dataclasses import dataclass
 from tkinter import font as tkfont
+from tkinter import ttk
 
 from core.osutil import MACOS, WINDOWS
 
@@ -34,12 +35,25 @@ DANGER_HUE = 0.99
 DANGER_VALUE = 0.82
 
 
+def _size(points: int) -> int:
+    # Tk on macOS counts a point as one pixel in 8.6 (the release build) but as 4/3 pixel in 9, while
+    # the system font every label uses is 13 px in both; pixels (negative sizes) at 96 dpi, as on Windows,
+    # keep headings and titles in proportion to that text on either version
+    return -round(points * 96 / 72) if MACOS else points
+
+
+def dpi_scale(widget: tk.Misc) -> float:
+    """Factor from a size drawn for 96 dpi to this screen. macOS lays out in points and scales for Retina
+    itself, where Tk 8.6 reports 72 dpi and Tk 9 96, so it stays 1 there."""
+    return 1.0 if MACOS else widget.winfo_fpixels("1i") / 96
+
+
 def ui(size: int, *style: str) -> tuple:
-    return (UI, size, *style)
+    return (UI, _size(size), *style)
 
 
 def mono(size: int, *style: str) -> tuple:
-    return (MONO, size, *style)
+    return (MONO, _size(size), *style)
 
 
 @dataclass
@@ -72,8 +86,74 @@ def init(root: tk.Tk) -> None:
     """Set up the theme and pick the palette. Call once the root window exists, before building widgets."""
     if DARK_THEME:
         _use_dark_theme(root)
+    if MACOS:
+        _grey_disabled_buttons(root)
+        root.bind_all("<<LightAqua>>", lambda _e: _switch_palette(root, LIGHT), add="+")
+        root.bind_all("<<DarkAqua>>", lambda _e: _switch_palette(root, DARK), add="+")
     for name, value in vars(DARK if DARK_THEME or _dark(root) else LIGHT).items():
         setattr(P, name, value)
+
+
+# run after the palette swaps to the other appearance, for colours baked into images
+on_palette_change: list = []
+
+
+def _switch_palette(root: tk.Tk, new: Palette) -> None:
+    """The system switched between light and dark while the app runs: aqua redraws its own controls, so
+    only the palette colours set on styles and widgets need swapping, in every open window."""
+    if vars(P) == vars(new):
+        return  # the event reaches every widget; the first one did the work
+    old = Palette(**vars(P))
+    for name, value in vars(new).items():
+        setattr(P, name, value)
+    counts: dict[str, int] = {}
+    for value in vars(old).values():
+        counts[value.lower()] = counts.get(value.lower(), 0) + 1
+    # a colour two roles share (black text on the light banner and tooltip) cannot say which it was
+    swap = {getattr(old, k).lower(): v for k, v in vars(new).items() if counts[getattr(old, k).lower()] == 1}
+
+    style = ttk.Style(root)
+    styles = set()
+    widgets = [root]
+    for w in widgets:
+        widgets.extend(w.winfo_children())
+        if isinstance(w, ttk.Widget):
+            name = str(w.cget("style")) or w.winfo_class()
+            styles.update((name, f"{name}.Label"))  # a labelframe's title has a style of its own
+        banner = str(_option(w, "background")).lower() == old.banner_bg.lower()
+        for opt in ("foreground", "background"):
+            if opt not in w.keys():  # a frame has a background but no text colour
+                continue
+            value = str(_option(w, opt)).lower()
+            if opt == "foreground" and banner:
+                w.configure(foreground=new.banner_fg)
+            elif value in swap:
+                w.configure(**{opt: swap[value]})
+    for name in styles:
+        for opt in ("foreground", "background"):
+            value = str(style.configure(name, opt) or "").lower()
+            if value in swap:
+                style.configure(name, **{opt: swap[value]})
+            spec = style.map(name, opt)
+            if any(str(s[-1]).lower() in swap for s in spec):
+                style.map(name, **{opt: [(*s[:-1], swap.get(str(s[-1]).lower(), s[-1])) for s in spec]})
+    for refresh in on_palette_change:
+        refresh()
+
+
+def _option(widget: tk.Misc, name: str):
+    try:
+        return widget.cget(name)
+    except tk.TclError:
+        return ""
+
+
+def _grey_disabled_buttons(root: tk.Tk) -> None:
+    """aqua in Tk 8.6 (the release build) keeps a disabled button's text at full colour; Tk 9 greys it."""
+    style = ttk.Style(root)
+    spec = list(style.map("TButton", "foreground"))
+    if not any("disabled" in states[:-1] for states in spec):
+        style.map("TButton", foreground=[*spec, ("disabled", "systemDisabledControlTextColor")])
 
 
 def _use_dark_theme(root: tk.Tk) -> None:
