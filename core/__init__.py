@@ -1,3 +1,3 @@
 APP_NAME = "ThaiW3Setup"
 APP_TITLE = "Witcher 3 Remastered - ติดตั้งภาษาไทย"
-__version__ = "0.5.3"
+__version__ = "0.5.4"
