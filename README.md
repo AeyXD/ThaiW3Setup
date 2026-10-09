@@ -34,7 +34,7 @@
 
 ### บน macOS (ทดลอง)
 
-> **รุ่นทดลอง (experimental)** ยังไม่มีใครทดสอบกับเกมจริงใน bottle
+> **รุ่นทดลอง (experimental)** ทดสอบกับเกมจริงแล้วแค่ชุดเดียว (Whisky, ดู [เปิดเกมบน Mac](#เปิดเกมบน-mac))
 > ไฟล์ของ Mac แนบอยู่ใน [Release ล่าสุด](https://github.com/FordenHillson/ThaiW3Setup/releases/latest) เดียวกับของ Windows
 > (โปรแกรมแต่ละฝั่งแจ้งอัปเดตเป็นไฟล์ของตัวเองเท่านั้น)
 > รายงานปัญหาที่ส่งจาก Mac จะถูกโพสต์ลง [#6](https://github.com/FordenHillson/ThaiW3Setup/issues/6) ซึ่งเป็นหน้าสาธารณะ โดยตัดช่องติดต่อออก
@@ -50,6 +50,27 @@
 
 > รองรับ Mac ชิป Apple (M1 ขึ้นไป) เท่านั้น ยังไม่รองรับ Intel Mac
 > ถ้าไม่ปลดล็อกตามข้อ 2 macOS จะขึ้นว่า *"Apple could not verify..."* โดยปุ่มเริ่มต้นเป็น **Move to Trash**
+
+#### เปิดเกมบน Mac
+
+ต้องเปิดเกมใน bottle ให้ได้ก่อน แล้วค่อยลงภาษาไทย เกม 5.x มีแต่ DX12 จึงต้องใช้ D3DMetal ของ Apple
+ซึ่งรันได้เฉพาะ Wine ที่มาจาก CrossOver ชุดที่ยืนยันแล้วว่าเห็นภาษาไทยในเกม (ไม่เสียเงิน):
+
+| | ใช้ | หมายเหตุ |
+|---|---|---|
+| Wine | [Whisky (fork ของ frankea)](https://github.com/frankea/Whisky/releases) 3.7.0 | `brew install --cask whisky` ได้ตัวเก่าที่เลิกพัฒนาแล้ว ใช้ไม่ได้ |
+| engine | [Wine Libraries v4.5.105-beta.1](https://github.com/frankea/Whisky/releases/tag/v4.5.105-beta.1) | ไม่ติดตั้งให้เอง ทำตามวิธีในหน้า release |
+| D3DMetal | [Game Porting Toolkit](https://developer.apple.com/games/game-porting-toolkit/) 4.0 beta 2 | โหลดเองด้วย Apple ID แล้วนำเข้าที่ Whisky › Settings |
+| fix จอดำ | [witcher3-crossover-fix](https://github.com/tholtman1-del/witcher3-crossover-fix) | ไม่มีตัวนี้เกมค้างจอดำ · อัปเดตเกมแล้วต้องลงใหม่ |
+
+ทดสอบเมื่อ 9 ต.ค. 2026 · Apple M5, macOS 27.0.1 · เกม Steam v5.01 · ThaiW3Setup 0.5.3
+(รายละเอียดและภาพใน [#6](https://github.com/FordenHillson/ThaiW3Setup/issues/6))
+ทุกตัวยังเป็น beta ขั้นตอนอาจเปลี่ยน ให้ดูหน้าต้นทางเป็นหลัก
+
+ติดตั้งภาษาไทยแล้ว เข้าเกมไปที่ **Options › Language › Text Language** เลือก **ไทย (Thai)**
+(ไทยใช้ช่องของภาษาตุรกี จึงไม่มีตัวเลือกภาษาไทยแยก)
+
+ยังไม่มีใครลอง CrossOver / Heroic / Porting Kit หรือเกมจาก GOG ถ้าลองแล้วช่วยแจ้งใน #6
 
 ### สร้างไฟล์ไว้ copy เอง
 
