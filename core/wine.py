@@ -6,20 +6,28 @@ system.reg / user.reg hold the same registry the Windows build reads.
 from __future__ import annotations
 
 import functools
+import json
 import logging
 import os
+import plistlib
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import unquote, urlparse
 
 log = logging.getLogger(__name__)
 
 HOME = Path.home()
+# Whisky was archived under its original id; the maintained fork ships under its own
+WHISKY_IDS = ("com.isaacmarovitz.Whisky", "com.franke.Whisky")
+CONTAINERS = HOME / "Library/Containers"
+HEROIC_DIR = HOME / "Library/Application Support/heroic"
 # each entry holds one prefix, or a folder of them; Heroic keeps its prefix one level down in pfx/
 BOTTLE_ROOTS = (
     (HOME / "Library/Application Support/CrossOver/Bottles", "CrossOver"),
-    (HOME / "Library/Containers/com.isaacmarovitz.Whisky/Bottles", "Whisky"),
+    *((CONTAINERS / app / "Bottles", "Whisky") for app in WHISKY_IDS),
     (HOME / "Library/Application Support/Whisky/Bottles", "Whisky"),
+    (HOME / "Games/Heroic/Prefixes", "Heroic"),  # Heroic 2.x: one prefix per game, named after it
     (HOME / "Games/Heroic/Prefixes/default", "Heroic"),
     (HOME / "Library/Application Support/heroic/Prefixes/default", "Heroic"),
     (HOME / "Library/Application Support/PortingKit/Bottles", "Porting Kit"),
@@ -36,7 +44,27 @@ class Bottle:
 
     @property
     def label(self) -> str:
-        return f"{self.kind}: {self.prefix.name}"
+        return f"{self.kind}: {self.name}"
+
+    @property
+    def name(self) -> str:
+        """Whisky names the folder with a UUID and keeps the name the user typed in Metadata.plist."""
+        info = _read_plist(self.prefix / "Metadata.plist").get("info")
+        name = info.get("name") if isinstance(info, dict) else None
+        return name if isinstance(name, str) and name else self.prefix.name
+
+    def pinned_programs(self) -> list[Path]:
+        """Programs Whisky pinned in this bottle; it pins every exe the user runs from outside the bottle."""
+        info = _read_plist(self.prefix / "Metadata.plist").get("info")
+        pins = info.get("pins") if isinstance(info, dict) else None
+        out = []
+        for pin in pins if isinstance(pins, list) else []:
+            url = pin.get("url") if isinstance(pin, dict) else None
+            path = _file_url(url.get("relative") if isinstance(url, dict) else url)
+            path = _true_case(path) if path else None  # Whisky may record a lowercased path
+            if path and path not in out:
+                out.append(path)
+        return out
 
     @property
     def drive_c(self) -> Path:
@@ -100,11 +128,43 @@ class Bottle:
         if not users.is_dir():
             return []
         out = []
-        for user in sorted(users.iterdir()):
+        # Public is shared by everyone; the game writes into the user's own Documents
+        for user in sorted(users.iterdir(), key=lambda u: (u.name.lower() == "public", u.name)):
             docs = user / "Documents"
             if docs.is_dir():
                 out.append(docs)
         return out
+
+
+def _read_plist(path: Path) -> dict:
+    try:
+        with open(path, "rb") as f:
+            data = plistlib.load(f)
+    except FileNotFoundError:
+        return {}
+    except (OSError, ValueError, plistlib.InvalidFileException) as exc:
+        log.warning("cannot read %s: %s", path, exc)
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _read_json(path: Path):
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError) as exc:
+        log.warning("cannot read %s: %s", path, exc)
+        return None
+
+
+def _file_url(value) -> Path | None:
+    """Whisky stores paths as file:// URLs."""
+    if not isinstance(value, str) or not value:
+        return None
+    if value.startswith("file:"):
+        return Path(unquote(urlparse(value).path))
+    return Path(value) if value.startswith("/") else None
 
 
 def _hive_text(path: Path) -> str:
@@ -165,6 +225,23 @@ def _walk_insensitive(root: Path, parts: list[str]) -> Path:
     return current
 
 
+def _true_case(path: Path) -> Path:
+    """The same path spelled the way the disk spells it; macOS matches names case-insensitively."""
+    if not path.is_absolute():
+        return path
+    current = Path(path.anchor)
+    parts = path.parts[1:]
+    for i, part in enumerate(parts):
+        try:
+            names = os.listdir(current)
+        except OSError:
+            return current.joinpath(*parts[i:])
+        if part not in names:  # exists() alone cannot tell, it matches any casing
+            part = next((n for n in names if n.lower() == part.lower()), part)
+        current = current / part
+    return current
+
+
 def _prefixes_under(root: Path, kind: str) -> list[Bottle]:
     if (root / "drive_c").is_dir():
         return [Bottle(root, kind)]
@@ -181,15 +258,100 @@ def _prefixes_under(root: Path, kind: str) -> list[Bottle]:
     return out
 
 
+def _whisky_roots() -> list[tuple[Path, str]]:
+    """Bottles Whisky keeps outside its own folder (another drive, say) are listed in BottleVM.plist."""
+    out = []
+    for app in WHISKY_IDS:
+        paths = _read_plist(CONTAINERS / app / "BottleVM.plist").get("paths")
+        for entry in paths if isinstance(paths, list) else []:
+            path = _file_url(entry.get("relative") if isinstance(entry, dict) else entry)
+            if path:
+                out.append((path, "Whisky"))
+    return out
+
+
+def _heroic_prefix(app_name: str) -> Path | None:
+    """The prefix Heroic set up for one game, from GamesConfig/<app name>.json."""
+    data = _read_json(HEROIC_DIR / "GamesConfig" / f"{app_name}.json")
+    entry = data.get(app_name) if isinstance(data, dict) else None
+    value = entry.get("winePrefix") if isinstance(entry, dict) else None
+    return Path(value) if isinstance(value, str) and value else None
+
+
+def _heroic_roots() -> list[tuple[Path, str]]:
+    """Heroic writes where its prefixes go into its own config; the user can move them anywhere."""
+    out = []
+    config = _read_json(HEROIC_DIR / "config.json")
+    defaults = config.get("defaultSettings") if isinstance(config, dict) else None
+    for key in ("defaultWinePrefix", "winePrefix"):
+        value = defaults.get(key) if isinstance(defaults, dict) else None
+        if isinstance(value, str) and value:
+            out.append((Path(value), "Heroic"))
+    try:
+        configs = sorted((HEROIC_DIR / "GamesConfig").glob("*.json"))
+    except OSError:
+        configs = []
+    for path in configs:
+        prefix = _heroic_prefix(path.stem)
+        if prefix:
+            out.append((prefix, "Heroic"))
+    return out
+
+
+def _windows_game(entry: dict) -> bool:
+    return str(entry.get("platform") or "windows").lower() == "windows"
+
+
+def _heroic_library() -> list[tuple[str, Path]]:
+    """(app name, folder) for each Windows game Heroic installed: added by hand, from GOG, and from Epic."""
+    out = []
+    side = _read_json(HEROIC_DIR / "sideload_apps" / "library.json")
+    for game in side.get("games", []) if isinstance(side, dict) else []:
+        if not isinstance(game, dict):
+            continue
+        install = game.get("install") if isinstance(game.get("install"), dict) else {}
+        if not _windows_game(install):
+            continue
+        exe = install.get("executable")
+        folder = Path(exe).parent if isinstance(exe, str) and exe else None
+        if folder is None and isinstance(game.get("folder_name"), str) and game["folder_name"]:
+            folder = Path(game["folder_name"])
+        if folder:
+            out.append((str(game.get("app_name") or ""), folder))
+    gog = _read_json(HEROIC_DIR / "gog_store" / "installed.json")
+    for game in gog.get("installed", []) if isinstance(gog, dict) else []:
+        if isinstance(game, dict) and _windows_game(game) and isinstance(game.get("install_path"), str):
+            out.append((str(game.get("appName") or ""), Path(game["install_path"])))
+    epic = _read_json(HEROIC_DIR / "legendaryConfig" / "legendary" / "installed.json")
+    for app, game in epic.items() if isinstance(epic, dict) else []:
+        if isinstance(game, dict) and _windows_game(game) and isinstance(game.get("install_path"), str):
+            out.append((app, Path(game["install_path"])))
+    return [(app, folder) for app, folder in out if folder.is_absolute()]
+
+
+def heroic_installs() -> list[tuple[Path, Path | None]]:
+    """Every game folder Heroic knows of, with the prefix it runs in. These live outside any drive_c."""
+    return [(folder, _heroic_prefix(app) if app else None) for app, folder in _heroic_library()]
+
+
+def _roots() -> list[tuple[Path, str]]:
+    roots = list(BOTTLE_ROOTS)
+    for find in (_whisky_roots, _heroic_roots):
+        try:
+            roots += find()
+        except Exception as exc:  # a launcher's config must never stop the search
+            log.warning("%s failed: %s", find.__name__, exc)
+    env = os.environ.get("WINEPREFIX")
+    if env:
+        roots.insert(0, (Path(env), "WINEPREFIX"))
+    return roots
+
+
 def bottles() -> list[Bottle]:
     """Every Wine prefix we can find, plus $WINEPREFIX when it is set."""
     out: list[Bottle] = []
     seen = set()
-    roots = list(BOTTLE_ROOTS)
-    env = os.environ.get("WINEPREFIX")
-    if env:
-        roots.insert(0, (Path(env), "WINEPREFIX"))
-    for root, kind in roots:
+    for root, kind in _roots():
         try:
             if not root.is_dir():
                 continue
@@ -198,7 +360,7 @@ def bottles() -> list[Bottle]:
             log.warning("cannot scan %s: %s", root, exc)
             continue
         for bottle in found:
-            key = str(bottle.prefix)
+            key = str(bottle.prefix.resolve())
             if key not in seen:
                 seen.add(key)
                 out.append(bottle)
@@ -206,17 +368,41 @@ def bottles() -> list[Bottle]:
 
 
 def _kind_of(prefix: Path) -> str:
-    return next((k for root, k in BOTTLE_ROOTS if root == prefix or root in prefix.parents), "Wine")
+    return next((k for root, k in _roots() if root == prefix or root in prefix.parents), "Wine")
+
+
+def _related(a: Path, b: Path) -> bool:
+    return a == b or a in b.parents or b in a.parents
+
+
+def _has_played(bottle: Bottle) -> bool:
+    return any((d / "The Witcher 3").is_dir() for d in bottle.documents_dirs())
 
 
 def bottle_of(path: Path | str) -> Bottle | None:
-    """The bottle a game folder belongs to: either under its drive_c, or under one of its mapped drives."""
+    """The bottle a game folder belongs to: either under its drive_c, or the one its launcher runs it in.
+
+    A game outside drive_c is reachable from every bottle (Wine maps Z: to /), so a launcher's own record
+    wins; failing that, the bottle whose drive maps the folder most closely, then one the game has run in."""
     target = Path(path).resolve()
     for parent in [target, *target.parents]:
         if parent.name == "drive_c" and (parent.parent / "dosdevices").is_dir():
             return Bottle(parent.parent, _kind_of(parent.parent))
-    for bottle in bottles():  # a game on D: lives outside drive_c entirely
-        for drive in bottle.drives():
-            if drive == target or drive in target.parents:
-                return bottle
-    return None
+    found = bottles()
+    for bottle in found:  # Whisky pins the exe the user ran
+        if any(_related(target, p.resolve()) for p in bottle.pinned_programs()):
+            return bottle
+    for folder, prefix in heroic_installs():
+        if prefix and _related(target, folder.resolve()):
+            match = next((b for b in found if b.prefix.resolve() == prefix.resolve()), None)
+            if match:
+                return match
+    best, best_score = None, None
+    for bottle in found:
+        depth = max((len(d.parts) for d in bottle.drives() if d == target or d in target.parents), default=0)
+        if not depth:
+            continue
+        score = (depth, _has_played(bottle))
+        if best_score is None or score > best_score:
+            best, best_score = bottle, score
+    return best

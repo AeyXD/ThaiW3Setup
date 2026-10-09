@@ -12,7 +12,7 @@ from pathlib import Path
 
 from .osutil import WINDOWS
 from .pe_version import file_version
-from .wine import Bottle, bottles
+from .wine import Bottle, bottles, heroic_installs
 
 log = logging.getLogger(__name__)
 
@@ -424,13 +424,25 @@ def _bottle_guesses() -> list[Path]:
     return out
 
 
+def _heroic_candidates() -> list[Path]:
+    """Heroic installs games in a folder of their own, not inside the prefix it runs them in."""
+    return [folder for folder, _prefix in heroic_installs()]
+
+
+def _pinned_candidates() -> list[Path]:
+    """A game run from outside the bottle in Whisky shows up only as the exe Whisky pinned."""
+    return [exe.parent for bottle in bottles() for exe in bottle.pinned_programs()
+            if exe.name.lower() == "witcher3.exe"]
+
+
 def find_games() -> list[GameInfo]:
     """Installs we can find on our own; on macOS that means looking inside Wine bottles."""
     seen = set()
     found = []
     sources = (("Steam", _steam_candidates), ("GOG", _gog_candidates),
                ("Epic", _epic_candidates), ("Xbox", _xbox_candidates), ("", _drive_guesses)) if WINDOWS else (
-               ("Steam", _bottle_steam), ("GOG", _bottle_gog), ("", _bottle_guesses))
+               ("Steam", _bottle_steam), ("GOG", _bottle_gog), ("Heroic", _heroic_candidates),
+               ("Whisky", _pinned_candidates), ("", _bottle_guesses))
     for store, fn in sources:
         try:
             candidates = fn()
