@@ -375,34 +375,48 @@ def _related(a: Path, b: Path) -> bool:
     return a == b or a in b.parents or b in a.parents
 
 
-def _has_played(bottle: Bottle) -> bool:
-    return any((d / "The Witcher 3").is_dir() for d in bottle.documents_dirs())
+def _last_played(bottle: Bottle) -> float:
+    """When the game last wrote its settings in this bottle, 0 if it never ran here."""
+    latest = 0.0
+    for docs in bottle.documents_dirs():
+        try:
+            files = list((docs / "The Witcher 3").glob("*.settings"))
+        except OSError:
+            continue
+        for f in files:
+            try:
+                latest = max(latest, f.stat().st_mtime)
+            except OSError:
+                pass
+    return latest
 
 
 def bottle_of(path: Path | str) -> Bottle | None:
     """The bottle a game folder belongs to: either under its drive_c, or the one its launcher runs it in.
 
     A game outside drive_c is reachable from every bottle (Wine maps Z: to /), so a launcher's own record
-    wins; failing that, the bottle whose drive maps the folder most closely, then one the game has run in."""
+    wins; failing that, the bottle whose drive maps the folder most closely. When more than one bottle fits
+    (the same folder added to both Whisky and Heroic, say), the one the game last ran in wins."""
     target = Path(path).resolve()
     for parent in [target, *target.parents]:
         if parent.name == "drive_c" and (parent.parent / "dosdevices").is_dir():
             return Bottle(parent.parent, _kind_of(parent.parent))
     found = bottles()
-    for bottle in found:  # Whisky pins the exe the user ran
-        if any(_related(target, p.resolve()) for p in bottle.pinned_programs()):
-            return bottle
+    claimed = [b for b in found  # Whisky pins the exe the user ran
+               if any(_related(target, p.resolve()) for p in b.pinned_programs())]
     for folder, prefix in heroic_installs():
         if prefix and _related(target, folder.resolve()):
             match = next((b for b in found if b.prefix.resolve() == prefix.resolve()), None)
-            if match:
-                return match
+            if match and match not in claimed:
+                claimed.append(match)
+    if claimed:
+        return max(claimed, key=_last_played)  # max keeps the first on a tie
     best, best_score = None, None
     for bottle in found:
         depth = max((len(d.parts) for d in bottle.drives() if d == target or d in target.parents), default=0)
         if not depth:
             continue
-        score = (depth, _has_played(bottle))
+        score = (depth, _last_played(bottle))
         if best_score is None or score > best_score:
             best, best_score = bottle, score
     return best

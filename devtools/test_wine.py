@@ -148,17 +148,27 @@ single = Path(tempfile.mkdtemp())
 assert wine.Bottle(single, "Wine").name == single.name, "no Metadata.plist: the folder name"
 
 
-def make_prefix(path: Path, played: bool = False) -> Path:
-    """A prefix whose Z: maps the whole disk, as every launcher sets up; the game then runs from outside."""
+def make_prefix(path: Path, played: float = 0) -> Path:
+    """A prefix whose Z: maps the whole disk, as every launcher sets up; the game then runs from outside.
+    played: when the game last wrote its settings here (seconds since the epoch), 0 for never."""
     docs = path / "drive_c" / "users" / "crossover" / "Documents"
     docs.mkdir(parents=True)
     (path / "drive_c" / "users" / "Public" / "Documents").mkdir(parents=True)
     if played:
-        (docs / "The Witcher 3").mkdir()
+        play(path, played)
     (path / "dosdevices").mkdir()
     (path / "dosdevices" / "c:").symlink_to("../drive_c")
     (path / "dosdevices" / "z:").symlink_to("/")
     return path
+
+
+def play(prefix: Path, when: float) -> None:
+    """The game ran in this prefix at `when`: it rewrites dx12user.settings every launch."""
+    folder = prefix / "drive_c" / "users" / "crossover" / "Documents" / "The Witcher 3"
+    folder.mkdir(exist_ok=True)
+    settings = folder / "dx12user.settings"
+    settings.write_text("[Localization]\r\nTextLanguage=TR\r\n")
+    os.utime(settings, (when, when))
 
 
 def file_url(path: Path) -> str:
@@ -207,7 +217,7 @@ try:
     heroic = home / "heroic"
     prefixes = Path(tempfile.mkdtemp()) / "Prefixes"
     w3_prefix = make_prefix(prefixes / "The Witcher 3")
-    played = make_prefix(prefixes / "Played Elsewhere", played=True)
+    played = make_prefix(prefixes / "Played Elsewhere", played=1_700_000_000)
     (heroic / "GamesConfig").mkdir(parents=True)
     # the shape Heroic 2.22.3 wrote: config.json, and one GamesConfig file per game keyed by its app name
     (heroic / "config.json").write_text(json.dumps({"defaultSettings": {
@@ -251,7 +261,7 @@ try:
     shelf = home / "Containers" / "com.franke.Whisky" / "Bottles"
     wine.BOTTLE_ROOTS = ((shelf, "Whisky"),)
     offline = make_prefix(shelf / "1111-OFFLINE")
-    galaxy = make_prefix(shelf / "2222-GALAXY", played=True)  # Z: reaches the other bottle's game too
+    galaxy = make_prefix(shelf / "2222-GALAXY", played=1_700_000_000)  # Z: reaches the other bottle's game too
 
     def gog_reg(bottle: Path, folder: str) -> Path:
         """system.reg as Wine writes it after GOG's 32-bit installer ran: the key lands under Wow6432Node."""
@@ -286,6 +296,33 @@ try:
     games = [(g.path.resolve(), g.store) for g in game_detect.find_games()]
     assert (gog_offline, "") in games, games
     wine.BOTTLE_ROOTS = ()
+
+    # --- the same folder added to both Whisky and Heroic: the launcher it last ran from wins ----------
+    home = Path(tempfile.mkdtemp())
+    use_launchers(home)
+    both = make_game(Path(tempfile.mkdtemp()) / "w3")
+    both_exe = both / "bin" / "x64_dx12" / "witcher3.exe"
+    whisky = make_prefix(home / "Containers" / "com.franke.Whisky" / "Bottles" / "AAAA")
+    (whisky / "Metadata.plist").write_bytes(plistlib.dumps({"info": {"name": "W3", "pins": [
+        {"name": "The Witcher 3", "url": {"relative": file_url(both_exe)}}]}}))
+    (home / "Containers" / "com.franke.Whisky").mkdir(parents=True, exist_ok=True)
+    (home / "Containers" / "com.franke.Whisky" / "BottleVM.plist").write_bytes(
+        plistlib.dumps({"paths": [{"relative": file_url(whisky)}]}))
+    hprefix = make_prefix(Path(tempfile.mkdtemp()) / "Prefixes" / "The Witcher 3")
+    (home / "heroic" / "GamesConfig").mkdir(parents=True)
+    (home / "heroic" / "GamesConfig" / "abc.json").write_text(json.dumps({"abc": {"winePrefix": str(hprefix)}}))
+    (home / "heroic" / "sideload_apps").mkdir()
+    (home / "heroic" / "sideload_apps" / "library.json").write_text(json.dumps({"games": [{
+        "app_name": "abc", "install": {"executable": str(both_exe), "platform": "Windows"}}]}))
+
+    assert bottle_of(both).prefix == whisky, "neither has run the game yet: the first claim stands"
+    play(whisky, 1_700_000_000)
+    play(hprefix, 1_700_000_500)
+    assert bottle_of(both).prefix == hprefix, "played from Heroic last"
+    play(whisky, 1_700_001_000)
+    assert bottle_of(both).prefix == whisky, "back to Whisky"
+    paths = _mods_settings_paths(identify(both))
+    assert paths[0].resolve() == (whisky / "drive_c/users/crossover/Documents/The Witcher 3/mods.settings").resolve()
 
     # --- a broken launcher file is skipped, not fatal ----------------------------------------------
     use_launchers(heroic.parent)
