@@ -51,7 +51,7 @@ def main() -> None:
         "3. ถ้า Windows ขึ้น \"Windows protected your PC\" ให้กด **More info** > **Run anyway**",
         "",
         "### บน macOS (ทดลอง)",
-        f"ดาวน์โหลด `ThaiW3Setup-{version}-macos-arm64.zip` (Mac ชิป Apple เท่านั้น)"
+        f"ดาวน์โหลด `ThaiW3Setup-macos-arm64-{version}.zip` (Mac ชิป Apple เท่านั้น)"
         " เปิดครั้งแรกต้องปลดล็อกก่อน ดู[วิธีติดตั้งบน macOS]"
         "(https://github.com/FordenHillson/ThaiW3Setup#บน-macos-ทดลอง)",
         "",

@@ -42,7 +42,7 @@
 เกมไม่มีเวอร์ชัน macOS ถ้าเล่นบน Mac แสดงว่าไฟล์เกมอยู่ใน bottle ของ CrossOver / Whisky / Heroic / Porting Kit
 โปรแกรมหา bottle ให้เอง ถ้าหาไม่เจอก็กด **เลือก...** ชี้ไปที่โฟลเดอร์เกมใน bottle ได้
 
-1. ดาวน์โหลด `ThaiW3Setup-x.y.z-macos-arm64.zip` จาก Release ล่าสุด แล้วแตกไฟล์
+1. ดาวน์โหลด `ThaiW3Setup-macos-arm64-x.y.z.zip` จาก Release ล่าสุด แล้วแตกไฟล์
 2. **เปิดครั้งแรกต้องปลดล็อกก่อน** เพราะโปรแกรมยังไม่ได้ notarize กับ Apple — เปิด Terminal แล้วพิมพ์
    `xattr -dr com.apple.quarantine ` จากนั้นลากไฟล์ `ThaiW3Setup.app` มาวางต่อท้ายแล้วกด Enter
    (หรือดับเบิลคลิกให้ขึ้นคำเตือนก่อน แล้วไป System Settings > Privacy & Security กด **Open Anyway**)
@@ -206,7 +206,7 @@ brew install python@3.12 python-tk@3.12
 python3.12 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 .venv/bin/python main.py          # เปิด GUI
-./build.sh                        # สร้าง dist/ThaiW3Setup-<version>-macos-<arch>.zip
+./build.sh                        # สร้าง dist/ThaiW3Setup-macos-<arch>-<version>.zip
 ./build.sh offline                # build โดยไม่ดาวน์โหลดคำแปลใหม่
 ```
 

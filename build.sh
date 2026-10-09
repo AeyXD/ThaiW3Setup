@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build dist/ThaiW3Setup-<version>-macos-<arch>.zip
+# Build dist/ThaiW3Setup-macos-<arch>-<version>.zip
 #   ./build.sh            download the latest translations, then build
 #   ./build.sh offline    reuse assets/translations.json.gz
 set -euo pipefail
@@ -30,7 +30,9 @@ cp -R dist/ThaiW3Setup.app "$STAGE/"
 cp README.md "$STAGE/"
 cp packaging/first-run-macos.txt "$STAGE/อ่านก่อนเปิดครั้งแรก.txt"
 
-ZIP="dist/ThaiW3Setup-$VERSION-macos-$(uname -m).zip"
+# "macos" before the version: GitHub lists assets by name, and setups before 0.4.8 take the first zip,
+# so the Windows ThaiW3Setup-<version>.zip has to sort ahead of this one
+ZIP="dist/ThaiW3Setup-macos-$(uname -m)-$VERSION.zip"
 rm -f "$ZIP" "$ZIP.sha256"
 # ditto, not zip: it keeps the symlinks and extended attributes the code signature is checked against
 ditto -c -k --keepParent "$STAGE" "$ZIP"

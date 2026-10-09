@@ -5,7 +5,7 @@ from core import update
 from core.update import RELEASES_URL, check_for_update, parse_version, pick_download
 
 WIN = {"name": "ThaiW3Setup-0.5.0.zip", "browser_download_url": "https://x/win.zip"}
-MAC = {"name": "ThaiW3Setup-0.5.0-macos-arm64.zip", "browser_download_url": "https://x/mac.zip"}
+MAC = {"name": "ThaiW3Setup-macos-arm64-0.5.0.zip", "browser_download_url": "https://x/mac.zip"}
 TXT = {"name": "ThaiW3Setup-0.5.0.zip.sha256", "browser_download_url": "https://x/sum"}
 
 
@@ -69,6 +69,9 @@ try:
     assert check_for_update() is None, "older than this build"
 finally:
     update.MACOS, update.urllib.request.urlopen = orig
+
+# GitHub lists assets by name and setups before 0.4.8 link the first zip, so Windows must sort first
+assert sorted([MAC["name"], WIN["name"], TXT["name"]])[0] == WIN["name"]
 
 assert parse_version("v1.2.3") == (1, 2, 3)
 assert parse_version("1.10.0") > parse_version("1.9.9")

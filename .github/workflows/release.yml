@@ -170,7 +170,7 @@ jobs:
           ./build.sh offline
           version=$(.venv/bin/python -c "import core; print(core.__version__)")
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "zip=dist/ThaiW3Setup-$version-macos-$(uname -m).zip" >> "$GITHUB_OUTPUT"
+          echo "zip=dist/ThaiW3Setup-macos-$(uname -m)-$version.zip" >> "$GITHUB_OUTPUT"
 
       - name: Smoke test
         run: |
