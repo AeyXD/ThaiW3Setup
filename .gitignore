@@ -10,3 +10,20 @@ google_client.json
 google_token.json
 client_secret*.json
 .wrangler/
+
+# files the OS and editors drop next to whatever you open
+.DS_Store
+._*
+.AppleDouble
+.LSOverride
+.Spotlight-V100/
+.Trashes
+.fseventsd/
+Thumbs.db
+ehthumbs.db
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.swp
+*.swo
+*~
+.pytest_cache/
