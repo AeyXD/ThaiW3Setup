@@ -16,7 +16,7 @@ def release(version, assets, prerelease=False, draft=False):
 
 def serve(*releases):
     """GitHub as the client sees it: /releases/latest is the newest non-pre-release, /releases all of them."""
-    def urlopen(req, timeout):
+    def urlopen(req, timeout, context=None):
         if req.full_url == update.LATEST_URL:
             body = next(r for r in releases if not r["prerelease"] and not r["draft"])
         else:

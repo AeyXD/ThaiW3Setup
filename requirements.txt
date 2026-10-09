@@ -2,3 +2,4 @@ deflate==0.9.0
 openpyxl==3.1.5
 Pillow==11.3.0
 sv-ttk==2.6.1
+certifi==2026.7.22
