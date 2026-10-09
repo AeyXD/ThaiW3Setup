@@ -54,23 +54,35 @@
 #### เปิดเกมบน Mac
 
 ต้องเปิดเกมใน bottle ให้ได้ก่อน แล้วค่อยลงภาษาไทย เกม 5.x มีแต่ DX12 จึงต้องใช้ D3DMetal ของ Apple
-ซึ่งรันได้เฉพาะ Wine ที่มาจาก CrossOver ชุดที่ยืนยันแล้วว่าเห็นภาษาไทยในเกม (ไม่เสียเงิน):
+ทั้งสองทางด้านล่างยืนยันแล้วว่าเห็นภาษาไทยในเกม ไม่เสียเงิน และ**ต้องลง fix จอดำทั้งคู่**
+([witcher3-crossover-fix](https://github.com/tholtman1-del/witcher3-crossover-fix) — ไม่มีตัวนี้เกมค้างจอดำ · อัปเดตเกมแล้วต้องลงใหม่ ·
+ตัวติดตั้งของ fix หาเกมใน bottle ของ CrossOver เป็นหลัก ถ้าหาไม่เจอให้ลากโฟลเดอร์เกมใส่หน้าต่างของมัน)
+
+**ทางที่ 1: Heroic (ง่ายกว่า)**
+
+| | ใช้ | หมายเหตุ |
+|---|---|---|
+| launcher | [Heroic Games Launcher](https://heroicgameslauncher.com/) 2.22.3 | `brew install --cask heroic` ได้ · ลงเกมจาก GOG / Epic ในตัว หรือ **Add Game** ชี้ไปเกมที่มีอยู่แล้ว |
+| Wine | Game Porting Toolkit 3.0-3 (D3DMetal 3.0) | Heroic โหลดและตั้งเป็นค่าเริ่มต้นให้เอง ไม่ต้องใช้ Apple ID |
+
+prefix ของ Heroic ชี้ `Documents` ไปที่ `~/Documents` ของ Mac ไฟล์ตั้งค่าและเซฟของเกมจึงอยู่ที่ `~/Documents/The Witcher 3`
+
+**ทางที่ 2: Whisky**
 
 | | ใช้ | หมายเหตุ |
 |---|---|---|
 | Wine | [Whisky (fork ของ frankea)](https://github.com/frankea/Whisky/releases) 3.7.0 | `brew install --cask whisky` ได้ตัวเก่าที่เลิกพัฒนาแล้ว ใช้ไม่ได้ |
-| engine | [Wine Libraries v4.5.105-beta.1](https://github.com/frankea/Whisky/releases/tag/v4.5.105-beta.1) | ไม่ติดตั้งให้เอง ทำตามวิธีในหน้า release |
-| D3DMetal | [Game Porting Toolkit](https://developer.apple.com/games/game-porting-toolkit/) 4.0 beta 2 | โหลดเองด้วย Apple ID แล้วนำเข้าที่ Whisky › Settings |
-| fix จอดำ | [witcher3-crossover-fix](https://github.com/tholtman1-del/witcher3-crossover-fix) | ไม่มีตัวนี้เกมค้างจอดำ · อัปเดตเกมแล้วต้องลงใหม่ |
+| engine | [Wine Libraries v4.5.105-beta.1](https://github.com/frankea/Whisky/releases/tag/v4.5.105-beta.1) | Whisky โหลดให้แค่ engine 3.1.1 ซึ่งรัน D3DMetal ไม่ได้ ต้องลงตัวนี้เองตามวิธีในหน้า release |
+| D3DMetal | [Game Porting Toolkit](https://developer.apple.com/games/game-porting-toolkit/) 4.0 beta 2 | โหลดเองด้วย Apple ID แล้วนำเข้าที่ Whisky › Settings (ก่อนหรือหลังลง engine ก็ได้) |
 
 ทดสอบเมื่อ 9 ต.ค. 2026 · Apple M5, macOS 27.0.1 · เกม Steam v5.01 · ThaiW3Setup 0.5.3
 (รายละเอียดและภาพใน [#6](https://github.com/FordenHillson/ThaiW3Setup/issues/6))
-ทุกตัวยังเป็น beta ขั้นตอนอาจเปลี่ยน ให้ดูหน้าต้นทางเป็นหลัก
+หลายตัวยังเป็น beta ขั้นตอนอาจเปลี่ยน ให้ดูหน้าต้นทางเป็นหลัก
 
 ติดตั้งภาษาไทยแล้ว เข้าเกมไปที่ **Options › Language › Text Language** เลือก **ไทย (Thai)**
-(ไทยใช้ช่องของภาษาตุรกี จึงไม่มีตัวเลือกภาษาไทยแยก)
+(ไทยใช้ช่องของภาษาตุรกี จึงไม่มีตัวเลือกภาษาไทยแยก · Heroic กับ Whisky เก็บการตั้งค่านี้แยกกัน ย้ายไปอีกทางต้องเลือกใหม่)
 
-ยังไม่มีใครลอง CrossOver / Heroic / Porting Kit หรือเกมจาก GOG ถ้าลองแล้วช่วยแจ้งใน #6
+ยังไม่มีใครลอง CrossOver / Porting Kit หรือเกมจาก GOG ถ้าลองแล้วช่วยแจ้งใน #6
 
 ### สร้างไฟล์ไว้ copy เอง
 
