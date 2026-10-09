@@ -118,6 +118,17 @@ INK_AND_IRON_TITLE: dict[str, str] = {
     "WILD HUNT": "ไวลด์ ฮันท์",
 }
 
+# Option.iaiDecor lays out iaiMark (the action suffix next to a dialogue choice) as
+#   y = tfLine.y + 2 + … + (lineHeight - mark.height) * factor
+# Ink and Iron ships factor 0.6 (double pool index 19). Thai glyphs sit optically low at
+# that value; 0.5 (index 4) is geometric vertical center. Only the subtract/pushdouble/
+# multiply/add site is rewritten — the same 0.6 constant is also used for unread alpha.
+MARK_Y_FACTOR_FROM = 19  # 0.6
+MARK_Y_FACTOR_TO = 4     # 0.5
+# subtract, pushdouble <idx>, multiply, add
+_MARK_Y_PREFIX = bytes([0xA1, 0x2F])
+_MARK_Y_SUFFIX = bytes([0xA2, 0xA0])
+
 
 @lru_cache(maxsize=1)
 def _wrapper() -> ThaiWrapper:
@@ -361,6 +372,113 @@ def shift_game_version(body: bytes, dtx_twips: int = 2400, dty_twips: int = 0) -
 shift_mc_mod_version = shift_game_version
 
 
+# Ink and Iron Gwent HUD: Thai (and Sarabun Latin) sits optically high/low in the parchment bars
+# and score banners. Nudge PlaceObject2 matrices; SymbolClass names identify the player sprites.
+GWENT_OPPONENT_NAME_DTY = 200   # PlayerRendererOpponent txtPlayerName / txtFactionName — down
+GWENT_PLAYER_NAME_DTY = -200    # PlayerRenderer — up
+GWENT_SCORE_DTY = -140          # txtScore in name-bar and board-row banners — up toward center
+_GWENT_NAME_INSTANCES = (b"txtPlayerName\0", b"txtFactionName\0")
+_GWENT_SCORE_INSTANCE = b"txtScore\0"
+
+
+def _symbol_classes(body: bytes) -> dict[int, str]:
+    """Character id -> SymbolClass name for the root timeline."""
+    nbits = body[0] >> 3
+    p = (5 + 4 * nbits + 7) // 8 + 4
+    out: dict[int, str] = {}
+    while p + 2 <= len(body):
+        code_len = struct.unpack_from("<H", body, p)[0]
+        tag, ln, hp = code_len >> 6, code_len & 0x3F, p + 2
+        if ln == 0x3F:
+            ln = struct.unpack_from("<I", body, hp)[0]
+            hp += 4
+        if tag == 76 and ln >= 2:  # SymbolClass
+            n = struct.unpack_from("<H", body, hp)[0]
+            q = hp + 2
+            for _ in range(n):
+                if q + 2 > hp + ln:
+                    break
+                cid = struct.unpack_from("<H", body, q)[0]
+                q += 2
+                z = body.find(b"\0", q, hp + ln)
+                if z < 0:
+                    break
+                out[cid] = body[q:z].decode("utf-8", "replace")
+                q = z + 1
+        p = hp + ln
+        if tag == 0:
+            break
+    return out
+
+
+def _gwent_place_dty(sprite_name: str, payload: bytes) -> int | None:
+    """Vertical nudge (twips) for one PlaceObject2 payload, or None to leave it."""
+    if _GWENT_SCORE_INSTANCE in payload:
+        return GWENT_SCORE_DTY
+    if not any(n in payload for n in _GWENT_NAME_INSTANCES):
+        return None
+    short = sprite_name.rsplit(".", 1)[-1]
+    if short == "PlayerRendererOpponent":
+        return GWENT_OPPONENT_NAME_DTY
+    if short == "PlayerRenderer":
+        return GWENT_PLAYER_NAME_DTY
+    return None
+
+
+def align_gwent_hud(body: bytes) -> bytes | None:
+    """Nudge Gwent player names and center score digits in Ink and Iron's gwint_game HUD."""
+    symbols = _symbol_classes(body)
+    if not any(n.rsplit(".", 1)[-1] in ("PlayerRenderer", "PlayerRendererOpponent") for n in symbols.values()):
+        return None
+    moved = 0
+
+    def walk(data: bytes, root: bool, sprite_id: int | None = None) -> bytearray:
+        nonlocal moved
+        if root:
+            nbits = data[0] >> 3
+            p = (5 + 4 * nbits + 7) // 8 + 4
+            out = bytearray(data[:p])
+        else:
+            p = 0
+            out = bytearray()
+        sprite_name = symbols.get(sprite_id, "") if sprite_id is not None else ""
+        while p + 2 <= len(data):
+            code_len = struct.unpack_from("<H", data, p)[0]
+            tag, ln, hp = code_len >> 6, code_len & 0x3F, p + 2
+            if ln == 0x3F:
+                ln = struct.unpack_from("<I", data, hp)[0]
+                hp += 4
+            payload = data[hp:hp + ln]
+            if tag == 39 and len(payload) >= 4:  # DefineSprite
+                sid = struct.unpack_from("<H", payload, 0)[0]
+                nested = walk(payload[4:], False, sid)
+                out += _encode_tag(tag, payload[:4] + bytes(nested))
+            elif tag == 26:
+                dty = _gwent_place_dty(sprite_name, payload)
+                if dty is not None:
+                    bumped = _bump_place_matrix(bytearray(payload), 0, dty)
+                    if bumped is not None:
+                        out += _encode_tag(tag, bytes(bumped))
+                        moved += 1
+                    else:
+                        out += data[p:hp + ln]
+                else:
+                    out += data[p:hp + ln]
+            else:
+                out += data[p:hp + ln]
+            p = hp + ln
+            if tag == 0:
+                break
+        out += data[p:]
+        return out
+
+    result = walk(body, True)
+    if not moved:
+        return None
+    log.info("aligned gwent HUD at %d place(s)", moved)
+    return bytes(result)
+
+
 def translate_abc(d: bytes, table: dict[str, str], plain: dict[str, str] | None = None) -> tuple[bytes, int] | None:
     """A DoABC tag body with the rows' text from table in Thai, and how many strings changed.
     plain replaces whole strings in the pool, for text outside any row that the code only shows
@@ -403,6 +521,52 @@ def translate_abc(d: bytes, table: dict[str, str], plain: dict[str, str] | None 
     if n:
         log.info("zeroed draw letterSpacing at %d site(s)", n)
     return bytes(out), len(repoint) + len(replaced)
+
+
+def _mark_y_factor_sites(body: bytes | bytearray, factor_idx: int) -> list[int]:
+    """Offsets of the pushdouble operand in Option.iaiDecor's iaiMark Y formula."""
+    needle = _MARK_Y_PREFIX + _u30_bytes(factor_idx) + _MARK_Y_SUFFIX
+    found, p = [], 0
+    while True:
+        p = body.find(needle, p)
+        if p < 0:
+            return found
+        found.append(p + 2)  # operand of pushdouble
+        p += 1
+
+
+def align_dialog_action_mark(body: bytes) -> bytes | None:
+    """Center Ink and Iron's dialogue-option action suffix (iaiMark) on the option line."""
+    nbits = body[0] >> 3
+    p = (5 + 4 * nbits + 7) // 8 + 4
+    out = [body[:p]]
+    changed = 0
+    while p + 2 <= len(body):
+        code_len = struct.unpack_from("<H", body, p)[0]
+        tag, ln, hp = code_len >> 6, code_len & 0x3F, p + 2
+        if ln == 0x3F:
+            ln = struct.unpack_from("<I", body, hp)[0]
+            hp += 4
+        if tag == DO_ABC:
+            chunk = bytearray(body[hp:hp + ln])
+            sites = _mark_y_factor_sites(chunk, MARK_Y_FACTOR_FROM)
+            for op in sites:
+                chunk[op:op + 1] = _u30_bytes(MARK_Y_FACTOR_TO)
+                changed += 1
+            if sites:
+                out.append(struct.pack("<HI", (tag << 6) | 0x3F, len(chunk)) + bytes(chunk))
+            else:
+                out.append(body[p:hp + ln])
+        else:
+            out.append(body[p:hp + ln])
+        p = hp + ln
+        if tag == 0:
+            break
+    if not changed:
+        return None
+    log.info("centered dialog action mark at %d site(s)", changed)
+    out.append(body[p:])
+    return b"".join(out)
 
 
 def translate_swf(body: bytes, table: dict[str, str], plain: dict[str, str] | None = None) -> bytes | None:
@@ -450,10 +614,17 @@ def translator(table: dict[str, str], plain: dict[str, str] | None = None) -> Ca
     def apply(body: bytes) -> bytes | None:
         translated = translate_swf(body, table, plain)
         base = translated if translated is not None else body
+        changed = translated is not None
         # game version (txtVersion) sits where the English logo ended; nudge right for Thai titles
         if plain:
             shifted = shift_game_version(base)
             if shifted is not None:
-                return shifted
-        return translated
+                base = shifted
+                changed = True
+        for align in (align_dialog_action_mark, align_gwent_hud):
+            out = align(base)
+            if out is not None:
+                base = out
+                changed = True
+        return base if changed else None
     return apply

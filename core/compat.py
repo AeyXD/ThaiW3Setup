@@ -27,7 +27,8 @@ from typing import Iterator
 from . import __version__
 from .assets import FONT_PATH, TURKISH_I, font_files
 from .bundle import BundleError, BundleFile, iter_bundle
-from .compat_text import INK_AND_IRON, INK_AND_IRON_TITLE, translator
+from .compat_text import (GWENT_OPPONENT_NAME_DTY, GWENT_PLAYER_NAME_DTY, GWENT_SCORE_DTY,
+                          INK_AND_IRON, INK_AND_IRON_TITLE, MARK_Y_FACTOR_TO, translator)
 from .logo import MENU_FILES, LogoError, load_logo, patch_menu
 from .mods_settings import ModSetting, disabled, loses_to
 from .panel_layout import PANELS, ROW_PANELS, STARTUP_PANELS, TOOLTIP_PANELS, LayoutError, restyle_panel
@@ -298,7 +299,10 @@ def patch_files(sources: Sources, font: str, thai_logo: bool,
 
 
 def texts_hash(mod: CompatMod) -> str:
-    tables = {"texts": mod.texts, "titles": mod.titles}
+    tables = {"texts": mod.texts, "titles": mod.titles, "dialog_mark_y": MARK_Y_FACTOR_TO,
+              "gwent_hud": {"opponent_name_dty": GWENT_OPPONENT_NAME_DTY,
+                            "player_name_dty": GWENT_PLAYER_NAME_DTY,
+                            "score_dty": GWENT_SCORE_DTY}}
     return hashlib.sha1(json.dumps(tables, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
 
 

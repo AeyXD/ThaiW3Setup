@@ -1,5 +1,5 @@
 """Thai patches for other UI mods (Ink and Iron): fonts, sources, status, install order, Mod Manager zip."""
-import os, shutil, sys, tempfile, zipfile
+import os, re, shutil, sys, tempfile, zipfile
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from pathlib import Path
@@ -11,8 +11,10 @@ from core.assets import write_mod_content
 from core.bundle import BundleFile
 from core.compat import (COMPAT_MODS, DISABLED, MISSING, NO_PATCH, OK, ORPHAN, OVERLAP, PRIORITY, STALE,
                          open_sources, patch_files, patch_info, patch_status, patched_paths, write_patch_info)
-from core.compat_text import (INK_AND_IRON_TITLE, _loc_rows, _parse_place_matrix, _u30_bytes,
-                              shift_game_version, translate_abc, translate_swf, translator)
+from core.compat_text import (GWENT_OPPONENT_NAME_DTY, GWENT_PLAYER_NAME_DTY, GWENT_SCORE_DTY,
+                              INK_AND_IRON_TITLE, _loc_rows, _parse_place_matrix, _symbol_classes,
+                              _u30_bytes, align_gwent_hud, shift_game_version, translate_abc,
+                              translate_swf, translator)
 from core.swf_font import _swf_body, _tags
 from core.game_detect import identify
 from core.installer import InstallReport, _confirm_compat, _require_compat_sources, export_patch_zip, uninstall
@@ -127,13 +129,28 @@ try:
     assert FONT_PATH in paths and "gameplay\\gui_new\\swf\\hud\\hud_dialog.redswf" in paths, paths
     dialog = next(f.data for f in files if f.path.endswith("hud_dialog.redswf"))
     labels = {}
+    shop_labels = {}
     for tag, d in _tags(_swf_body(dialog)):
         if tag == 82:
             _, spans, end = string_pool(d, d.index(b"\0", 4) + 1)
             strings = [""] + [d[a:b].decode("utf-8", "replace") for a, b in spans]
+            plain = {s: re.sub(r"<[^>]+>", "", s).replace("\u200a", "") for s in strings}
             labels.update({e.code: strings[e.value] for row in _loc_rows(d, strings, end) for e in row
-                           if strings[e.value].replace("\u200a", "") == "เดินทางเร็ว"})
+                           if plain[strings[e.value]] == "เดินทางเร็ว"})
+            shop_labels.update({e.code: strings[e.value] for row in _loc_rows(d, strings, end) for e in row
+                                if "ร้าน" in plain[strings[e.value]]})
     assert set(labels) == {"EN", "TR"}, labels
+    assert set(shop_labels) == {"EN", "TR"}, shop_labels
+    assert all("<" not in v and ">" not in v for v in shop_labels.values()), shop_labels
+
+    # Option.iaiDecor places iaiMark with (lineH - markH) * 0.6; Thai reads low, so center at 0.5
+    from core.compat_text import MARK_Y_FACTOR_FROM, MARK_Y_FACTOR_TO, _mark_y_factor_sites
+    orig_dialog = next(iter_bundle(IAI / "mods" / "modInkAndIronDialogue" / "content" / "blob0.bundle",
+                                   lambda n, _: n.endswith("hud_dialog.redswf"))).data
+    assert _mark_y_factor_sites(_swf_body(orig_dialog), MARK_Y_FACTOR_FROM)
+    assert not _mark_y_factor_sites(_swf_body(orig_dialog), MARK_Y_FACTOR_TO)
+    assert _mark_y_factor_sites(_swf_body(dialog), MARK_Y_FACTOR_TO)
+    assert not _mark_y_factor_sites(_swf_body(dialog), MARK_Y_FACTOR_FROM)
 
     # menu logo titles: Thai with letterSpacing 0 (Ink and Iron uses 9 / 12 for Latin tracking)
     from core.abc_patch import DO_ABC, _u30 as read_u30
@@ -209,6 +226,59 @@ try:
     after = _version_xy(titled)
     assert before and after and len(before) == len(after)
     assert all(ax > bx and ay == by for (bx, by), (ax, ay) in zip(before, after)), (before, after)
+
+    # Gwent HUD: opponent name down, player name up, score digits nudged in their banners
+    import struct
+    gwent_bundle = IAI / "mods" / "modInkAndIronGwent" / "content" / "blob0.bundle"
+    gwent_body = _swf_body(next(iter_bundle(gwent_bundle, lambda n, _: n.endswith("gwint_game.redswf"))).data)
+    symbols = _symbol_classes(gwent_body)
+    assert any(n.rsplit(".", 1)[-1] == "PlayerRendererOpponent" for n in symbols.values())
+
+    def _gwent_places(swf: bytes):
+        found = []
+        def walk(data: bytes, root=True, sid=None):
+            p = ((5 + 4 * (data[0] >> 3) + 7) // 8 + 4) if root else 0
+            while p + 2 <= len(data):
+                code_len = struct.unpack_from("<H", data, p)[0]
+                tag, ln, hp = code_len >> 6, code_len & 0x3F, p + 2
+                if ln == 0x3F:
+                    ln = struct.unpack_from("<I", data, hp)[0]
+                    hp += 4
+                payload = data[hp:hp + ln]
+                if tag == 39 and len(payload) >= 4:
+                    walk(payload[4:], False, struct.unpack_from("<H", payload, 0)[0])
+                elif tag == 26:
+                    for needle, label in ((b"txtPlayerName\0", "name"), (b"txtFactionName\0", "faction"),
+                                          (b"txtScore\0", "score")):
+                        if needle in payload:
+                            mat = _parse_place_matrix(bytearray(payload))
+                            if mat:
+                                found.append((sid, label, mat[2], mat[3]))
+                p = hp + ln
+                if tag == 0:
+                    break
+        walk(swf)
+        return found
+
+    gwent_before = {(sid, kind): (tx, ty) for sid, kind, tx, ty in _gwent_places(gwent_body)}
+    gwent_aligned = align_gwent_hud(gwent_body)
+    assert gwent_aligned is not None
+    gwent_after = {(sid, kind): (tx, ty) for sid, kind, tx, ty in _gwent_places(gwent_aligned)}
+    assert gwent_before.keys() == gwent_after.keys()
+    for (sid, kind), (tx0, ty0) in gwent_before.items():
+        tx1, ty1 = gwent_after[(sid, kind)]
+        assert tx0 == tx1, (sid, kind, tx0, tx1)
+        short = symbols.get(sid, "").rsplit(".", 1)[-1]
+        if kind == "score":
+            assert ty1 - ty0 == GWENT_SCORE_DTY, (sid, ty0, ty1)
+        elif short == "PlayerRendererOpponent":
+            assert ty1 - ty0 == GWENT_OPPONENT_NAME_DTY, (sid, kind, ty0, ty1)
+        elif short == "PlayerRenderer":
+            assert ty1 - ty0 == GWENT_PLAYER_NAME_DTY, (sid, kind, ty0, ty1)
+        else:
+            raise AssertionError(f"unexpected place {sid} {kind} {short}")
+    # other SWFs without Gwent sprites are unchanged
+    assert align_gwent_hud(body) is None
 
     # the main Thai mods leave the mod's files to a patch, never when there is no patch at all
     assert patched_paths(mods, {}, set(), set()) == set()
