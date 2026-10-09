@@ -11,7 +11,8 @@ from core.assets import write_mod_content
 from core.bundle import BundleFile
 from core.compat import (COMPAT_MODS, DISABLED, MISSING, NO_PATCH, OK, ORPHAN, OVERLAP, PRIORITY, STALE,
                          open_sources, patch_files, patch_info, patch_status, patched_paths, write_patch_info)
-from core.compat_text import INK_AND_IRON_TITLE, _loc_rows, _u30_bytes, translate_abc, translate_swf
+from core.compat_text import (INK_AND_IRON_TITLE, _loc_rows, _parse_place_matrix, _u30_bytes,
+                              shift_game_version, translate_abc, translate_swf, translator)
 from core.swf_font import _swf_body, _tags
 from core.game_detect import identify
 from core.installer import InstallReport, _confirm_compat, _require_compat_sources, export_patch_zip, uninstall
@@ -174,6 +175,40 @@ try:
                                 break
                 p += 1
     assert spacings and all(s == 0 for s in spacings), spacings
+
+    # game version (txtVersion): nudged right so it clears the wider Thai logo title
+    def _version_xy(swf: bytes, name: bytes = b"txtVersion\0"):
+        found = []
+        def walk(data: bytes, root=True):
+            import struct
+            if root:
+                nbits = data[0] >> 3
+                p = (5 + 4 * nbits + 7) // 8 + 4
+            else:
+                p = 0
+            while p + 2 <= len(data):
+                code_len = struct.unpack_from("<H", data, p)[0]
+                tag, ln, hp = code_len >> 6, code_len & 0x3F, p + 2
+                if ln == 0x3F:
+                    ln = struct.unpack_from("<I", data, hp)[0]
+                    hp += 4
+                if tag == 39 and hp + 4 <= hp + ln:
+                    walk(data[hp + 4:hp + ln], False)
+                elif tag == 26 and name in data[hp:hp + ln]:
+                    parsed = _parse_place_matrix(data[hp:hp + ln])
+                    if parsed:
+                        found.append(parsed[2:4])
+                p = hp + ln
+                if tag == 0:
+                    break
+        walk(swf)
+        return found
+    before = _version_xy(body)
+    titled = translator({}, INK_AND_IRON_TITLE)(body)
+    assert titled is not None and shift_game_version(body) is not None
+    after = _version_xy(titled)
+    assert before and after and len(before) == len(after)
+    assert all(ax > bx and ay == by for (bx, by), (ax, ay) in zip(before, after)), (before, after)
 
     # the main Thai mods leave the mod's files to a patch, never when there is no patch at all
     assert patched_paths(mods, {}, set(), set()) == set()

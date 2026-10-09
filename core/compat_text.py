@@ -222,11 +222,34 @@ def _read_sbits(data: bytes | bytearray, bit_pos: int, n: int) -> tuple[int, int
     return v, bit_pos
 
 
-def _bump_place_matrix_ty(place: bytearray, dty: int) -> bool:
-    """Add dty (twips) to a PlaceObject2 translation matrix in place. False if it won't fit."""
+def _sbits_needed(v: int) -> int:
+    """Smallest SWF SB field width that can hold v."""
+    n = 1
+    while not (-(1 << (n - 1)) <= v < (1 << (n - 1))):
+        n += 1
+    return n
+
+
+def _write_bits(data: bytearray, bit_pos: int, n: int, value: int) -> int:
+    u = value & ((1 << n) - 1) if n else 0
+    for i in range(n - 1, -1, -1):
+        byte_i = bit_pos >> 3
+        while byte_i >= len(data):
+            data.append(0)
+        b = 7 - (bit_pos & 7)
+        if (u >> i) & 1:
+            data[byte_i] |= 1 << b
+        else:
+            data[byte_i] &= ~(1 << b)
+        bit_pos += 1
+    return bit_pos
+
+
+def _parse_place_matrix(place: bytes | bytearray) -> tuple[int, int, int, int, int] | None:
+    """(matrix_bit_start, nbits_at, tx, ty, matrix_end_bit) or None if no matrix."""
     flags = place[0]
     if not (flags & 0x04):
-        return False
+        return None
     p = 3 + (2 if flags & 0x02 else 0)
     bit = p * 8
     has_scale, bit = _read_bits(place, bit, 1)
@@ -239,64 +262,103 @@ def _bump_place_matrix_ty(place: bytearray, dty: int) -> bool:
         n, bit = _read_bits(place, bit, 5)
         _, bit = _read_sbits(place, bit, n)
         _, bit = _read_sbits(place, bit, n)
+    nbits_at = bit
     nbits, bit = _read_bits(place, bit, 5)
-    tx_at = bit
     tx, bit = _read_sbits(place, bit, nbits)
-    ty, _bit = _read_sbits(place, bit, nbits)
-    new_ty = ty + dty
-    limit = 1 << (nbits - 1)
-    if not (-limit <= new_ty < limit) or not (-limit <= tx < limit):
-        return False
-    bit = tx_at
-    for value in (tx, new_ty):
-        u = value & ((1 << nbits) - 1)
-        for i in range(nbits - 1, -1, -1):
-            byte_i = bit >> 3
-            b = 7 - (bit & 7)
-            if (u >> i) & 1:
-                place[byte_i] |= 1 << b
-            else:
-                place[byte_i] &= ~(1 << b)
-            bit += 1
-    return True
+    ty, bit = _read_sbits(place, bit, nbits)
+    return p * 8, nbits_at, tx, ty, bit
 
 
-def shift_mc_mod_version(body: bytes, dty_twips: int = 1200) -> bytes | None:
-    """Move mcModVersion PlaceObject2 clips down so the game version clears the Thai logo title."""
-    out = bytearray(body)
+def _bump_place_matrix(place: bytearray, dtx: int = 0, dty: int = 0) -> bytearray | None:
+    """Add dtx/dty (twips) to a PlaceObject2 matrix. Grows the tag if nbits must widen."""
+    parsed = _parse_place_matrix(place)
+    if parsed is None:
+        return None
+    _matrix_start, nbits_at, tx, ty, matrix_end = parsed
+    new_tx, new_ty = tx + dtx, ty + dty
+    old_nbits, _ = _read_bits(place, nbits_at, 5)
+    limit = 1 << (old_nbits - 1)
+    if -limit <= new_tx < limit and -limit <= new_ty < limit:
+        out = bytearray(place)
+        bit = nbits_at
+        bit = _write_bits(out, bit, 5, old_nbits)
+        bit = _write_bits(out, bit, old_nbits, new_tx)
+        _write_bits(out, bit, old_nbits, new_ty)
+        return out
+    # values need a wider SB field — rebuild matrix and keep trailing fields
+    need = max(_sbits_needed(new_tx), _sbits_needed(new_ty), 1)
+    old_after = (matrix_end + 7) // 8
+    if nbits_at & 7:
+        out = bytearray(place[: (nbits_at >> 3) + 1])
+        out[-1] &= (0xFF << (8 - (nbits_at & 7))) & 0xFF
+    else:
+        out = bytearray(place[: nbits_at >> 3])
+    bit = nbits_at
+    bit = _write_bits(out, bit, 5, need)
+    bit = _write_bits(out, bit, need, new_tx)
+    bit = _write_bits(out, bit, need, new_ty)
+    if bit & 7:
+        bit = _write_bits(out, bit, 8 - (bit & 7), 0)
+    return out[: bit >> 3] + bytearray(place[old_after:])
+
+
+def _encode_tag(tag: int, payload: bytes) -> bytes:
+    if len(payload) < 0x3F:
+        return struct.pack("<H", (tag << 6) | len(payload)) + payload
+    return struct.pack("<HI", (tag << 6) | 0x3F, len(payload)) + payload
+
+
+def shift_game_version(body: bytes, dtx_twips: int = 2400, dty_twips: int = 0) -> bytes | None:
+    """Nudge txtVersion PlaceObject2 right so the game version clears the wider Thai logo title.
+
+    mcModVersion lives in VerificationModPreview (mod list), not the menu logo — do not move it.
+    """
     moved = 0
+    needle = b"txtVersion\0"
 
-    def walk(data: bytearray, root: bool):
+    def walk(data: bytes, root: bool) -> bytearray:
         nonlocal moved
         if root:
             nbits = data[0] >> 3
             p = (5 + 4 * nbits + 7) // 8 + 4
+            out = bytearray(data[:p])
         else:
             p = 0
+            out = bytearray()
         while p + 2 <= len(data):
             code_len = struct.unpack_from("<H", data, p)[0]
             tag, ln, hp = code_len >> 6, code_len & 0x3F, p + 2
             if ln == 0x3F:
                 ln = struct.unpack_from("<I", data, hp)[0]
                 hp += 4
-            if tag == 39 and hp + 4 <= hp + ln:  # DefineSprite — nested tags after id+frames
-                nested = bytearray(data[hp + 4:hp + ln])
-                walk(nested, False)
-                data[hp + 4:hp + ln] = nested
-            elif tag == 26 and b"mcModVersion\0" in data[hp:hp + ln]:
-                place = bytearray(data[hp:hp + ln])
-                if _bump_place_matrix_ty(place, dty_twips):
-                    data[hp:hp + ln] = place
+            payload = data[hp:hp + ln]
+            if tag == 39 and len(payload) >= 4:  # DefineSprite — nested tags after id+frames
+                nested = walk(payload[4:], False)
+                out += _encode_tag(tag, payload[:4] + bytes(nested))
+            elif tag == 26 and needle in payload:
+                bumped = _bump_place_matrix(bytearray(payload), dtx_twips, dty_twips)
+                if bumped is not None:
+                    out += _encode_tag(tag, bytes(bumped))
                     moved += 1
+                else:
+                    out += data[p:hp + ln]
+            else:
+                out += data[p:hp + ln]
             p = hp + ln
             if tag == 0:
                 break
+        out += data[p:]
+        return out
 
-    walk(out, True)
+    result = walk(body, True)
     if not moved:
         return None
-    log.info("shifted mcModVersion down at %d place(s)", moved)
-    return bytes(out)
+    log.info("shifted txtVersion by (%d,%d) twips at %d place(s)", dtx_twips, dty_twips, moved)
+    return bytes(result)
+
+
+# old name kept for callers/tests that still import it
+shift_mc_mod_version = shift_game_version
 
 
 def translate_abc(d: bytes, table: dict[str, str], plain: dict[str, str] | None = None) -> tuple[bytes, int] | None:
@@ -388,9 +450,9 @@ def translator(table: dict[str, str], plain: dict[str, str] | None = None) -> Ca
     def apply(body: bytes) -> bytes | None:
         translated = translate_swf(body, table, plain)
         base = translated if translated is not None else body
-        # version clip sits on the English title; nudge it down when Thai logo titles are applied
+        # game version (txtVersion) sits where the English logo ended; nudge right for Thai titles
         if plain:
-            shifted = shift_mc_mod_version(base)
+            shifted = shift_game_version(base)
             if shifted is not None:
                 return shifted
         return translated
