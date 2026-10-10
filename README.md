@@ -84,7 +84,7 @@ prefix ของ Heroic ชี้ `Documents` ไปที่ `~/Documents` ข�
 | engine | [Wine Libraries v4.5.105-beta.1](https://github.com/frankea/Whisky/releases/tag/v4.5.105-beta.1) | Whisky โหลดให้แค่ engine 3.1.1 ซึ่งรัน D3DMetal ไม่ได้ ต้องลงตัวนี้เองตามวิธีในหน้า release |
 | D3DMetal | [Game Porting Toolkit](https://developer.apple.com/games/game-porting-toolkit/) 4.0 beta 2 | โหลดเองด้วย Apple ID แล้วนำเข้าที่ Whisky › Settings (ก่อนหรือหลังลง engine ก็ได้) |
 
-ทดสอบเมื่อ 9–10 ต.ค. 2026 · Apple M5, macOS 27.0.1 · เกม Steam v5.01 · ThaiW3Setup 0.5.4 (`.app` โหลดผ่านเบราว์เซอร์)
+ทดสอบเมื่อ 9–10 ต.ค. 2026 · Apple M5, macOS 27.0.1 · เกม Steam v5.01 · ThaiW3Setup 0.5.5 (`.app` โหลดผ่านเบราว์เซอร์)
 (รายละเอียดและภาพใน [#6](https://github.com/FordenHillson/ThaiW3Setup/issues/6))
 หลายตัวยังเป็น beta ขั้นตอนอาจเปลี่ยน ให้ดูหน้าต้นทางเป็นหลัก
 
