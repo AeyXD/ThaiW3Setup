@@ -232,13 +232,16 @@ DIALOG_PLACE_FN = """\
 
 
 # The engine hands dialogue lines over without the speaker, so the speaker is whichever actor is
-# speaking when the line arrives, or within DIALOG_SPEAKER_WAIT seconds after it (OnTick).
+# speaking when the line arrives, or within DIALOG_SPEAKER_WAIT seconds after it (OnTick). Prefer a
+# speaker other than the previous line's so an interrupter wins while the prior voice is still up.
 DIALOG_SPEAKER_FN = """\
 	// mod thai
 	private var m_spk_raw		: string;
 	private var m_spk_text		: string;
 	private var m_spk_wait		: float;
 	private var m_spk_last		: string;
+	private var m_spk_actor		: CActor;
+	private var m_spk_unsure	: bool;
 	private var m_prev_same		: bool;
 	private var m_choices_alt	: bool;
 	private var m_hdr_on		: bool;
@@ -246,23 +249,49 @@ DIALOG_SPEAKER_FN = """\
 	private var m_hdr_x0		: float;
 	private var m_hdr_y0		: float;
 	default m_spk_wait = 0.0;
+	default m_spk_unsure = false;
 
 	private function ModThaiFindSpeaker() : CActor
 	{{
 		var actors	: array< CActor >;
 		var i		: int;
+		var other	: CActor;
+		var prev	: CActor;
 
+		m_spk_unsure = false;
+		other = NULL;
+		prev = NULL;
 		if ( thePlayer.IsSpeaking() )
 		{{
-			return thePlayer;
+			if ( thePlayer != m_spk_actor )
+				other = thePlayer;
+			else
+				prev = thePlayer;
 		}}
 		actors = GetActorsInRange( thePlayer, 30.0 );
 		for ( i = 0; i < actors.Size(); i += 1 )
 		{{
 			if ( actors[ i ] != thePlayer && actors[ i ].IsSpeaking() )
 			{{
-				return actors[ i ];
+				if ( actors[ i ] != m_spk_actor )
+				{{
+					if ( !other || other == thePlayer )
+						other = actors[ i ];
+				}}
+				else
+				{{
+					prev = actors[ i ];
+				}}
 			}}
+		}}
+		if ( other )
+		{{
+			return other;
+		}}
+		if ( prev )
+		{{
+			m_spk_unsure = true;
+			return prev;
 		}}
 		return NULL;
 	}}
@@ -300,6 +329,7 @@ DIALOG_SPEAKER_FN = """\
 	private function ModThaiSentenceSet( text : string, alternativeUI : bool )
 	{{
 		var prefix	: string;
+		var actor	: CActor;
 
 		m_spk_wait = 0.0;
 		ModThaiHeaderOff();
@@ -308,11 +338,16 @@ DIALOG_SPEAKER_FN = """\
 			m_fxSentenceSetSFF.InvokeSelfOneArg( FlashArgString( text ) );
 			return;
 		}}
-		prefix = ModThaiSpeakerPrefix( ModThaiFindSpeaker() );
+		actor = ModThaiFindSpeaker();
+		prefix = ModThaiSpeakerPrefix( actor );
 		m_spk_last = prefix;
-		if ( prefix == "" )
+		m_spk_text = text;
+		if ( actor )
 		{{
-			m_spk_text = text;
+			m_spk_actor = actor;
+		}}
+		if ( prefix == "" || m_spk_unsure )
+		{{
 			m_spk_wait = {wait};
 		}}
 		m_fxSentenceSetSFF.InvokeSelfOneArg( FlashArgString( prefix + text ) );
@@ -442,17 +477,35 @@ DIALOG_SPEAKER_WAIT = 0.5
 
 DIALOG_SPEAKER_TICK = """\
 		// mod thai
-		var prefix : string;
+		var actor	: CActor;
+		var prefix	: string;
 
 		if ( m_spk_wait > 0.0 )
 		{
 			m_spk_wait = m_spk_wait - timeDelta;
-			prefix = ModThaiSpeakerPrefix( ModThaiFindSpeaker() );
-			if ( prefix != "" )
+			if ( m_spk_last == "" )
 			{
-				m_spk_wait = 0.0;
-				m_spk_last = prefix;
-				m_fxSentenceSetSFF.InvokeSelfOneArg( FlashArgString( prefix + m_spk_text ) );
+				actor = ModThaiFindSpeaker();
+				prefix = ModThaiSpeakerPrefix( actor );
+				if ( prefix != "" )
+				{
+					m_spk_wait = 0.0;
+					m_spk_last = prefix;
+					m_spk_actor = actor;
+					m_fxSentenceSetSFF.InvokeSelfOneArg( FlashArgString( prefix + m_spk_text ) );
+				}
+			}
+			else if ( !m_spk_actor || !m_spk_actor.IsSpeaking() )
+			{
+				actor = ModThaiFindSpeaker();
+				prefix = ModThaiSpeakerPrefix( actor );
+				if ( prefix != "" && prefix != m_spk_last )
+				{
+					m_spk_wait = 0.0;
+					m_spk_last = prefix;
+					m_spk_actor = actor;
+					m_fxSentenceSetSFF.InvokeSelfOneArg( FlashArgString( prefix + m_spk_text ) );
+				}
 			}
 		}
 		ModThaiHeaderTick();

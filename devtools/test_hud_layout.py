@@ -68,6 +68,11 @@ def test_dialog_speaker():
     assert dlg.count("m_fxSentenceSetSFF.InvokeSelfOneArg( FlashArgString( text ) );") == 1  # inside ModThaiSentenceSet
     assert "prefix + m_spk_text" in dlg and "m_spk_wait = 0.5;" in dlg
     assert dlg.index("m_spk_wait = 0.0;\n\t\t// mod thai\n\t\tif(!ep1hack)") > 0
+    assert "private var m_spk_actor		: CActor;" in dlg
+    assert "m_spk_unsure = true;" in dlg
+    assert "prefix == \"\" || m_spk_unsure" in dlg
+    # interrupter wins: do not return the player solely because they are still speaking
+    assert "if ( thePlayer.IsSpeaking() )\n\t\t{\n\t\t\treturn thePlayer;\n\t\t}" not in dlg
     assert '"#5ACCF7"' in dlg
     assert dlg.count("{") == dlg.count("}")
 
@@ -82,7 +87,8 @@ def test_choice_speaker():
         assert dlg.count("ModThaiPreviousSet( text );") == 1
         assert dlg.count("m_fxPreviousSentenceSetSFF.InvokeSelfOneArg( FlashArgString( text ) );") == 0
         assert dlg.count("m_prev_same = ( text == m_spk_raw );") == 1
-        assert dlg.count("m_spk_last = prefix;") == 2
+        assert dlg.count("m_spk_last = prefix;") == 3  # SentenceSet + empty-name tick + interrupter tick
+        assert "else if ( !m_spk_actor || !m_spk_actor.IsSpeaking() )" in dlg
         assert dlg.index("m_choices_alt = alternativeUI;") < dlg.index("SendDialogChoicesToUI(choices, true);")
         # the player's name borrows tfSubtitles above the choice list, apart from the choices themselves
         assert re.search(r'SetMemberFlashString\( "prefix",\s*prefix \);', dlg)
