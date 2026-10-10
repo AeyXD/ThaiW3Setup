@@ -159,6 +159,7 @@ jobs:
           .venv/bin/python devtools/test_pe_version.py
           .venv/bin/python devtools/test_wine.py
           .venv/bin/python devtools/test_update.py
+          .venv/bin/python devtools/test_net.py
 
       - name: Refresh bundled translations
         continue-on-error: true

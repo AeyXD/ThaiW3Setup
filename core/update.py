@@ -8,6 +8,7 @@ import urllib.request
 from dataclasses import dataclass
 
 from . import APP_NAME, __version__
+from .net import urlopen
 from .osutil import MACOS
 log = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ def _get(url: str, timeout: float):
         "Accept": "application/vnd.github+json",
         "User-Agent": f"{APP_NAME}/{__version__}",
     })
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
+    with urlopen(req, timeout) as resp:
         return json.load(resp)
 
 

@@ -16,6 +16,7 @@ from .compat import OK
 from .installer import (MOD_SCRIPT, MOD_TEXT, OUR_MODS, PATCH_MODS, foreign_thai_mods, legacy_mods, script_overlaps,
                         status, strings_have_thai)
 from .mods_settings import documents_dir, settings_paths
+from .net import urlopen
 from .paths import app_data_dir
 
 # Cloudflare Worker in worker/; THAIW3_REPORT_URL overrides it for testing
@@ -221,5 +222,5 @@ def send_report(text: str, timeout: float = 30) -> str:
         raise RuntimeError("report server not configured")
     req = urllib.request.Request(url, data=text.encode("utf-8"), method="POST", headers={
         "Content-Type": "text/plain; charset=utf-8", "User-Agent": f"ThaiW3Setup/{__version__}"})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
+    with urlopen(req, timeout) as resp:
         return json.loads(resp.read().decode("utf-8"))["id"]

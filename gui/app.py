@@ -22,6 +22,7 @@ from core.custom import (COMMUNITY_ID, NAME_DOUBLE, NAME_TABS, NAME_THAI, apply_
                          is_name_tab, name_modes, name_settings)
 from core.game_detect import find_games, game_root, identify
 from core.logo import logo_image
+from core.net import is_certificate_error
 from core.compat import COMPAT_MODS, MISSING
 from core.installer import EXPORT_README, EXPORT_ZIP, check_coverage, export, export_zip, install, status, uninstall
 from core.options import FONTS, MODE_DOUBLE, MODE_THAI, SLOT_EN, SLOT_TR, load_options, save_options
@@ -626,7 +627,7 @@ class App(tk.Tk):
                 self.events.put(("update", check_for_update(), manual))
             except Exception as exc:
                 log.info("update check failed: %s", exc)
-                self.events.put(("update_error", str(exc), manual))
+                self.events.put(("update_error", is_certificate_error(exc), manual))
         threading.Thread(target=work, daemon=True).start()
 
     def on_update(self, info, manual: bool):
@@ -909,7 +910,8 @@ class App(tk.Tk):
                     self.on_update(event[1], event[2])
                 elif kind == "update_error":
                     if event[2]:
-                        self.v_status.set("ตรวจสอบเวอร์ชันใหม่ไม่ได้ (ไม่มีอินเทอร์เน็ตหรือ GitHub ไม่ตอบ)")
+                        self.v_status.set("ตรวจสอบเวอร์ชันใหม่ไม่ได้ (ตรวจสอบใบรับรอง HTTPS ไม่ผ่าน ดูรายละเอียดใน log)"
+                                          if event[1] else "ตรวจสอบเวอร์ชันใหม่ไม่ได้ (ไม่มีอินเทอร์เน็ตหรือ GitHub ไม่ตอบ)")
                 elif kind == "progress":
                     self.progress["value"] = int(event[1] * 1000)
                     self.v_status.set(event[2])

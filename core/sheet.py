@@ -10,6 +10,7 @@ from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
+from .net import urlopen
 from .paths import assets_dir, cache_dir
 from .progress import ProgressFn, noop, scaled
 from .rich_color import ColorWorkbook
@@ -99,7 +100,7 @@ def parse_text_xlsx(data: bytes) -> dict[str, str]:
 
 def _download(url: str, progress: ProgressFn) -> bytes:
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(req, timeout=120) as resp:
+    with urlopen(req, 120) as resp:
         total = int(resp.headers.get("Content-Length") or 0)
         buf = bytearray()
         while True:
