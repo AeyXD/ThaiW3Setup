@@ -34,7 +34,7 @@
 
 ### บน macOS (ทดลอง)
 
-> **รุ่นทดลอง (experimental)** ทดสอบกับเกมจริงแล้วแค่ชุดเดียว (Whisky, ดู [เปิดเกมบน Mac](#เปิดเกมบน-mac))
+> **รุ่นทดลอง (experimental)** ทดสอบกับเกมจริงแล้วบน Whisky และ Heroic (ดู [เปิดเกมบน Mac](#เปิดเกมบน-mac))
 > ไฟล์ของ Mac แนบอยู่ใน [Release ล่าสุด](https://github.com/FordenHillson/ThaiW3Setup/releases/latest) เดียวกับของ Windows
 > (โปรแกรมแต่ละฝั่งแจ้งอัปเดตเป็นไฟล์ของตัวเองเท่านั้น)
 > รายงานปัญหาที่ส่งจาก Mac จะถูกโพสต์ลง [#6](https://github.com/FordenHillson/ThaiW3Setup/issues/6) ซึ่งเป็นหน้าสาธารณะ โดยตัดช่องติดต่อออก
@@ -42,14 +42,19 @@
 เกมไม่มีเวอร์ชัน macOS ถ้าเล่นบน Mac แสดงว่าไฟล์เกมอยู่ใน bottle ของ CrossOver / Whisky / Heroic / Porting Kit
 โปรแกรมหา bottle ให้เอง ถ้าหาไม่เจอก็กด **เลือก...** ชี้ไปที่โฟลเดอร์เกมใน bottle ได้
 
-1. ดาวน์โหลด `ThaiW3Setup-macos-arm64-x.y.z.zip` จาก Release ล่าสุด แล้วแตกไฟล์
-2. **เปิดครั้งแรกต้องปลดล็อกก่อน** เพราะโปรแกรมยังไม่ได้ notarize กับ Apple — เปิด Terminal แล้วพิมพ์
-   `xattr -dr com.apple.quarantine ` จากนั้นลากไฟล์ `ThaiW3Setup.app` มาวางต่อท้ายแล้วกด Enter
-   (หรือดับเบิลคลิกให้ขึ้นคำเตือนก่อน แล้วไป System Settings > Privacy & Security กด **Open Anyway**)
-3. จากนั้นใช้งานเหมือนบน Windows ทุกอย่าง
+1. ดาวน์โหลด `ThaiW3Setup-macos-arm64-x.y.z.zip` จาก Release ล่าสุด แตกไฟล์ แล้ว**ลาก `ThaiW3Setup.app` ไปไว้ใน Applications ก่อนเปิด**
+   (ถ้าเปิดจาก Downloads ตรง ๆ macOS จะรันจากโฟลเดอร์ชั่วคราวที่อ่านอย่างเดียว)
+2. **เปิดครั้งแรกต้องปลดล็อกก่อน** เพราะโปรแกรมยังไม่ได้ notarize กับ Apple — เลือกทางใดทางหนึ่ง
+   - **ผ่าน Terminal:** พิมพ์ `xattr -dr com.apple.quarantine ` แล้วลาก `ThaiW3Setup.app` มาวางต่อท้าย กด Enter แล้วเปิดได้ตามปกติ
+   - **ไม่ใช้ Terminal:**
+     1. ดับเบิลคลิกแอป จะขึ้น *"ThaiW3Setup" Not Opened* — กด **Done** (**อย่ากด Move to Trash** ซึ่งเป็นปุ่มสีน้ำเงิน)
+     2. ไปที่ System Settings › Privacy & Security ในส่วน **Security** กด **Open Anyway**
+     3. จะขึ้นหน้ายืนยัน *Open "ThaiW3Setup"?* อีกชั้น — กด **Open Anyway** (ปุ่มกลาง) **ปุ่มสีน้ำเงินยังเป็น Move to Trash**
+     4. ยืนยันด้วย Touch ID หรือรหัสผ่านเครื่อง
+3. ถ้าโปรแกรมขอ**เข้าถึงโฟลเดอร์ Documents** ให้กด **Allow** — ไฟล์ตั้งค่า mod ของเกมอยู่ที่นั่น (โดยเฉพาะเมื่อใช้ Heroic)
+4. จากนั้นใช้งานเหมือนบน Windows ทุกอย่าง
 
 > รองรับ Mac ชิป Apple (M1 ขึ้นไป) เท่านั้น ยังไม่รองรับ Intel Mac
-> ถ้าไม่ปลดล็อกตามข้อ 2 macOS จะขึ้นว่า *"Apple could not verify..."* โดยปุ่มเริ่มต้นเป็น **Move to Trash**
 
 #### เปิดเกมบน Mac
 
@@ -58,7 +63,7 @@
 ([witcher3-crossover-fix](https://github.com/tholtman1-del/witcher3-crossover-fix) — ไม่มีตัวนี้เกมค้างจอดำ · อัปเดตเกมแล้วต้องลงใหม่ ·
 ตัวติดตั้งของ fix หาเกมใน bottle ของ CrossOver เป็นหลัก ถ้าหาไม่เจอให้ลากโฟลเดอร์เกมใส่หน้าต่างของมัน)
 
-**ทางที่ 1: Heroic (ง่ายกว่า)**
+**ทางที่ 1: Heroic (ติดตั้งง่ายกว่า)**
 
 | | ใช้ | หมายเหตุ |
 |---|---|---|
@@ -67,7 +72,11 @@
 
 prefix ของ Heroic ชี้ `Documents` ไปที่ `~/Documents` ของ Mac ไฟล์ตั้งค่าและเซฟของเกมจึงอยู่ที่ `~/Documents/The Witcher 3`
 
-**ทางที่ 2: Whisky**
+> ⚠️ **เสียงบน Heroic ไม่ครบ** — เกมส่งเสียงแบบ 7.1 แต่ Wine 7.7 ใน GPTK ของ Heroic เล่นออกแค่ช่องซ้าย/ขวาหน้า
+> **เสียงพูดในวิดีโอ (CG) หายทั้งหมด** และเสียงช่องกลาง/หลัง/ข้างระหว่างเล่นหายไปด้วย (ตั้งลำโพงหรือโหมดหูฟังไม่ช่วย)
+> ถ้าต้องการเสียงครบ ใช้ทางที่ 2
+
+**ทางที่ 2: Whisky (คุณภาพดีกว่า — เสียงครบ, Wine และ D3DMetal ใหม่กว่า)**
 
 | | ใช้ | หมายเหตุ |
 |---|---|---|
@@ -75,7 +84,7 @@ prefix ของ Heroic ชี้ `Documents` ไปที่ `~/Documents` ข�
 | engine | [Wine Libraries v4.5.105-beta.1](https://github.com/frankea/Whisky/releases/tag/v4.5.105-beta.1) | Whisky โหลดให้แค่ engine 3.1.1 ซึ่งรัน D3DMetal ไม่ได้ ต้องลงตัวนี้เองตามวิธีในหน้า release |
 | D3DMetal | [Game Porting Toolkit](https://developer.apple.com/games/game-porting-toolkit/) 4.0 beta 2 | โหลดเองด้วย Apple ID แล้วนำเข้าที่ Whisky › Settings (ก่อนหรือหลังลง engine ก็ได้) |
 
-ทดสอบเมื่อ 9 ต.ค. 2026 · Apple M5, macOS 27.0.1 · เกม Steam v5.01 · ThaiW3Setup 0.5.4
+ทดสอบเมื่อ 9–10 ต.ค. 2026 · Apple M5, macOS 27.0.1 · เกม Steam v5.01 · ThaiW3Setup 0.5.4 (`.app` โหลดผ่านเบราว์เซอร์)
 (รายละเอียดและภาพใน [#6](https://github.com/FordenHillson/ThaiW3Setup/issues/6))
 หลายตัวยังเป็น beta ขั้นตอนอาจเปลี่ยน ให้ดูหน้าต้นทางเป็นหลัก
 
