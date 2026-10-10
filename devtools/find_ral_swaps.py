@@ -98,6 +98,8 @@ CONTEXT_HINTS = {
 CONTEXT_ONLY = {"ไหร"}
 
 THAI = re.compile(r"^[\u0e00-\u0e7f]+$")
+# คำลงท้ายที่ตามหลัง ตลอดกาล/เฉพาะกาล ได้ แต่ไม่ใช่คำที่ การ นำหน้า: ตลอดการเลย = ตลอดกาลเลย
+PARTICLES = {"เลย", "นะ", "น่ะ", "ล่ะ", "แล้ว", "ไป", "ด้วย", "จ้ะ", "ค่ะ", "ครับ", "เท่านั้น"}
 
 
 def swap_variants(tok: str) -> list[str]:
@@ -112,6 +114,40 @@ def load_entries(store: Path):
         yield "strings", key, value
     for key, value in data.get("text", {}).items():
         yield "text", key, value
+
+
+# รูปที่ทีมยืนยันว่าถูก**เฉพาะในวลีนี้** (ผู้ใช้ตรวจ 2026-10-10) — ไม่ใส่ ALLOW เพราะรูปเดียวกัน
+# ในบริบทอื่นอาจผิดจริง (ได้ลับมีด ถูก แต่ ได้ลับข้อความ = ได้รับ)
+CONFIRMED_IN = {
+    "แต่แลก": ("แต่แลกด้วย",),
+    "รูกลม": ("ในรูกลม",),
+    "รักตัว": ("รักตัวประหลาด",),
+    "ได้ลับ": ("ได้ลับมีด",),
+    "ไฟร์": ("ไฟร์สตรีม",),  # Firestream ชื่อท่าของ Igni
+    "ล่อหรอก": ("เหยื่อล่อหรอก",),
+}
+
+
+def _confirmed(wrong: str, text: str, start: int) -> bool:
+    for phrase in CONFIRMED_IN.get(wrong, ()):
+        off = phrase.find(wrong)
+        if off >= 0 and text[start - off:start - off + len(phrase)] == phrase:
+            return True
+    return False
+
+
+_LA_WORDS: dict[int, tuple[str, ...]] = {}
+
+
+def _starts_la_word(wrong: str, text: str, end: int, lexicon: set[str]) -> bool:
+    """รูปที่ลงท้าย ละ แต่ ละ นั้นต่อกับข้อความถัดไปเป็นคำในคลังศัพท์ (ละลาย ละเอียด ละคร)"""
+    if not wrong.endswith("ละ"):
+        return False
+    words = _LA_WORDS.get(id(lexicon))
+    if words is None:
+        words = _LA_WORDS[id(lexicon)] = tuple(w for w in lexicon if w.startswith("ละ") and len(w) >= 4)
+    rest = text[end - 2:end + 12]
+    return any(rest.startswith(w) for w in words)
 
 
 def scan_text(text: str, wrapper: ThaiWrapper, lexicon: set[str]):
@@ -156,11 +192,16 @@ def scan_text(text: str, wrapper: ThaiWrapper, lexicon: set[str]):
                 joined = "".join(chunk)
                 if joined in lexicon or joined in ALLOW:
                     continue
+                if chunk[-1] == "การ" and i + span < len(toks) and toks[i + span] not in PARTICLES:
+                    continue  # การ นำหน้าคำถัดไป: ตลอดการเดินทาง เฉพาะการบันทึก ไม่ใช่ ตลอดกาล เฉพาะกาล
                 for v in swap_variants(joined):
                     if v in lexicon:
                         start = starts[i]
                         hits.append((joined, HINTS.get(joined, v), start, start + len(joined)))
                         break
+    # ...ละ ที่จริงเป็นต้นคำถัดไป: เอามาละลายน้ำ = มา + ละลาย ไม่ใช่ มาล่ะ
+    hits = [h for h in hits if not _starts_la_word(h[0], text, h[3], lexicon)]
+    hits = [h for h in hits if not _confirmed(h[0], text, h[2])]
     # ตัด hit ที่ซ้อนอยู่ใน hit ที่ยาวกว่า (เด็กกำพล้า ครอบ กำพล้า อยู่รายงานเดียว)
     hits.sort(key=lambda h: (h[2], -(h[3] - h[2])))
     kept = []
