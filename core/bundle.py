@@ -91,14 +91,20 @@ def read_bundle(path) -> list[BundleFile]:
             e = toc[i * V5_ENTRY:(i + 1) * V5_ENTRY]
             name = e[:256].split(b"\0")[0].decode("latin-1")
             off, usz, zsz, _crc, comp = struct.unpack_from("<QIIII", e, 272)
-            files.append(BundleFile(name, _unpack(blob[off:off + zsz], usz, comp)))
+            try:
+                files.append(BundleFile(name, _unpack(blob[off:off + zsz], usz, comp)))
+            except BundleError as exc:
+                raise BundleError(f"{path}: {name}: {exc}") from exc
     else:
         for i in range(toc_size // V3_ENTRY):
             e = toc[i * V3_ENTRY:(i + 1) * V3_ENTRY]
             name = e[:256].split(b"\0")[0].decode("latin-1")
             usz, zsz, off = struct.unpack_from("<III", e, 276)
             comp = struct.unpack_from("<I", e, 316)[0]
-            files.append(BundleFile(name, _unpack(blob[off:off + zsz], usz, comp)))
+            try:
+                files.append(BundleFile(name, _unpack(blob[off:off + zsz], usz, comp)))
+            except BundleError as exc:
+                raise BundleError(f"{path}: {name}: {exc}") from exc
     return files
 
 
@@ -123,14 +129,25 @@ def iter_bundle(path, want: Callable[[str, int], bool]) -> Iterator[BundleFile]:
             if not want(name, usz):
                 continue
             fh.seek(off)
-            yield BundleFile(name, _unpack(fh.read(zsz), usz, comp))
+            raw = fh.read(zsz)
+            if len(raw) != zsz:
+                raise BundleError(f"{path}: {name}: short read {len(raw)}/{zsz}")
+            try:
+                yield BundleFile(name, _unpack(raw, usz, comp))
+            except BundleError as exc:
+                raise BundleError(f"{path}: {name}: {exc}") from exc
 
 
 def _unpack(z: bytes, size: int, comp: int) -> bytes:
     if comp == COMP_NONE:
         return z[:size]
     if comp == COMP_ZLIB:
-        return zlib.decompress(z)
+        try:
+            return zlib.decompress(z)
+        except zlib.error as exc:
+            # corrupt / incomplete game bundles often land here as "unknown compression method"
+            # when the payload starts with zeros instead of a zlib header
+            raise BundleError(f"zlib decompress failed ({exc})") from exc
     if comp in COMP_LZ4:
         return lz4_block_decompress(z, size)
     raise BundleError(f"unsupported compression type {comp}")

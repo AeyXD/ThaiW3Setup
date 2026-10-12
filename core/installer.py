@@ -413,8 +413,15 @@ def _build_mods(game: GameInfo, opts: InstallOptions, staging: Path, report: Ins
         gui_files += panel_files(game.content0, scaled(progress, 0.78, 0.8))
     except (LayoutError, BundleError, OSError) as exc:
         log.warning("panel layout skipped: %s", exc)
-        report.warnings.append("ไฟล์หน้าภารกิจ/บันทึกของเกมเวอร์ชันนี้ไม่ตรงกับที่รองรับ จึงข้ามการจัดรูปแบบข้อความ"
-                               " (ข้อความภาษาไทยยังใช้งานได้ปกติ)")
+        detail = str(exc)
+        if "decompress" in detail or "short read" in detail:
+            report.warnings.append(
+                "อ่านไฟล์ GUI ของเกมไม่สำเร็จ จึงข้ามการจัดรูปแบบข้อความในหน้าภารกิจ/บันทึก"
+                " — ลอง Verify integrity of game files ใน Steam/GOG แล้วติดตั้งใหม่"
+                " (ข้อความภาษาไทยยังใช้งานได้ปกติ)")
+        else:
+            report.warnings.append("ไฟล์หน้าภารกิจ/บันทึกของเกมเวอร์ชันนี้ไม่ตรงกับที่รองรับ จึงข้ามการจัดรูปแบบข้อความ"
+                                   " (ข้อความภาษาไทยยังใช้งานได้ปกติ)")
     gui_files = [f for f in gui_files if f.path not in leave]
     if gui_files:
         write_mod_content(staging / MOD_FONT / "content", gui_files)
