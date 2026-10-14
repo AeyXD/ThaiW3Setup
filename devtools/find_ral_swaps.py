@@ -136,6 +136,15 @@ def _confirmed(wrong: str, text: str, start: int) -> bool:
     return False
 
 
+def _negated_particle(wrong: str, text: str, start: int) -> bool:
+    """...หรอก ที่มี ไม่ นำหน้าในวลีเดียวกัน คือคำลงท้ายปฏิเสธ (ไม่ได้เผาหรอก = ไม่ทำหรอกนะ) ไม่ใช่ หลอก
+    วลี = ช่วงอักษรไทยติดกันก่อนหน้า (ภาษาไทยคั่นวลีด้วยช่องว่าง) ผู้ใช้ยืนยัน 2026-10-14"""
+    if not wrong.endswith("หรอก"):
+        return False
+    phrase = re.split(r"[^\u0e00-\u0e7f]", text[:start])[-1]
+    return "ไม่" in phrase
+
+
 _LA_WORDS: dict[int, tuple[str, ...]] = {}
 
 
@@ -202,6 +211,7 @@ def scan_text(text: str, wrapper: ThaiWrapper, lexicon: set[str]):
     # ...ละ ที่จริงเป็นต้นคำถัดไป: เอามาละลายน้ำ = มา + ละลาย ไม่ใช่ มาล่ะ
     hits = [h for h in hits if not _starts_la_word(h[0], text, h[3], lexicon)]
     hits = [h for h in hits if not _confirmed(h[0], text, h[2])]
+    hits = [h for h in hits if not _negated_particle(h[0], text, h[2])]
     # ตัด hit ที่ซ้อนอยู่ใน hit ที่ยาวกว่า (เด็กกำพล้า ครอบ กำพล้า อยู่รายงานเดียว)
     hits.sort(key=lambda h: (h[2], -(h[3] - h[2])))
     kept = []
