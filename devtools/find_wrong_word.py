@@ -81,6 +81,25 @@ ALLOW_PAIRS = {
     ("ต่าง", "ตั้ง"),
 }
 
+# รูปที่ผู้ใช้ยืนยันว่าถูก**เฉพาะในวลีนี้** (2026-10-16) — ไม่ใส่ ALLOW_PAIRS เพราะคู่เหล่านี้
+# ผิดจริงได้บ่อยในบริบทอื่น (ที/ที่, ห้า/หา, เข่า/เขา, บาน/บ้าน)
+CONFIRMED_IN = {
+    "ที": ("บอกพวกเขาที", "เฆี่ยนห้าสิบที"),
+    "ร่วม": ("ทัพร่วม",),
+    "บาน": ("ดอกไม้บาน",),
+    "เข่า": ("สูงถึงเข่า",),
+    "เสี่ยว": ("บักเสี่ยว",),
+    "ห้า": ("เบียร์ห้าที่",),
+}
+
+
+def confirmed(tok: str, text: str, start: int) -> bool:
+    for phrase in CONFIRMED_IN.get(tok, ()):
+        off = phrase.find(tok)
+        if off >= 0 and text[start - off:start - off + len(phrase)] == phrase:
+            return True
+    return False
+
 
 def skeletons(word: str):
     """คีย์จัดกลุ่มสำหรับสร้างคู่สับสนสามแบบ"""
@@ -158,6 +177,8 @@ def scan_text(text: str, runs, confusions: dict, bigrams: Counter):
             if not (best and support >= MIN_SUPPORT):
                 continue
             start = base + sum(len(t) for t in toks[:i])
+            if confirmed(tok, text, start):
+                continue
             hits.append((tok, best, start))
     return hits
 
