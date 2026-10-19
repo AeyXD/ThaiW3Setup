@@ -31,8 +31,8 @@ from core.paths import app_data_dir
 from gui.compat_tab import CompatTab, T_TAB as T_TAB_COMPAT
 from gui.custom_dialog import MODE_CHOICES, MODE_LABELS
 from gui.notice_dialog import show_notice
-from gui.theme import BIG_BUTTON, DARK_THEME, NATIVE_CONTROLS, P, dpi_scale, init as init_theme, on_palette_change, ui
-from gui.widgets import ACCENT_ICON_COLOR, Tooltip, icon, ttk_image
+from gui.theme import BIG_BUTTON, P, dpi_scale, init as init_theme, ui
+from gui.widgets import Tooltip, icon, ttk_image
 
 log = logging.getLogger(__name__)
 
@@ -75,17 +75,14 @@ class App(tk.Tk):
         self.minsize(700, 640)
         init_theme(self)
         style = ttk.Style(self)
-        if not DARK_THEME and "vista" in style.theme_names():
-            style.theme_use("vista")
-        if not NATIVE_CONTROLS:  # aqua already uses the system font and its own control metrics
-            self.option_add("*TCombobox*Listbox.font", UI_FONT)
-            style.configure(".", font=UI_FONT)
-            style.configure(BIG_BUTTON, font=UI_BOLD, padding=(18, 7))
-            style.configure("Icon.TButton", padding=(7, 7))
-            style.configure("Danger.TButton", padding=(12, 7))
-            style.configure("Split.TButton", padding=(3, 7))
-            style.configure("TNotebook.Tab", padding=(16, 6))
-            style.configure("Switch.TCheckbutton", font=UI_FONT)
+        self.option_add("*TCombobox*Listbox.font", UI_FONT)
+        style.configure(".", font=UI_FONT)
+        style.configure(BIG_BUTTON, font=UI_BOLD, padding=(18, 7))
+        style.configure("Icon.TButton", padding=(7, 7))
+        style.configure("Danger.TButton", padding=(12, 7))
+        style.configure("Split.TButton", padding=(3, 7))
+        style.configure("TNotebook.Tab", padding=(16, 6))
+        style.configure("Switch.TCheckbutton", font=UI_FONT)
         style.configure("Title.TLabel", font=UI_TITLE)
         style.configure("Sub.TLabel", foreground=P.hint)
         style.configure("Section.TLabel", font=UI_BOLD, foreground=P.accent)
@@ -93,11 +90,6 @@ class App(tk.Tk):
         style.configure("Ok.TLabel", foreground=P.ok)
         style.configure("Bad.TLabel", foreground=P.bad)
         style.configure("Warn.TLabel", foreground=P.warn)
-        if not DARK_THEME:  # the dark theme draws Danger.TButton red itself, see gui/theme.py
-            style.configure("Danger.TButton", foreground=P.bad)
-            # aqua's own disabled grey, matching the other buttons and following light / dark
-            style.map("Danger.TButton", foreground=[
-                ("disabled", "systemDisabledControlTextColor" if NATIVE_CONTROLS else P.hint)])
 
         self.opts = load_options()
         self.events: queue.Queue = queue.Queue()
@@ -313,7 +305,7 @@ class App(tk.Tk):
 
         right = ttk.Frame(bottom)
         right.grid(row=2, column=1, sticky="e")
-        self.btn_install = ttk.Button(right, text="ติดตั้ง / อัปเดต", image=ttk_image(self, "download", ICON_SIZE, ACCENT_ICON_COLOR),
+        self.btn_install = ttk.Button(right, text="ติดตั้ง / อัปเดต", image=ttk_image(self, "download", ICON_SIZE, P.on_accent),
                                       compound="left", style=BIG_BUTTON, command=self.do_install)
         self.btn_install.pack(side="left")
         self.menu_install = self._build_install_menu()
@@ -322,13 +314,10 @@ class App(tk.Tk):
         self.btn_install_more.pack(side="left", fill="y")
         Tooltip(self.btn_install_more, "ตัวเลือกเพิ่มเติม: สร้างไฟล์ไว้ copy เอง / zip")
         self.btn_uninstall = ttk.Button(right, text="ถอนการติดตั้ง",
-                                        image=ttk_image(self, "delete", ICON_SIZE, "#ffffff" if DARK_THEME else P.bad),
+                                        image=ttk_image(self, "delete", ICON_SIZE, "#ffffff"),
                                         compound="left",
                                         style="Danger.TButton", command=self.do_uninstall)
         self.btn_uninstall.pack(side="left", padx=(6, 0), fill="y")
-        if not DARK_THEME:  # the icon is drawn in the palette's red, which differs between light and dark
-            on_palette_change.append(lambda: self.btn_uninstall.configure(
-                image=ttk_image(self, "delete", ICON_SIZE, P.bad)))
         self.update_states()
 
     def _logo_images(self) -> dict[bool, ImageTk.PhotoImage] | None:
@@ -495,7 +484,8 @@ class App(tk.Tk):
         return opts
 
     def _make_menu(self, items) -> tk.Menu:
-        menu = tk.Menu(self, tearoff=False) if NATIVE_CONTROLS else tk.Menu(self, tearoff=False, font=UI_FONT)
+        # macOS draws popup menus itself, in the system font
+        menu = tk.Menu(self, tearoff=False) if MACOS else tk.Menu(self, tearoff=False, font=UI_FONT)
         for name, label, command in items:
             image = icon(self, name, ICON_SIZE)
             menu.add_command(label=f"  {label}", command=command, **({"image": image, "compound": "left"}

@@ -7,21 +7,19 @@ import tkinter as tk
 from PIL import Image, ImageTk
 
 from core.paths import assets_dir
-from gui.theme import DARK_THEME, TEXT, P, dpi_scale, ui
+from gui.theme import P, dpi_scale, ui
 
 log = logging.getLogger(__name__)
 
 DISABLED_ALPHA = 0.35
-ICON_COLOR = TEXT if DARK_THEME else None
-# icons on an Accent button sit on the light accent colour, like its black text
-ACCENT_ICON_COLOR = "#000000" if DARK_THEME else None
 _cache: dict[tuple, ImageTk.PhotoImage] = {}
 
 
 def icon(widget: tk.Misc, name: str, size: int = 20, disabled: bool = False,
-         color: str | None = ICON_COLOR) -> ImageTk.PhotoImage | None:
-    """The icon scaled for the screen DPI and painted in color (None keeps the file's own), or None when the
-    file is missing (callers fall back to text)."""
+         color: str | None = None) -> ImageTk.PhotoImage | None:
+    """The icon scaled for the screen DPI and painted in color (the theme's text colour when None), or None
+    when the file is missing (callers fall back to text)."""
+    color = color or P.text
     px = max(8, round(size * dpi_scale(widget)))
     key = (name, px, disabled, color)
     if key not in _cache:
@@ -30,17 +28,16 @@ def icon(widget: tk.Misc, name: str, size: int = 20, disabled: bool = False,
         except OSError as exc:
             log.warning("icon %s: %s", name, exc)
             return None
-        if color:
-            alpha = img.getchannel("A")
-            img = Image.new("RGBA", img.size, color)
-            img.putalpha(alpha)
+        alpha = img.getchannel("A")
+        img = Image.new("RGBA", img.size, color)
+        img.putalpha(alpha)
         if disabled:
             img.putalpha(img.getchannel("A").point(lambda a: int(a * DISABLED_ALPHA)))
         _cache[key] = ImageTk.PhotoImage(img, master=widget)
     return _cache[key]
 
 
-def ttk_image(widget: tk.Misc, name: str, size: int = 20, color: str | None = ICON_COLOR) -> tuple | str:
+def ttk_image(widget: tk.Misc, name: str, size: int = 20, color: str | None = None) -> tuple | str:
     """Value for a ttk widget's image option, dimmed while the widget is disabled."""
     normal = icon(widget, name, size, color=color)
     if normal is None:
