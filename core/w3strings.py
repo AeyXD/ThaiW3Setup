@@ -65,36 +65,28 @@ def read_bit6(f: io.BufferedIOBase) -> int:
 
 
 def write_bit6(out: bytearray, c: int) -> None:
-    if c == 0:
-        out.append(128)
-        return
-    parts = []
-    left = c
-    i = 0
-    while left > 0:
-        if i == 0:
-            parts.append(left & 63)
-            left >>= 6
-        else:
-            parts.append(left & 255)
-            left >>= 7
-        i += 1
-    n = len(parts)
-    for i, val in enumerate(parts):
-        last = i == n - 1
-        cleft = (n - 1) - i
-        if not last:
-            if cleft >= 1 and i >= 1:
-                val |= 128
-            elif val < 64:
-                val |= 64
-            else:
-                val |= 128
-        out.append(val & 0xFF)
+    """Encode ``c`` as a bit6 value: exact inverse of :func:`read_bit6`.
+
+    Uses 7-bit little-endian groups with ``0x80`` continuation bytes and a
+    final terminator byte below ``0x40``. This round-trips every value the
+    reader can decode, including ``0`` (a single ``0x00`` byte) and the
+    4096..8191 range the old writer corrupted.
+    """
+    if c < 0:
+        raise ValueError("bit6 cannot encode a negative value")
+    while c > 0x3F:
+        out.append(0x80 | (c & 0x7F))
+        c >>= 7
+    out.append(c)
 
 
 VERSION_UTF16 = 162
 VERSION_UTF8 = 164
+
+# --- sanity caps: กัน header เสียที่ประกาศจำนวนมหาศาล ---
+MAX_INDEX_ENTRIES = 1_000_000        # n1 (string entries)
+MAX_KEY_ENTRIES = 1_000_000          # n2 (key hashes)
+MAX_STRING_UNITS = 64 * 1024 * 1024  # n3 (string buffer, หน่วยเป็น unit)
 
 
 def _xor_utf16(raw: bytes, strlen: int, key_init: int) -> bytes:
@@ -156,22 +148,54 @@ class W3Strings:
 
         f = io.BytesIO(data)
         f.seek(10)
+
+        # ---- n1: string index entries (12 bytes each) ----
         n1 = read_bit6(f)
+        if n1 > MAX_INDEX_ENTRIES:
+            raise W3StringsError(f"suspicious n1 (string entries)={n1}, possible corrupted header")
+        remaining = len(data) - f.tell() - 2  # reserve footer
+        if n1 * 12 > remaining:
+            raise W3StringsError(
+                f"n1={n1} entries need {n1 * 12} bytes but only {remaining} remain, file truncated"
+            )
         block1 = []
-        for _ in range(n1):
-            sid, off, slen = struct.unpack("<III", f.read(12))
+        for i in range(n1):
+            chunk = f.read(12)
+            if len(chunk) < 12:
+                raise W3StringsError(
+                    f"truncated file: block1 entry {i + 1}/{n1}: expected 12 bytes, got {len(chunk)}"
+                )
+            sid, off, slen = struct.unpack("<III", chunk)
             block1.append((sid ^ magic, off, slen))
         if block1 and sum(sid >= 1 << 25 for sid, _o, _l in block1) * 2 > len(block1):
             raise W3StringsError(f"string ids do not decode as {lang}")
+
+        # ---- n2: key hashes (8 bytes each) ----
         n2 = read_bit6(f)
+        if n2 > MAX_KEY_ENTRIES:
+            raise W3StringsError(f"suspicious n2 (keys)={n2}, possible corrupted header")
+        remaining = len(data) - f.tell() - 2
+        if n2 * 8 > remaining:
+            raise W3StringsError(
+                f"n2={n2} keys need {n2 * 8} bytes but only {remaining} remain, file truncated"
+            )
         keys = {}
-        for _ in range(n2):
-            khex, sid = struct.unpack("<II", f.read(8))
+        for i in range(n2):
+            chunk = f.read(8)
+            if len(chunk) < 8:
+                raise W3StringsError(
+                    f"truncated file: block2 key {i + 1}/{n2}: expected 8 bytes, got {len(chunk)}"
+                )
+            khex, sid = struct.unpack("<II", chunk)
             keys[sid ^ magic] = khex
+
+        # ---- n3: string buffer ----
         n3 = read_bit6(f)
-        start = f.tell()
         utf8 = version >= VERSION_UTF8
         unit = 1 if utf8 else 2
+        if n3 > MAX_STRING_UNITS:
+            raise W3StringsError(f"suspicious n3 (string units)={n3}, possible corrupted header")
+        start = f.tell()
         end = start + n3 * unit
         if end > len(data) - 2:
             raise W3StringsError(f"string buffer overruns file (version {version})")
