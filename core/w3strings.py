@@ -65,19 +65,42 @@ def read_bit6(f: io.BufferedIOBase) -> int:
 
 
 def write_bit6(out: bytearray, c: int) -> None:
-    """Encode ``c`` as a bit6 value: exact inverse of :func:`read_bit6`.
+    """Encode ``c`` in the CDPR bit6 layout used by real ``.w3strings`` files.
 
-    Uses 7-bit little-endian groups with ``0x80`` continuation bytes and a
-    final terminator byte below ``0x40``. This round-trips every value the
-    reader can decode, including ``0`` (a single ``0x00`` byte) and the
-    4096..8191 range the old writer corrupted.
+    First group is 6 bits (continuation ``0x40``); later groups are 7 bits
+    (continuation ``0x80``). This must match vanilla game files — a pure
+    7-bit varint round-trips our :func:`read_bit6` but the game rejects it
+    and crashes (regression in 0.5.7).
     """
     if c < 0:
         raise ValueError("bit6 cannot encode a negative value")
-    while c > 0x3F:
-        out.append(0x80 | (c & 0x7F))
-        c >>= 7
-    out.append(c)
+    if c == 0:
+        # historical encoder; empty key tables are rare for our Thai sheets
+        out.append(128)
+        return
+    parts = []
+    left = c
+    i = 0
+    while left > 0:
+        if i == 0:
+            parts.append(left & 63)
+            left >>= 6
+        else:
+            parts.append(left & 255)
+            left >>= 7
+        i += 1
+    n = len(parts)
+    for i, val in enumerate(parts):
+        last = i == n - 1
+        cleft = (n - 1) - i
+        if not last:
+            if cleft >= 1 and i >= 1:
+                val |= 128
+            elif val < 64:
+                val |= 64
+            else:
+                val |= 128
+        out.append(val & 0xFF)
 
 
 VERSION_UTF16 = 162
@@ -129,9 +152,23 @@ class W3Strings:
 
     @classmethod
     def parse(cls, data: bytes, language: str | None = None) -> "W3Strings":
-        """Parse a file. ``language`` disambiguates files sharing key 0 (tr, ar, ...)."""
+        """Parse a file. ``language`` disambiguates files sharing key 0 (tr, ar, ...).
+
+        Truncated or hand-mangled files raise :class:`W3StringsError` (never raw
+        ``struct.error``), so callers can skip them and tell the user to Verify
+        integrity instead of showing ``unpack requires a buffer of 12 bytes``.
+        """
+        try:
+            return cls._parse(data, language)
+        except struct.error as exc:
+            raise W3StringsError(f"truncated or corrupt w3strings: {exc}") from exc
+
+    @classmethod
+    def _parse(cls, data: bytes, language: str | None = None) -> "W3Strings":
         if data[:4] != b"RTSW":
             raise W3StringsError("not a w3strings file")
+        if len(data) < 12:
+            raise W3StringsError(f"file too short ({len(data)} bytes)")
         version, key1 = struct.unpack_from("<IH", data, 4)
         key2 = struct.unpack_from("<H", data, len(data) - 2)[0]
         full_key = (key1 << 16) | key2

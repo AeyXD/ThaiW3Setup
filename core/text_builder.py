@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import re
+import struct
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -47,7 +48,7 @@ def _load_merged(game: GameInfo, language: str, skipped: list[Path]) -> W3String
     for path in game.strings_files(language):
         try:
             w = W3Strings.load(path, language)
-        except (W3StringsError, OSError, ValueError) as exc:
+        except (W3StringsError, OSError, ValueError, struct.error) as exc:
             log.warning("skip unreadable %s: %s", path, exc)
             skipped.append(path)
             continue
