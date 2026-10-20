@@ -30,6 +30,12 @@ def test_default_patch():
     assert "default m_line_x = 0.0;" in dlg and "default m_choice_y = 0.0;" in dlg
     assert "default m_choice_pct = 100.0;" in dlg
     assert "choices.SetXScale( m_choice_bsx * m_choice_pct / 100.0 );" in dlg
+    # dialogue lines/choices re-place after Flash resets (not only in UpdateScale)
+    dlg_n = dlg.replace("\r\n", "\n")
+    assert "m_line_base_set" in dlg_n and "m_choice_base_set" in dlg_n
+    assert "if ( !line || !choices )" not in dlg_n
+    assert dlg_n.count("ModThaiPlace( GetModuleFlash() );") >= 3
+    assert "ModThaiPlace( GetModuleFlash() );\n\t\ttext = StrReplaceAll(text, \"<br><br>[\"" in dlg_n
 
 
 def test_moved_patch():
@@ -123,6 +129,11 @@ def test_hide_speaker():
             if not dialog:
                 assert dlg.count("m_fxSentenceSetSFF.InvokeSelfOneArg( FlashArgString( text ) );") == 1
                 assert "m_fxPreviousSentenceSetSFF.InvokeSelfOneArg( FlashArgString( text ) );" in dlg
+            # position still re-applied when speaker names are hidden (cutscene / dialogue lines)
+            assert "ModThaiPlace( GetModuleFlash() );\n\t\ttext = StrReplaceAll(text, \"<br><br>[\"" in dlg
+            place_at = dlg.index("ModThaiPlace( GetModuleFlash() );")
+            choices_at = dlg.index('"hud.dialog.choices"')
+            assert place_at < choices_at
             hide = '\t\t\tspeakerNameDisplayText = "";\n\t\t\t// mod thai\n\t\t\tif(speakerNameDisplayText != ""'
             assert (hide in subs) == (not sub)
             assert ('speakerNameDisplayText == GetLocStringByKeyExt("geralt")' in subs) == sub

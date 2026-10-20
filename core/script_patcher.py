@@ -34,6 +34,8 @@ VARS_END = "\t// mod thai\n\n"
 
 DIALOG_LINES = """\
 		// mod thai
+		// Flash resets the dialogue containers when a line shows; re-apply after UpdateScale.
+		ModThaiPlace( GetModuleFlash() );
 		text = StrReplaceAll(text, "<br><br>[", "  [");
 		text = StrReplaceAll(text, "  [", "</FONT><FONT size = '"+ IntToString( 27 + subtitleScale + (m_size2 - m_size_default) ) + "' COLOR='" + m_color2 + "'><br>[");
 		text = "<FONT COLOR='" + m_color1 + "'>" + text + "</FONT>";
@@ -174,6 +176,8 @@ VARS_WIDTH = """\
 """
 
 # The dialogue line and the choice list are separate children of hud_dialog.redswf.
+# Place each when present: cutscenes often have the line without choices yet, and Flash
+# resets both when a new sentence shows (UpdateScale alone is not enough).
 DIALOG_PLACE_FN = """\
 	// mod thai
 	private var m_line_x		: float;
@@ -187,7 +191,8 @@ DIALOG_PLACE_FN = """\
 	private var m_choice_pct	: float;
 	private var m_choice_bsx	: float;
 	private var m_choice_bsy	: float;
-	private var m_base_set		: bool;
+	private var m_line_base_set		: bool;
+	private var m_choice_base_set	: bool;
 	default m_line_x = {line_x};
 	default m_line_y = {line_y};
 	default m_choice_x = {choice_x};
@@ -201,26 +206,32 @@ DIALOG_PLACE_FN = """\
 
 		line = flashModule.GetChildFlashSprite( "mcSubtitlesContainer" );
 		choices = flashModule.GetChildFlashSprite( "mcOptionContainer" );
-		if ( !line || !choices )
+		if ( line )
 		{{
-			return;
+			if ( !m_line_base_set )
+			{{
+				m_line_bx = line.GetX();
+				m_line_by = line.GetY();
+				m_line_base_set = true;
+			}}
+			line.SetX( m_line_bx + curResolutionWidth * m_line_x / 100.0 );
+			line.SetY( m_line_by + curResolutionHeight * m_line_y / 100.0 );
 		}}
-		if ( !m_base_set )
+		if ( choices )
 		{{
-			m_line_bx = line.GetX();
-			m_line_by = line.GetY();
-			m_choice_bx = choices.GetX();
-			m_choice_by = choices.GetY();
-			m_choice_bsx = choices.GetXScale();
-			m_choice_bsy = choices.GetYScale();
-			m_base_set = true;
+			if ( !m_choice_base_set )
+			{{
+				m_choice_bx = choices.GetX();
+				m_choice_by = choices.GetY();
+				m_choice_bsx = choices.GetXScale();
+				m_choice_bsy = choices.GetYScale();
+				m_choice_base_set = true;
+			}}
+			choices.SetX( m_choice_bx + curResolutionWidth * m_choice_x / 100.0 );
+			choices.SetY( m_choice_by + curResolutionHeight * m_choice_y / 100.0 );
+			choices.SetXScale( m_choice_bsx * m_choice_pct / 100.0 );
+			choices.SetYScale( m_choice_bsy * m_choice_pct / 100.0 );
 		}}
-		line.SetX( m_line_bx + curResolutionWidth * m_line_x / 100.0 );
-		line.SetY( m_line_by + curResolutionHeight * m_line_y / 100.0 );
-		choices.SetX( m_choice_bx + curResolutionWidth * m_choice_x / 100.0 );
-		choices.SetY( m_choice_by + curResolutionHeight * m_choice_y / 100.0 );
-		choices.SetXScale( m_choice_bsx * m_choice_pct / 100.0 );
-		choices.SetYScale( m_choice_bsy * m_choice_pct / 100.0 );
 	}}
 
 	protected function UpdateScale( scale : float, flashModule : CScriptedFlashSprite ) : bool
@@ -508,6 +519,7 @@ DIALOG_SPEAKER_TICK = """\
 				}
 			}
 		}
+		ModThaiPlace( GetModuleFlash() );
 		ModThaiHeaderTick();
 		// mod thai
 """
@@ -539,6 +551,13 @@ DIALOG_CHOICES_ALT = """\
 DIALOG_CHOICES_HEADER = """\
 		// mod thai
 		ModThaiHeaderSet( choices.Size() > 0 );
+		// mod thai
+"""
+
+# Re-place when choices are sent (UpdateScale is not enough; also covers speaker names off).
+DIALOG_CHOICES_PLACE = """\
+		// mod thai
+		ModThaiPlace( GetModuleFlash() );
 		// mod thai
 """
 
@@ -604,6 +623,8 @@ def _edits(name: str, o: ScriptOptions) -> list[Edit]:
             Edit("before", r"^\s*m_fxPreviousSentenceSetSFF\.InvokeSelfOneArg\( FlashArgString\( text \) \);", DIALOG_LINES),
             Edit("after", r"^\s*for \( i = 0; i < lastSetChoices\.Size\(\); i \+= 1 \)\s*$", "{\n" + DIALOG_CHOICE,
                  replacement="{"),
+            Edit("before", r'^\s*flashValueStorage\.SetFlashArray\( "hud\.dialog\.choices", choiceFlashArray \);',
+                 DIALOG_CHOICES_PLACE),
         ]
         witold = r'^\s*text = "<FONT COLOR=\'#5ACCF6\'>" \+ GetLocStringByKeyExt\("Witold"\) \+ ": " \+ text \+ "</FONT>";'
         if not o.show_speaker_dialog:
