@@ -33,6 +33,9 @@ def _add_style_args(inst: argparse.ArgumentParser) -> None:
     inst.add_argument("--color2")
     inst.add_argument("--size1", type=int)
     inst.add_argument("--size2", type=int)
+    inst.add_argument("--speaker-color-geralt", help="speaker name colour for Geralt")
+    inst.add_argument("--speaker-color-ciri", help="speaker name colour for Ciri")
+    inst.add_argument("--speaker-color-other", help="speaker name colour for other characters / NPCs")
     inst.add_argument("--no-speaker-colors", action="store_true")
     inst.add_argument("--no-speaker-dialog", action="store_true", help="hide speaker names in dialogue and cutscenes")
     inst.add_argument("--no-speaker-sub", action="store_true", help="hide speaker names in gameplay subtitles")
@@ -132,7 +135,10 @@ def main(argv: list[str] | None = None) -> int:
                  "sub_x": args.sub_x, "sub_y": args.sub_y, "sub_width": args.sub_width,
                  "dialog_x": args.dialog_x, "dialog_y": args.dialog_y,
                  "choice_x": args.choice_x, "choice_y": args.choice_y, "choice_scale": args.choice_scale,
-                 "thai_logo": args.thai_logo}
+                 "thai_logo": args.thai_logo,
+                 "speaker_color_geralt": args.speaker_color_geralt,
+                 "speaker_color_ciri": args.speaker_color_ciri,
+                 "speaker_color_other": args.speaker_color_other}
     for key, value in overrides.items():
         if value is not None:
             setattr(opts, key, value)

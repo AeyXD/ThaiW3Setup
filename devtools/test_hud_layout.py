@@ -129,6 +129,12 @@ def test_hide_speaker():
             if not dialog:
                 assert dlg.count("m_fxSentenceSetSFF.InvokeSelfOneArg( FlashArgString( text ) );") == 1
                 assert "m_fxPreviousSentenceSetSFF.InvokeSelfOneArg( FlashArgString( text ) );" in dlg
+                tick = dlg.index("event OnTick( timeDelta : float )")
+                assert "ModThaiPlace( GetModuleFlash() );" in dlg[tick:dlg.index("public function UpdateCanBeSkipped")]
+                sent = dlg.index("m_fxSentenceSetSFF.InvokeSelfOneArg( FlashArgString( text ) );")
+                assert "ModThaiPlace( GetModuleFlash() );" in dlg[sent:sent + 160]
+                prev = dlg.index("m_fxPreviousSentenceSetSFF.InvokeSelfOneArg( FlashArgString( text ) );")
+                assert "ModThaiPlace( GetModuleFlash() );" in dlg[prev:prev + 160]
             # position still re-applied when speaker names are hidden (cutscene / dialogue lines)
             assert "ModThaiPlace( GetModuleFlash() );\n\t\ttext = StrReplaceAll(text, \"<br><br>[\"" in dlg
             place_at = dlg.index("ModThaiPlace( GetModuleFlash() );")
@@ -145,12 +151,25 @@ def test_hide_speaker():
 def test_validate():
     InstallOptions(sub_x=100, sub_y=-100, sub_width=150, dialog_x=12.5, choice_x=-75, choice_scale=250).validate()
     for bad in (dict(sub_x=100.5), dict(dialog_y=-110), dict(choice_x=101), dict(layout_bg="nope"), dict(sub_width=40), dict(sub_width=12.5), dict(sub_x="1"),
-                dict(choice_scale=45), dict(choice_scale=255), dict(choice_scale=100.5)):
+                dict(choice_scale=45), dict(choice_scale=255), dict(choice_scale=100.5),
+                dict(speaker_color_geralt="blue"), dict(speaker_color_ciri="#123"), dict(speaker_color_other="#GGGGGG")):
         try:
             replace(InstallOptions(), **bad).validate()
         except ValueError:
             continue
         raise AssertionError(f"accepted {bad}")
+
+
+def test_custom_speaker_colors():
+    out = scripts(speaker_color_geralt="#112233", speaker_color_ciri="#445566", speaker_color_other="#778899")
+    dlg = out["hudModuleDialog.ws"]
+    sub = out["hudModuleSubtitles.ws"]
+    assert 'color = "#112233";' in dlg
+    assert 'color = "#445566";' in dlg
+    assert 'color = "#778899";' in dlg
+    assert "<FONT COLOR='#112233'>" in sub
+    assert "<FONT COLOR='#445566'>" in sub
+    assert "<FONT COLOR='#778899'>" in sub
 
 
 def test_clamp():

@@ -41,6 +41,9 @@ class InstallOptions:
     size1: int = 28
     size2: int = 28
     speaker_colors: bool = True
+    speaker_color_geralt: str = "#5ACCF7"
+    speaker_color_ciri: str = "#FC5593"
+    speaker_color_other: str = "#F8FF56"
     show_speaker_dialog: bool = True
     show_speaker_sub: bool = True
     storybook: bool = True
@@ -83,7 +86,7 @@ class InstallOptions:
             raise ValueError(f"unknown mode {self.mode}")
         if self.slot not in (SLOT_TR, SLOT_EN):
             raise ValueError(f"unknown language slot {self.slot}")
-        for c in (self.color1, self.color2):
+        for c in (self.color1, self.color2, self.speaker_color_geralt, self.speaker_color_ciri, self.speaker_color_other):
             if len(c) != 7 or not c.startswith("#") or any(ch not in "0123456789abcdefABCDEF" for ch in c[1:]):
                 raise ValueError(f"invalid colour {c}")
         for s in (self.size1, self.size2):

@@ -101,11 +101,11 @@ SUB_SPLIT = """\
 SUB_SPEAKER = """\
 			// mod thai
 			if(speakerNameDisplayText == "Geralt" || speakerNameDisplayText == GetLocStringByKeyExt("geralt"))
-				speakerNameDisplayText = "<FONT COLOR='#5ACCF7'>" + speakerNameDisplayText + "</FONT>";
+				speakerNameDisplayText = "<FONT COLOR='{color_geralt}'>" + speakerNameDisplayText + "</FONT>";
 			else if(speakerNameDisplayText == "Ciri" || speakerNameDisplayText == GetLocStringByKeyExt("ciri"))
-				speakerNameDisplayText = "<FONT COLOR='#FC5593'>" + speakerNameDisplayText + "</FONT>";
+				speakerNameDisplayText = "<FONT COLOR='{color_ciri}'>" + speakerNameDisplayText + "</FONT>";
 			else if(speakerNameDisplayText != "" && speakerNameDisplayText != " ")
-				speakerNameDisplayText = "<FONT COLOR='#F8FF56'>" + speakerNameDisplayText + "</FONT>";
+				speakerNameDisplayText = "<FONT COLOR='{color_other}'>" + speakerNameDisplayText + "</FONT>";
 			// mod thai
 """
 
@@ -347,6 +347,7 @@ DIALOG_SPEAKER_FN = """\
 		if ( m_spk_raw == "" || alternativeUI || theGame.isDialogDisplayDisabled )
 		{{
 			m_fxSentenceSetSFF.InvokeSelfOneArg( FlashArgString( text ) );
+			ModThaiPlace( GetModuleFlash() );
 			return;
 		}}
 		actor = ModThaiFindSpeaker();
@@ -362,6 +363,7 @@ DIALOG_SPEAKER_FN = """\
 			m_spk_wait = {wait};
 		}}
 		m_fxSentenceSetSFF.InvokeSelfOneArg( FlashArgString( prefix + text ) );
+		ModThaiPlace( GetModuleFlash() );
 	}}
 
 	// the line left on screen above the choices is the last one spoken, so it keeps that speaker
@@ -372,6 +374,7 @@ DIALOG_SPEAKER_FN = """\
 			line = m_spk_last + line;
 		}}
 		m_fxPreviousSentenceSetSFF.InvokeSelfOneArg( FlashArgString( line ) );
+		ModThaiPlace( GetModuleFlash() );
 	}}
 
 	// The choice box has no free text field, so the player's name borrows tfSubtitles, which is empty
@@ -476,11 +479,11 @@ DIALOG_SPEAKER_FN = """\
 
 DIALOG_SPEAKER_COLORS = """\
 		if ( actor == thePlayer && thePlayer.IsCiri() )
-			color = "#FC5593";
+			color = "{color_ciri}";
 		else if ( actor == thePlayer )
-			color = "#5ACCF7";
+			color = "{color_geralt}";
 		else
-			color = "#F8FF56";"""
+			color = "{color_other}";"""
 
 DIALOG_SPEAKER_PLAIN = "\t\tcolor = m_color1;"
 
@@ -593,6 +596,9 @@ class ScriptOptions:
     size1: int = 28
     size2: int = 28
     speaker_colors: bool = True
+    speaker_color_geralt: str = "#5ACCF7"
+    speaker_color_ciri: str = "#FC5593"
+    speaker_color_other: str = "#F8FF56"
     # offsets in percent of the screen, relative to the game's own layout
     sub_x: float = 0.0
     sub_y: float = 0.0
@@ -625,14 +631,28 @@ def _edits(name: str, o: ScriptOptions) -> list[Edit]:
                  replacement="{"),
             Edit("before", r'^\s*flashValueStorage\.SetFlashArray\( "hud\.dialog\.choices", choiceFlashArray \);',
                  DIALOG_CHOICES_PLACE),
+            Edit("after", r'^\s*flashValueStorage\.SetFlashArray\( "hud\.dialog\.choices", choiceFlashArray \);',
+                 DIALOG_CHOICES_PLACE),
         ]
         witold = r'^\s*text = "<FONT COLOR=\'#5ACCF6\'>" \+ GetLocStringByKeyExt\("Witold"\) \+ ": " \+ text \+ "</FONT>";'
         if not o.show_speaker_dialog:
-            edits.append(Edit("replace_line", witold, DIALOG_WITOLD_HIDDEN, optional=True))
+            edits += [
+                Edit("replace_line", witold, DIALOG_WITOLD_HIDDEN, optional=True),
+                Edit("after", r"^\s*m_fxSentenceSetSFF\.InvokeSelfOneArg\( FlashArgString\( text \) \);",
+                     DIALOG_CHOICES_PLACE),
+                Edit("after", r"^\s*m_fxPreviousSentenceSetSFF\.InvokeSelfOneArg\( FlashArgString\( text \) \);",
+                     DIALOG_CHOICES_PLACE),
+                Edit("after", r"^\s*event OnTick\( timeDelta : float \)\s*$", "{\n" + DIALOG_CHOICES_PLACE,
+                     replacement="{"),
+            ]
             return edits
         if o.speaker_colors:
             edits.append(Edit("replace_line", witold, DIALOG_WITOLD, optional=True))
-        color_block = DIALOG_SPEAKER_COLORS if o.speaker_colors else DIALOG_SPEAKER_PLAIN
+        color_block = (DIALOG_SPEAKER_COLORS.format(
+            color_geralt=o.speaker_color_geralt,
+            color_ciri=o.speaker_color_ciri,
+            color_other=o.speaker_color_other,
+        ) if o.speaker_colors else DIALOG_SPEAKER_PLAIN)
         edits += [
             Edit("replace_line", r"^\s*m_fxSentenceSetSFF\.InvokeSelfOneArg\( FlashArgString\( text \) \);",
                  DIALOG_SPEAKER_SET),
@@ -683,7 +703,12 @@ def _edits(name: str, o: ScriptOptions) -> list[Edit]:
                 Edit("before", r"^\s*m_fxAddSubtitleSFF\.InvokeSelfThreeArgs\(", SUB_HIDE.replace("\t\t\t", "\t\t")),
             ]
         elif o.speaker_colors:
-            edits.append(Edit("after", r'^\s*htmlString = ": "\s*\+ htmlString;', SUB_SPEAKER, optional=True))
+            sub_speaker = SUB_SPEAKER.format(
+                color_geralt=o.speaker_color_geralt,
+                color_ciri=o.speaker_color_ciri,
+                color_other=o.speaker_color_other,
+            )
+            edits.append(Edit("after", r'^\s*htmlString = ": "\s*\+ htmlString;', sub_speaker, optional=True))
             edits.append(Edit("replace_line",
                               r'^\s*speakerNameDisplayText = "<FONT COLOR=\'#5ACCF6\'>" \+ GetLocStringByKeyExt\("Witold"\)\s*\+ ": </FONT>";',
                               SUB_WITOLD, optional=True))

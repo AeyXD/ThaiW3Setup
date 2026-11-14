@@ -108,6 +108,9 @@ class App(tk.Tk):
         self.v_size1 = tk.IntVar(value=self.opts.size1)
         self.v_size2 = tk.IntVar(value=self.opts.size2)
         self.v_speaker = tk.BooleanVar(value=self.opts.speaker_colors)
+        self.v_speaker_geralt = tk.StringVar(value=self.opts.speaker_color_geralt)
+        self.v_speaker_ciri = tk.StringVar(value=self.opts.speaker_color_ciri)
+        self.v_speaker_other = tk.StringVar(value=self.opts.speaker_color_other)
         self.v_speaker_dialog = tk.BooleanVar(value=self.opts.show_speaker_dialog)
         self.v_speaker_sub = tk.BooleanVar(value=self.opts.show_speaker_sub)
         self.v_storybook = tk.BooleanVar(value=self.opts.storybook)
@@ -125,7 +128,7 @@ class App(tk.Tk):
         self._build()
         self.load_name_vars(self.opts.custom_sheets)
         for var in (self.v_font, self.v_mode, self.v_thai_first, self.v_color1, self.v_color2,
-                    self.v_size1, self.v_size2, self.v_speaker, self.v_speaker_dialog, self.v_speaker_sub, self.v_style,
+                    self.v_size1, self.v_size2, self.v_speaker, self.v_speaker_geralt, self.v_speaker_ciri, self.v_speaker_other, self.v_speaker_dialog, self.v_speaker_sub, self.v_style,
                     *self.v_names.values(), *self.v_tab_modes.values()):
             var.trace_add("write", lambda *_: self.schedule_preview())
         for var in (*self.v_names.values(), *self.v_tab_modes.values()):
@@ -243,11 +246,26 @@ class App(tk.Tk):
             size_lbl.grid(row=row * 2, column=2, sticky="e")
             self.style_widgets += [swatch, btn, scale]
         self.chk_speaker = ttk.Checkbutton(right, text="ชื่อผู้พูดเป็นสี", variable=self.v_speaker,
-                                           style="Switch.TCheckbutton")
+                                           command=self.update_states, style="Switch.TCheckbutton")
         self.chk_speaker.grid(row=5, column=0, columnspan=3, sticky="w", pady=(8, 0))
         self.style_widgets.append(self.chk_speaker)
+        spk_frame = ttk.Frame(right)
+        spk_frame.grid(row=6, column=0, columnspan=3, sticky="w", padx=(20, 0), pady=(4, 0))
+        self.speaker_color_widgets = []
+        for name, cvar in (("เกรัลต์", self.v_speaker_geralt),
+                           ("ซิริ", self.v_speaker_ciri),
+                           ("อื่น ๆ", self.v_speaker_other)):
+            lbl = ttk.Label(spk_frame, text=name)
+            lbl.pack(side="left", padx=(0, 4))
+            sw = tk.Label(spk_frame, width=3, relief="flat", bg=cvar.get(), cursor="hand2",
+                          highlightthickness=1, highlightbackground="#5a5a5a")
+            sw.pack(side="left", padx=(0, 10))
+            sw.bind("<Button-1>", lambda _e, v=cvar: self.pick_color(v))
+            cvar.trace_add("write", lambda *_, v=cvar, s=sw: s.configure(bg=v.get()))
+            self.speaker_color_widgets += [lbl, sw]
+            self.style_widgets += [lbl, sw]
         layout = ttk.Frame(right)
-        layout.grid(row=6, column=0, columnspan=3, sticky="w", pady=(8, 0))
+        layout.grid(row=7, column=0, columnspan=3, sticky="w", pady=(8, 0))
         self.btn_layout = ttk.Button(layout, text="\u0e1b\u0e23\u0e31\u0e1a\u0e15\u0e33\u0e41\u0e2b\u0e19\u0e48\u0e07...",
                                      command=self.open_layout, width=16)
         self.btn_layout.pack(side="left")
@@ -255,7 +273,7 @@ class App(tk.Tk):
         self.lbl_layout.pack(side="left", padx=(6, 0))
         self.style_widgets.append(self.btn_layout)
         self.update_layout_label()
-        ttk.Button(right, text="คืนค่าเริ่มต้น", command=self.reset_style).grid(row=7, column=0, columnspan=3,
+        ttk.Button(right, text="คืนค่าเริ่มต้น", command=self.reset_style).grid(row=8, column=0, columnspan=3,
                                                                            sticky="w", pady=(8, 0))
         self.v_mode.trace_add("write", lambda *_: self.update_states())
 
@@ -508,7 +526,11 @@ class App(tk.Tk):
         return replace(self.opts, game_path=self.v_game.get().strip(), font=font_key, mode=self.v_mode.get(),
                        thai_first=self.v_thai_first.get(), color1=self.v_color1.get(), color2=self.v_color2.get(),
                        size1=int(self.v_size1.get()), size2=int(self.v_size2.get()),
-                       speaker_colors=self.v_speaker.get(), show_speaker_dialog=self.v_speaker_dialog.get(),
+                       speaker_colors=self.v_speaker.get(),
+                       speaker_color_geralt=self.v_speaker_geralt.get(),
+                       speaker_color_ciri=self.v_speaker_ciri.get(),
+                       speaker_color_other=self.v_speaker_other.get(),
+                       show_speaker_dialog=self.v_speaker_dialog.get(),
                        show_speaker_sub=self.v_speaker_sub.get(), storybook=self.v_storybook.get(),
                        thai_logo=self.v_logo.get(), subtitle_style=self.v_style.get(), slot=self.v_slot.get(),
                        compat=[k for k, v in self.v_compat.items() if v.get()],
@@ -567,12 +589,23 @@ class App(tk.Tk):
                 pass
         if not (self.v_speaker_dialog.get() or self.v_speaker_sub.get()):
             self.chk_speaker.configure(state="disabled")
+        spk_active = (self.v_style.get() and self.v_speaker.get()
+                      and (self.v_speaker_dialog.get() or self.v_speaker_sub.get()))
+        spk_state = "normal" if spk_active else "disabled"
+        for w in self.speaker_color_widgets:
+            try:
+                w.configure(state=spk_state)
+            except tk.TclError:
+                pass
         self.chk_first.configure(state="normal" if self.v_mode.get() == MODE_DOUBLE else "disabled")
         self.schedule_preview()
 
     def pick_color(self, var: tk.StringVar):
         if not self.v_style.get():
             return
+        if var in (self.v_speaker_geralt, self.v_speaker_ciri, self.v_speaker_other):
+            if not self.v_speaker.get() or not (self.v_speaker_dialog.get() or self.v_speaker_sub.get()):
+                return
         _rgb, hex_color = colorchooser.askcolor(color=var.get(), parent=self)
         if hex_color:
             var.set(hex_color.upper())
@@ -583,6 +616,9 @@ class App(tk.Tk):
         self.v_size1.set(28)
         self.v_size2.set(28)
         self.v_speaker.set(True)
+        self.v_speaker_geralt.set("#5ACCF7")
+        self.v_speaker_ciri.set("#FC5593")
+        self.v_speaker_other.set("#F8FF56")
         self.opts = replace(self.opts, sub_x=0.0, sub_y=0.0, sub_width=100, dialog_x=0.0, dialog_y=0.0,
                             choice_x=0.0, choice_y=0.0, choice_scale=100)
         self.update_layout_label()

@@ -150,7 +150,7 @@ def _subtitle_lines(opts: InstallOptions, scale: float, max_width: float | None)
     c2 = opts.color2 if styled else DEFAULT_COLOR
     s1 = max(8, round((opts.size1 if styled else 28) * scale))
     s2 = max(8, round((opts.size2 if styled else 28) * scale))
-    speaker_color = SPEAKER_COLOR if styled and opts.speaker_colors else c1
+    speaker_color = (opts.speaker_color_geralt if styled and opts.speaker_colors else c1)
     show_speaker = not styled or opts.show_speaker_dialog or opts.show_speaker_sub
 
     thai, english = LINE_TH, f"[{SPEAKER_EN}: {LINE_EN}]"
