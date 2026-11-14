@@ -31,6 +31,73 @@ def guard_trailing_mark(text: str) -> str:
     return text + NBSP if text and text[-1] in THAI_MARKS else text
 
 
+_RE_BRACKETS_OPEN = re.compile(r"<\s*<")
+_RE_BRACKETS_CLOSE = re.compile(r">\s*>")
+_RE_BRACKET_MISSING_OPEN = re.compile(r"(?<!<)<([a-zA-Z0-9_]+)>>")
+_RE_BRACKET_MISSING_CLOSE = re.compile(r"<<([a-zA-Z0-9_]+)>(?!>)")
+_RE_HTML_CLOSE = re.compile(r"<\s*/\s*([a-zA-Z]+)\s*>")
+_RE_HTML_ITALIC = re.compile(r"<\s*i\s*>")
+_RE_HTML_BOLD = re.compile(r"<\s*b\s*>")
+_RE_HTML_BR = re.compile(r"<\s*br\s*/?\s*>", re.IGNORECASE)
+_RE_HEX_COLOR_TAG = re.compile(r"<\s*[a-zA-Z_]+[^>]*?#\s*([0-9a-fA-F]{6})\s*[\"']*\s*>", re.IGNORECASE)
+_RE_W3_TAG = re.compile(r"<<[^>]+>>")
+_RE_W3_TAG_STRIP = re.compile(r"<<\s*([^>]+?)\s*>>")
+_RE_SINGLE_TAG_CANDIDATE = re.compile(r"(?<!<)<([a-zA-Z0-9_, ]+)>(?!>)")
+
+
+def repair_tags(thai: str, english: str = "") -> str:
+    """Repair malformed <<...>> and HTML tags in Thai translations.
+
+    Normalizes malformed angle brackets, formats HTML tags (closing tags, font
+    colors), and replaces translated/spaced <<...>> tags with their canonical
+    English equivalents in matching order.
+    """
+    if not thai:
+        return thai
+
+    # 1. Normalize malformed bracket spaces and missing single brackets
+    text = _RE_BRACKETS_OPEN.sub("<<", thai)
+    text = _RE_BRACKETS_CLOSE.sub(">>", text)
+    text = _RE_BRACKET_MISSING_OPEN.sub(r"<<\1>>", text)
+    text = _RE_BRACKET_MISSING_CLOSE.sub(r"<<\1>>", text)
+
+    # 2. Normalize HTML tags
+    text = _RE_HTML_CLOSE.sub(lambda m: f"</{m.group(1).lower()}>", text)
+    text = _RE_HTML_ITALIC.sub("<i>", text)
+    text = _RE_HTML_BOLD.sub("<b>", text)
+    text = _RE_HTML_BR.sub("<br>", text)
+    text = _RE_HEX_COLOR_TAG.sub(r'<font color="#\1">', text)
+
+    # 3. Witcher 3 icon / action tags <<...>>
+    en_tags = _RE_W3_TAG.findall(english) if english else []
+
+    # If English has <<Tag>> tags, promote single <Tag> in Thai to <<Tag>> if it matches an English tag name
+    if en_tags:
+        en_tag_names = {t[2:-2].strip().lower(): t[2:-2].strip() for t in en_tags}
+
+        def _promote(m: re.Match) -> str:
+            name = m.group(1).strip()
+            if name.lower() in en_tag_names:
+                return f"<<{en_tag_names[name.lower()]}>>"
+            return m.group(0)
+
+        text = _RE_SINGLE_TAG_CANDIDATE.sub(_promote, text)
+
+    th_tags = _RE_W3_TAG.findall(text)
+
+    if en_tags and len(th_tags) == len(en_tags):
+        # 1-to-1 matching: replace Thai tags with canonical English tags in order
+        en_iter = iter(en_tags)
+        text = _RE_W3_TAG.sub(lambda _: next(en_iter), text)
+    else:
+        if en_tags and len(th_tags) != len(en_tags):
+            log.debug("tag count mismatch (en=%d, th=%d): %r vs %r", len(en_tags), len(th_tags), english, text)
+        # Strip internal whitespace from tags, e.g. << IK_LeftMouse >> -> <<IK_LeftMouse>>
+        text = _RE_W3_TAG_STRIP.sub(r"<<\1>>", text)
+
+    return text
+
+
 @dataclass
 class TextResult:
     files: dict[str, bytes]  # file name -> content
@@ -153,6 +220,7 @@ def build_texts(game: GameInfo, thai: dict[int, str], opts: InstallOptions,
         if sid in english.strings and overrides.counted(sid, bool(th)):
             translated += 1
         if th:
+            th = repair_tags(th, en_text)
             out.strings[sid] = guard_trailing_mark(wrap(
                 combine(th, en_text, opts.thai_first)
                 if double and sid not in keyed and sid not in overrides.plain else th))
