@@ -46,6 +46,7 @@ MANIFEST = "thai_manifest.json"
 LEGACY_PATTERN = re.compile(r"^modkuntoonw3thai", re.IGNORECASE)
 # ThaiLanguage Remastered 5.0 on Nexus ships modThaiLanguage plus its own modThaiFont (same name as ours)
 FOREIGN_THAI_PATTERN = re.compile(r"^modThaiLanguage$", re.IGNORECASE)
+RENAMED_OUR_RE = re.compile(r"^mod.+(" + "|".join(re.escape(m[3:]) for m in OUR_MODS + PATCH_MODS) + r")$", re.IGNORECASE)
 DISABLED_DIR = "mods_disabled"
 EXPORT_DIR = "ThaiW3_mods"
 EXPORT_ZIP = "ThaiW3_mods.zip"
@@ -91,6 +92,18 @@ def legacy_mods(game: GameInfo) -> list[Path]:
     if not game.mods_dir.is_dir():
         return []
     return [p for p in game.mods_dir.iterdir() if p.is_dir() and LEGACY_PATTERN.match(p.name)]
+
+
+def renamed_our_mods(game: GameInfo) -> list[Path]:
+    """Renamed copies of our mods (e.g. mod000000ThaiDoubleSub) left behind by priority edits."""
+    if not game.mods_dir.is_dir():
+        return []
+    ours = {m.lower() for m in OUR_MODS + PATCH_MODS}
+    return [p for p in sorted(game.mods_dir.iterdir())
+            if p.is_dir() and p.name.lower() not in ours
+            and not LEGACY_PATTERN.match(p.name)
+            and not FOREIGN_THAI_PATTERN.match(p.name)
+            and RENAMED_OUR_RE.match(p.name)]
 
 
 def _other_mods(game: GameInfo) -> list[Path]:
@@ -278,6 +291,16 @@ def install(opts: InstallOptions, progress: ProgressFn = noop, confirm: ConfirmF
                 shutil.rmtree(p)
         else:
             report.warnings.append(f"ยังมี mod ไทยตัวเก่า ({names}) อยู่ อาจทำให้แสดงผลผิดพลาด")
+    renamed = renamed_our_mods(game)
+    if renamed:
+        names = ", ".join(p.name for p in renamed)
+        if confirm(f"พบโฟลเดอร์ mod ภาษาไทยที่ถูกเปลี่ยนชื่อไว้ ({names})\n"
+                   "ซึ่งจะทำงานทับกับไฟล์ที่ติดตั้งใหม่ ต้องการลบออกหรือไม่?"):
+            _check_not_in_use(game, [p.name for p in renamed])
+            for p in renamed:
+                shutil.rmtree(p)
+        else:
+            report.warnings.append(f"ยังมีโฟลเดอร์ mod ภาษาไทยที่ถูกเปลี่ยนชื่อไว้ ({names}) อยู่ อาจทำให้ทับซ้อนกับไฟล์ที่ติดตั้งใหม่")
     progress(0.0, "ตรวจหา mod ภาษาไทยตัวอื่น...")
     foreign = foreign_thai_mods(game, deep=True)
     if foreign:
@@ -532,6 +555,10 @@ def export(opts: InstallOptions, out_dir: str | os.PathLike, progress: ProgressF
     if old:
         report.warnings.append(f"พบ mod ภาษาไทยตัวเก่าของ w3tu ({', '.join(p.name for p in old)}) ในโฟลเดอร์ mods"
                                " ของเกม ให้ลบออกก่อนคัดลอก ไม่งั้นจะทำงานชนกัน")
+    renamed = renamed_our_mods(game)
+    if renamed:
+        report.warnings.append(f"พบโฟลเดอร์ mod ภาษาไทยที่ถูกเปลี่ยนชื่อ ({', '.join(p.name for p in renamed)}) ในโฟลเดอร์ mods"
+                               " ของเกม ให้ลบออกก่อนคัดลอก ไม่งั้นจะทำงานทับซ้อนกับไฟล์ใหม่")
     progress(0.0, "ตรวจหา mod ภาษาไทยตัวอื่น...")
     foreign = foreign_thai_mods(game, deep=True)
     if foreign:
@@ -571,6 +598,10 @@ def export_zip(opts: InstallOptions, out_dir: str | os.PathLike, progress: Progr
     if old:
         report.warnings.append(f"พบ mod ภาษาไทยตัวเก่าของ w3tu ({', '.join(p.name for p in old)}) ในโฟลเดอร์ mods"
                                " ของเกม ให้ลบออกก่อนคัดลอก ไม่งั้นจะทำงานชนกัน")
+    renamed = renamed_our_mods(game)
+    if renamed:
+        report.warnings.append(f"พบโฟลเดอร์ mod ภาษาไทยที่ถูกเปลี่ยนชื่อ ({', '.join(p.name for p in renamed)}) ในโฟลเดอร์ mods"
+                               " ของเกม ให้ลบออกก่อนคัดลอก ไม่งั้นจะทำงานทับซ้อนกับไฟล์ใหม่")
     progress(0.0, "ตรวจหา mod ภาษาไทยตัวอื่น...")
     foreign = foreign_thai_mods(game, deep=True)
     if foreign:

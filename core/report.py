@@ -13,8 +13,8 @@ from pathlib import Path
 from . import __version__
 from .game_detect import EDITION_UNKNOWN, GameInfo, identify
 from .compat import OK
-from .installer import (MOD_SCRIPT, MOD_TEXT, OUR_MODS, PATCH_MODS, foreign_thai_mods, legacy_mods, script_overlaps,
-                        status, strings_have_thai)
+from .installer import (MOD_SCRIPT, MOD_TEXT, OUR_MODS, PATCH_MODS, foreign_thai_mods, legacy_mods, renamed_our_mods,
+                        script_overlaps, status, strings_have_thai)
 from .mods_settings import documents_dir, settings_paths
 from .net import urlopen
 from .paths import app_data_dir
@@ -88,6 +88,8 @@ def _conflicts(game: GameInfo) -> list[str]:
         out.append(f"mod files loose in content\\: {', '.join(game.loose_content)}")
     for p in legacy_mods(game):
         out.append(f"old w3tu Thai mod: mods\\{p.name}")
+    for p in renamed_our_mods(game):
+        out.append(f"renamed copy of our mod: mods\\{p.name}")
     for p in foreign_thai_mods(game):
         out.append(f"other Thai mod: mods\\{p.name}")
     for s in script_overlaps(game):

@@ -1,12 +1,12 @@
 """Other Thai mods (ThaiLanguage Remastered on Nexus), HUD script overlaps, loose content files, tampered files."""
-import os, sys, tempfile
+import os, shutil, sys, tempfile
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from pathlib import Path
 from core import game_detect, installer
 from core.game_detect import identify
-from core.installer import (DISABLED_DIR, disable_mods, foreign_thai_mods, modified_files, script_overlaps,
-                            strings_have_thai, _file_hashes)
+from core.installer import (DISABLED_DIR, disable_mods, foreign_thai_mods, modified_files, renamed_our_mods,
+                            script_overlaps, strings_have_thai, _file_hashes)
 from core.report import _conflicts
 from core.w3strings import W3Strings
 
@@ -34,6 +34,8 @@ try:
     (mods / "modSomethingElse" / "content").mkdir(parents=True)
     (mods / "modSomethingElse" / "content" / "en.w3strings").write_bytes(b"not a real file")
     (mods / "modRenamedThai" / "content").mkdir(parents=True)
+    (mods / "mod000000ThaiDoubleSub" / hud).mkdir(parents=True)
+    (mods / "mod000000ThaiDoubleSub" / hud / "hudModuleDialog.ws").write_text("x")
     thai = W3Strings(language="tr", version=164, strings={i: f"ข้อความภาษาไทย {i}" for i in range(1, 400)},
                      keys={1: 0x1234})
     thai.save(mods / "modRenamedThai" / "content" / "tr.w3strings")
@@ -48,10 +50,11 @@ try:
     assert [p.name for p in foreign_thai_mods(g)] == ["modThaiLanguage"], "name match only without deep"
     assert strings_have_thai(mods / "modRenamedThai" / "content" / "tr.w3strings", "tr")
     assert [p.name for p in foreign_thai_mods(g, deep=True)] == ["modRenamedThai", "modThaiLanguage"]
-    assert script_overlaps(g) == ["modThaiLanguage (hudModuleSubtitles.ws)"], script_overlaps(g)
+    assert [p.name for p in renamed_our_mods(g)] == ["mod000000ThaiDoubleSub"], renamed_our_mods(g)
+    assert script_overlaps(g) == ["mod000000ThaiDoubleSub (hudModuleDialog.ws)", "modThaiLanguage (hudModuleSubtitles.ws)"], script_overlaps(g)
 
     conflicts = _conflicts(g)
-    for part in ("loose in content", "other Thai mod: mods\\modThaiLanguage", "same HUD scripts"):
+    for part in ("loose in content", "other Thai mod: mods\\modThaiLanguage", "renamed copy of our mod: mods\\mod000000ThaiDoubleSub", "same HUD scripts"):
         assert any(part in c for c in conflicts), (part, conflicts)
 
     hashes = _file_hashes(mods, ["modThaiFont"])
@@ -64,7 +67,10 @@ try:
     assert not (mods / "modThaiLanguage").exists() and not (mods / "modRenamedThai").exists()
     moved = sorted(p.name for p in target.iterdir())
     assert "modRenamedThai" in moved and len([n for n in moved if n.startswith("modThaiLanguage")]) == 2, moved
-    assert foreign_thai_mods(g, deep=True) == [] and script_overlaps(g) == []
+    assert foreign_thai_mods(g, deep=True) == [] and script_overlaps(g) == ["mod000000ThaiDoubleSub (hudModuleDialog.ws)"]
+    for p in renamed_our_mods(g):
+        shutil.rmtree(p)
+    assert renamed_our_mods(g) == [] and script_overlaps(g) == []
 
     if NEXUS.is_dir():
         nexus = NEXUS / "modThaiLanguage" / "content" / "tr.w3strings"
