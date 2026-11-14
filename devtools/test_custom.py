@@ -2,7 +2,8 @@
 import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from gamepath import GAME
-from core.custom import DEFAULT_SHEETS, default_sheets, get_custom, hidden_sheets, sheet_key
+from core import custom
+from core.custom import COMMUNITY_ID, DEFAULT_SHEETS, default_sheets, get_custom, hidden_sheets, merged_overrides, sheet_key
 from core.options import InstallOptions, _add_new_default_sheets
 from core.w3strings import W3Strings
 from devtools.import_en_csv import build_rows, parse_csv
@@ -19,10 +20,27 @@ opts = InstallOptions(custom_sheets=[], known_default_sheets=[])
 _add_new_default_sheets(opts)
 assert opts.custom_sheets and not hidden & {sheet_key(s) for s in opts.custom_sheets}
 
-out = W3Strings.load(os.path.join(GAME, "mods", "modThaiText", "content", "tr.w3strings"), "tr")
-for n in map(int, sys.argv[1:]):
-    sheet = DEFAULT_SHEETS[n - 1]
-    strings = get_custom(sheet.sheet_id, allow_online=False, tab=sheet.tab)
-    present = [sid for sid in strings if sid in out.strings]
-    same = sum(1 for sid in present if out.strings[sid] == strings[sid])
-    print(f"sheet {n}: {len(strings)} ids, {len(present)} exist in game, {same} applied")
+# failed sheet downloads are pooled so multi-tab sheets (e.g. COMMUNITY_ID) only fail once and fall back to bundled data
+calls = []
+orig_download = custom._download
+def fail_download(url, _progress=None):
+    calls.append(url)
+    raise RuntimeError("HTTP Error 400: Bad Request")
+custom._download = fail_download
+try:
+    ov = merged_overrides(default_sheets(), force_download=True)
+finally:
+    custom._download = orig_download
+assert len(calls) == len({s["sheet_id"] for s in default_sheets() if s.get("enabled") or custom.is_name_tab(s)}), calls
+assert sum(1 for u in calls if COMMUNITY_ID in u) == 1, calls
+assert ov.strings
+
+if sys.argv[1:]:
+    out = W3Strings.load(os.path.join(GAME, "mods", "modThaiText", "content", "tr.w3strings"), "tr")
+    for n in map(int, sys.argv[1:]):
+        sheet = DEFAULT_SHEETS[n - 1]
+        strings = get_custom(sheet.sheet_id, allow_online=False, tab=sheet.tab)
+        present = [sid for sid in strings if sid in out.strings]
+        same = sum(1 for sid in present if out.strings[sid] == strings[sid])
+        print(f"sheet {n}: {len(strings)} ids, {len(present)} exist in game, {same} applied")
+print("test_custom ok")

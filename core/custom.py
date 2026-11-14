@@ -310,18 +310,26 @@ def load_custom(path) -> tuple[CustomData, float, bool]:
     return data, float(payload["fetched_at"]), payload.get("format") == CUSTOM_FORMAT
 
 
-def _fetch(sheet_id: str, progress: ProgressFn, pool: dict[str, bytes] | None) -> bytes:
-    """The xlsx export holds every tab, so tabs of one sheet share a download through ``pool``."""
+def _fetch(sheet_id: str, progress: ProgressFn, pool: dict[str, bytes | Exception] | None) -> bytes:
+    """The xlsx export holds every tab, so tabs of one sheet share a download (and failures) through ``pool``."""
     if pool is not None and sheet_id in pool:
-        return pool[sheet_id]
-    data = _download(EXPORT_URL.format(id=sheet_id), progress)
+        cached = pool[sheet_id]
+        if isinstance(cached, Exception):
+            raise cached
+        return cached
+    try:
+        data = _download(EXPORT_URL.format(id=sheet_id), progress)
+    except Exception as exc:
+        if pool is not None:
+            pool[sheet_id] = exc
+        raise
     if pool is not None:
         pool[sheet_id] = data
     return data
 
 
 def download_custom(sheet_id: str, tab: str = "", progress: ProgressFn = noop,
-                    pool: dict[str, bytes] | None = None) -> CustomData:
+                    pool: dict[str, bytes | Exception] | None = None) -> CustomData:
     data = parse_custom_xlsx(_fetch(sheet_id, progress, pool), tab)
     save_custom(_cache_path(sheet_id, tab), data, time.time())
     return data
@@ -369,7 +377,7 @@ def cached_thai_name(tab: str, english: str) -> str | None:
 
 def get_custom_data(sheet_id: str, force_download: bool = False, allow_online: bool = True,
                     progress: ProgressFn = noop, tab: str = "",
-                    pool: dict[str, bytes] | None = None) -> CustomData:
+                    pool: dict[str, bytes | Exception] | None = None) -> CustomData:
     cache = _cache_path(sheet_id, tab)
     if cache.exists() and not force_download:
         try:
@@ -396,7 +404,7 @@ def get_custom_data(sheet_id: str, force_download: bool = False, allow_online: b
 
 def get_custom(sheet_id: str, force_download: bool = False, allow_online: bool = True,
                progress: ProgressFn = noop, tab: str = "",
-               pool: dict[str, bytes] | None = None) -> dict[int, str]:
+               pool: dict[str, bytes | Exception] | None = None) -> dict[int, str]:
     return get_custom_data(sheet_id, force_download, allow_online, progress, tab, pool).strings
 
 
@@ -406,7 +414,7 @@ def merged_overrides(sheets: list[dict], force_download: bool = False,
     their ids then stay English."""
     enabled = [s for s in sheets if s.get("enabled") or is_name_tab(s)]
     out = Overrides()
-    pool: dict[str, bytes] = {}
+    pool: dict[str, bytes | Exception] = {}
     for i, s in enumerate(enabled):
         progress(i / max(1, len(enabled)), f"คำแปลเสริม: {s.get('name') or s['sheet_id']}")
         data = get_custom_data(s["sheet_id"], force_download,
@@ -455,7 +463,7 @@ def _apply_name_tab(out: Overrides, data: CustomData, mode: str) -> None:
 
 def export_defaults() -> None:
     """Snapshot the default sheets into assets/custom for offline installs."""
-    pool: dict[str, bytes] = {}
+    pool: dict[str, bytes | Exception] = {}
     for s in DEFAULT_SHEETS:
         data = parse_custom_xlsx(_fetch(s.sheet_id, noop, pool), s.tab)
         save_custom(_bundled_path(s.sheet_id, s.tab), data, time.time())
