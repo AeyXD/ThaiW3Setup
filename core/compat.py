@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Iterator
 
 from . import __version__
-from .assets import FONT_PATH, TURKISH_I, font_files
+from .assets import FONT_PATH, GLYPH_ALIASES, font_files
 from .bundle import BundleError, BundleFile, iter_bundle
 from .compat_text import (GWENT_OPPONENT_NAME_DTY, GWENT_PLAYER_NAME_DTY, GWENT_SCORE_DTY,
                           INK_AND_IRON, INK_AND_IRON_TITLE, MARK_Y_FACTOR_TO, translator)
@@ -238,7 +238,7 @@ def _wanted(mod: CompatMod, path: str, thai_logo: bool) -> bool:
 
 def _patch_one(mod: CompatMod, path: str, data: bytes, font: str, thai_logo: bool, logo) -> bytes | None:
     if path == FONT_PATH:
-        return alias_glyphs(merge_glyphs(data, font_files(font)[0].data), TURKISH_I)
+        return alias_glyphs(merge_glyphs(data, font_files(font)[0].data), GLYPH_ALIASES)
     titles = mod.titles if thai_logo and path in MENU_FILES else None
     texts = translator(mod.texts, titles) if mod.texts or titles else None
     out = None
