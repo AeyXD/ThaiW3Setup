@@ -13,6 +13,10 @@ from functools import lru_cache
 from .paths import assets_dir
 
 BREAK = "\u200a"
+# The standard spells \u0e44\u0e21\u0e49\u0e22\u0e21\u0e01 with a space before it ("\u0e15\u0e48\u0e32\u0e07 \u0e46"), and Scaleform would wrap there and start
+# a line with \u0e46. A no-break space (drawn with the space glyph, see assets.font_files) keeps \u0e46 on its word.
+NBSP = "\u00a0"
+YAMOK_SPACE = re.compile("[ \u200a]+(?=\u0e46)")
 WORDS_FILE = "thai_words.txt.gz"  # union: pythainlp corpus (Apache-2.0) + ICU thaidict (Unicode License) — ที่มาดูหัวไฟล์ข้างใน
 
 THAI_RUN = re.compile("[\u0e01-\u0e4e]+")
@@ -47,7 +51,7 @@ class ThaiWrapper:
     def wrap(self, text: str) -> str:
         if not THAI_RUN.search(text):
             return text
-        return THAI_RUN.sub(lambda m: BREAK.join(self._split(m.group())), text)
+        return YAMOK_SPACE.sub(NBSP, THAI_RUN.sub(lambda m: BREAK.join(self._split(m.group())), text))
 
     def _split_run(self, run: str) -> tuple[str, ...]:
         n = len(run)
