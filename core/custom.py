@@ -107,6 +107,9 @@ DEFAULT_SHEETS = [
     CustomSheet(COMMUNITY_ID,
                 "\u0e04\u0e33\u0e41\u0e1b\u0e25\u0e40\u0e1e\u0e34\u0e48\u0e21\u0e40\u0e15\u0e34\u0e21\u0e08\u0e32\u0e01\u0e0a\u0e38\u0e21\u0e0a\u0e19", True,
                 UNTRANSLATED_TAB, 0),
+    # the whole game reviewed against the English line by line (AeyXD); off by default, opt in.
+    # Before the name tabs so names still follow the player's name setting.
+    CustomSheet("1OOE6UWlNKStiXNJmRq68JjUnvSdxu7tFJ1q-p4npWjQ", "\u0e15\u0e23\u0e27\u0e08\u0e17\u0e32\u0e19\u0e17\u0e31\u0e49\u0e07\u0e40\u0e01\u0e21"),
     # proper names shown as "English (Thai)", see devtools/export_names.py
     *(CustomSheet(COMMUNITY_ID, name_label(tab), True, tab, NAME_GIDS.get(tab), NAME_DOUBLE) for tab in NAME_TABS),
 ]
