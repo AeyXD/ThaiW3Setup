@@ -308,4 +308,5 @@ python3.12 -m venv .venv
 - พจนานุกรมตัดคำ (65,758 คำ): union ของ [pythainlp corpus](https://github.com/PyThaiNLP/pythainlp) (Apache License 2.0) และ ICU thaidict (Unicode License) — รวมผ่าน [thaiwrap](https://github.com/AeyXD/thaiwrap)
 - ไอคอนปุ่ม: [Material Symbols](https://github.com/google/material-design-icons) ของ Google (Apache License 2.0) สร้างด้วย `devtools/make_ui_icons.py`
 - ซอร์สโค้ดของโปรแกรมใช้ [MIT License](LICENSE) ส่วนคำแปล ฟอนต์ และภาพเป็นลิขสิทธิ์ของเจ้าของแต่ละราย
+- ไลบรารีและส่วนประกอบของบุคคลที่สามพร้อมสัญญาอนุญาต: [NOTICE](NOTICE)
 - The Witcher 3: Wild Hunt © CD PROJEKT S.A. โปรแกรมนี้เป็นผลงานของแฟนเกม ไม่เกี่ยวข้องกับ CD PROJEKT RED

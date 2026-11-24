@@ -28,6 +28,8 @@ rm -rf "$STAGE"
 mkdir -p "$STAGE"
 cp -R dist/ThaiW3Setup.app "$STAGE/"
 cp README.md "$STAGE/"
+cp LICENSE "$STAGE/LICENSE.txt"
+cp NOTICE "$STAGE/NOTICE.txt"
 cp packaging/first-run-macos.txt "$STAGE/อ่านก่อนเปิดครั้งแรก.txt"
 
 # "macos" before the version: GitHub lists assets by name, and setups before 0.4.8 take the first zip,

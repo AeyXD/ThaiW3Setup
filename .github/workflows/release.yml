@@ -58,6 +58,8 @@ jobs:
           python packaging/make_version_info.py
           python -m PyInstaller --noconfirm --clean ThaiW3Setup.spec
           Copy-Item README.md dist/ThaiW3Setup/README.md
+          Copy-Item LICENSE dist/ThaiW3Setup/LICENSE.txt
+          Copy-Item NOTICE dist/ThaiW3Setup/NOTICE.txt
 
       - name: Smoke test
         run: |
