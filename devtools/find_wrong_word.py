@@ -17,6 +17,8 @@
    คำตัวไหนเคยอยู่คู่เพื่อนบ้านแบบนี้ทั่วคลัง (เข้าไปใน = ทั่วไป / เข่าไปใน = ไม่เคยมี)
    โดยตัดคำแบบ**แยกช่วงอักษรไทยต่อช่วง** ไม่ให้เครื่องหมายหรือแท็กที่ติดคำ
    (เข้า! / <b>เข้า</b>) เกาะเป็น token เดียวจนหลุดเงื่อนไข
+4. ถ้ามีเกมในเครื่อง ใช้ภาษาอังกฤษต้นฉบับตัดผลที่จับผิด (devtools/en_sense.py)
+   เช่น "ขาพาไปไหนก็ไป" + "wherever our legs carry us" → ขา ถูก ไม่เสนอ ข้า
 3. รายงานเมื่อคำในข้อความ**แทบไม่เคย**ปรากฏในบริบทนั้น (≤ MAX_MINE ครั้ง — typo
    ชอบซ้ำกันเองในคลัง) ขณะที่คู่สับสนตัวอื่นในชุดปรากฏในบริบทแบบเดียวกัน**แน่นอน**
    (≥ MIN_SUPPORT ครั้ง) ซึ่งมักคือคำที่ตั้งใจจะพิมพ์
@@ -44,6 +46,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.thai_wrap import BREAK, ThaiWrapper, load_words
+from devtools.en_sense import english_of, load_english, ruled_out
 
 DEFAULT_STORE = Path(__file__).resolve().parent.parent / "assets" / "translations.json.gz"
 DEFAULT_OUT = Path(tempfile.gettempdir()) / "wrong_word.csv"
@@ -79,6 +82,10 @@ ALLOW_PAIRS = {
     ("ข่าย", "ขาย"),
     # ผู้ใช้ยืนยัน 2026-10-15: "นักบวชแห่ง Eternal Fire ต่างแสดงความคลั่ง..." ต่าง = ทุกคน/แต่ละคน (ไม่ใช่ ตั้ง)
     ("ต่าง", "ตั้ง"),
+    # 2026-11-24 ตรวจ 219 จุด: การสะกดเน้นเสียงในบทพูดที่ตั้งใจ (อ่ะฮ่า, อ้าใช่, ขอบคุณม๊าก, ไม่รู้เล้ย,
+    # ทำได้ล่ะว้า, พ่อต๊องไปแล้ว) และ ดัง/ดั่ง ที่ใช้ได้ทั้งคู่ (งามดังวสันต์)
+    ("อ่ะ", "อะ"), ("อะ", "อ่ะ"), ("อ้า", "อ่า"), ("ม๊าก", "มาก"), ("เล้ย", "เลย"),
+    ("ว้า", "ว่า"), ("ต๊อง", "ต้อง"), ("ดัง", "ดั่ง"),
 }
 
 # รูปที่ผู้ใช้ยืนยันว่าถูก**เฉพาะในวลีนี้** (2026-10-16) — ไม่ใส่ ALLOW_PAIRS เพราะคู่เหล่านี้
@@ -149,7 +156,7 @@ def runs_of(text: str, wrapper: ThaiWrapper):
     return out
 
 
-def scan_text(text: str, runs, confusions: dict, bigrams: Counter):
+def scan_text(text: str, runs, confusions: dict, bigrams: Counter, english: str = ""):
     """คืน [(คำที่สงสัย, ข้อเสนอ, จุดเริ่ม)] — เทียบบริบท**ทีละด้าน**ด้วยเกณฑ์เดียวกัน
 
     ด้านหนึ่งถือเป็นหลักฐานเมื่อคำเดิมแทบไม่เคยอยู่คู่เพื่อนบ้านด้านนั้น (≤ MAX_MINE —
@@ -163,6 +170,9 @@ def scan_text(text: str, runs, confusions: dict, bigrams: Counter):
         for i, tok in enumerate(toks):
             alts = confusions.get(tok)
             if not alts:
+                continue
+            # ที ท้ายช่วงข้อความ = คำขอร้อง/จังหวะ (ช่วยนางที! / ถึงทีของเจ้า) ไม่ใช่ ที่ ที่ตกไม้เอก
+            if tok == "ที" and i == len(toks) - 1:
                 continue
             prev_t = toks[i - 1] if i > 0 else ""
             next_t = toks[i + 1] if i + 1 < len(toks) else ""
@@ -179,7 +189,7 @@ def scan_text(text: str, runs, confusions: dict, bigrams: Counter):
             if not (best and support >= MIN_SUPPORT):
                 continue
             start = base + sum(len(t) for t in toks[:i])
-            if confirmed(tok, text, start):
+            if confirmed(tok, text, start) or ruled_out(tok, best, english):
                 continue
             hits.append((tok, best, start))
     return hits
@@ -189,7 +199,9 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("-s", "--store", type=Path, default=DEFAULT_STORE, help="ไฟล์ translations.json.gz")
     ap.add_argument("-o", "--out", type=Path, default=DEFAULT_OUT, help="ไฟล์ CSV ปลายทาง")
+    ap.add_argument("--no-english", action="store_true", help="ไม่ใช้ภาษาอังกฤษของเกมช่วยตัดผลที่จับผิด")
     args = ap.parse_args()
+    en = {} if args.no_english else load_english()
 
     lexicon = load_words()
     wrapper = ThaiWrapper(lexicon)
@@ -208,7 +220,7 @@ def main() -> None:
     rows = []
     per_form = Counter()
     for (src, key, text), runs in zip(entries, entry_runs):
-        for tok, best, start in scan_text(text, runs, confusions, bigrams):
+        for tok, best, start in scan_text(text, runs, confusions, bigrams, english_of(en, src, key)):
             ctx = text[max(0, start - 25):start + len(tok) + 25].replace("\n", " ")
             per_form[f"{tok} → {best}"] += 1
             rows.append(("ข้อเสนอเครื่องมือ", src, key, tok, best, ctx))

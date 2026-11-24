@@ -42,6 +42,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.thai_wrap import BREAK, ThaiWrapper, load_words
+from devtools.en_sense import english_of, load_english, ruled_out
 
 DEFAULT_STORE = Path(__file__).resolve().parent.parent / "assets" / "translations.json.gz"
 DEFAULT_OUT = Path(tempfile.gettempdir()) / "ral_swaps.csv"
@@ -71,6 +72,13 @@ ALLOW = {
     "รออออ", "รออ", "หลบๆ", "ร่อยๆ", "กละ", "บลา", "บลาซิล",
     # ชื่อในซับ Storybook (2026-10-20): สามแม่เฒ่าโครน (Crones), อาวาลาค (Avallac'h)
     "โครน", "ลาค",
+    # 2026-11-24 ตรวจกับต้นฉบับแล้วถูก: เมแทบอลิซึม (metabolism), ศิล-ละ-ปิน (artiste),
+    # เรนเน็ต (rennet) / โอเรน ออเรน ฟลอเรน (orens, florens), น้ำมันเรปซีด (rapeseed), เห็ดโบลีต (boletus),
+    # วิชวลเอฟเฟกต์ (visual effects), ฮูเร (hurrah), อิ่มแปล้ ขาดรุ่ย (ราชบัณฑิตฯ), ทหารม้าทั้งกรม (regiment),
+    # ขว้างหินแรงและแม่น (throws stones)
+    # ราเพนิซิลเลียม (penicillium) = รา + เพนิซิลเลียม, กางเกงชาราวารี (sharovary)
+    "ราเพ", "ชารา",
+    "อลิ", "ศิล", "เรน", "เรป", "ลีต", "ชวล", "ฮูเร", "อิ่มแปล้", "ขาดรุ่ย", "ทั้งกรม", "หินแรง",
 }
 
 # ข้อเสนอระดับคำ: รูปที่ผิดจริงแต่คำแก้ไม่ได้มาจากการสลับ ร↔ล (รุงแรง→รุนแรง)
@@ -167,7 +175,7 @@ def _starts_la_word(wrong: str, text: str, end: int, lexicon: set[str]) -> bool:
     return any(rest.startswith(w) for w in words)
 
 
-def scan_text(text: str, wrapper: ThaiWrapper, lexicon: set[str]):
+def scan_text(text: str, wrapper: ThaiWrapper, lexicon: set[str], english: str = ""):
     """คืน [(รูปผิด, ข้อเสนอ, start, end)] ตำแหน่งอ้างอิงต้นฉบับ
 
     ตรวจเป็นช่วงอักษรไทยต่อช่วง: ถ้าตัดคำทั้งข้อความก้อนเดียว เครื่องหมายหรือแท็ก
@@ -220,6 +228,8 @@ def scan_text(text: str, wrapper: ThaiWrapper, lexicon: set[str]):
     hits = [h for h in hits if not _starts_la_word(h[0], text, h[3], lexicon)]
     hits = [h for h in hits if not _confirmed(h[0], text, h[2])]
     hits = [h for h in hits if not _negated_particle(h[0], text, h[2])]
+    # ต้นฉบับยืนยันว่ารูปเดิมถูก หรือไม่มีความหมายของคำที่เสนอเลย (รุกขึ้นเหนือ = push north)
+    hits = [h for h in hits if not ruled_out(h[0], h[1], english)]
     # ตัด hit ที่ซ้อนอยู่ใน hit ที่ยาวกว่า (เด็กกำพล้า ครอบ กำพล้า อยู่รายงานเดียว)
     hits.sort(key=lambda h: (h[2], -(h[3] - h[2])))
     kept = []
@@ -233,7 +243,9 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("-s", "--store", type=Path, default=DEFAULT_STORE, help="ไฟล์ translations.json.gz")
     ap.add_argument("-o", "--out", type=Path, default=DEFAULT_OUT, help="ไฟล์ CSV ปลายทาง")
+    ap.add_argument("--no-english", action="store_true", help="ไม่ใช้ภาษาอังกฤษของเกมช่วยตัดผลที่จับผิด")
     args = ap.parse_args()
+    en = {} if args.no_english else load_english()
 
     lexicon = load_words()
     wrapper = ThaiWrapper(lexicon)
@@ -243,7 +255,7 @@ def main() -> None:
     for source, key, text in entries:
         if not isinstance(text, str):
             continue
-        for wrong, right, s, e in sorted(set(scan_text(text, wrapper, lexicon))):
+        for wrong, right, s, e in sorted(set(scan_text(text, wrapper, lexicon, english_of(en, source, key)))):
             per_form[wrong] += 1
             ctx = text[max(0, s - 25):e + 25].replace("\n", " ")
             rows.append(("ข้อเสนอเครื่องมือ", source, key, wrong, right, ctx))

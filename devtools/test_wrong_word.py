@@ -50,3 +50,17 @@ start = t[0][1]
 assert tagged[start:start + len("เข่า")] == "เข่า", start
 
 print("test_wrong_word ok")
+
+# ต้นฉบับอังกฤษช่วยตัดผลที่จับผิด (devtools/en_sense.py) แต่ต้องไม่ซ่อนคำผิดจริง
+from devtools.en_sense import ruled_out
+
+assert ruled_out("ขา", "ข้า", "wherever our legs carry us")            # ความหมายคำเดิมอยู่ในอังกฤษ
+assert ruled_out("ใช่", "ใช้", "Aye, damn shame.")                      # ไม่มี use = ไม่มีหลักฐานให้เปลี่ยน
+assert ruled_out("รุกขึ้น", "ลุกขึ้น", "Emperor continuing to push north")  # ral: ช่วงคำ + คำในข้างใน
+assert not ruled_out("ไอ", "ไอ้", "the share o' the whoreson")          # คำผิดจริงยังรายงาน
+assert not ruled_out("ใช่", "ใช้", "Use the sword")                     # อังกฤษมีความหมายคำที่เสนอ
+assert not ruled_out("ขา", "ข้า", "")                                   # ไม่มีอังกฤษ = ไม่กรอง
+assert not ruled_out("หมู", "หมู่", "a group of men")                   # หมู ใน หมู่ ไม่ใช่คำเดียวกัน
+assert not ruled_out("พอ", "พ่อ", "Me pa told me")                      # pa ทั้งคำ = father → ยังรายงาน
+assert ruled_out("พอ", "พ่อ", "in the past")                            # past ไม่ใช่ pa → ไม่มีหลักฐาน
+print("test_wrong_word ok (en_sense)")
