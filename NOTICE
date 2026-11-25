@@ -2,44 +2,61 @@ ThaiW3Setup — ส่วนประกอบของบุคคลที่�
 
 ซอร์สโค้ดของ ThaiW3Setup ใช้ MIT License (ดู LICENSE) ไฟล์นี้รวบรวมส่วนประกอบของผู้อื่นที่อยู่ใน repo
 หรือถูกรวมไว้ในโปรแกรมที่ปล่อย (zip Windows / macOS) พร้อมสัญญาอนุญาตของแต่ละส่วน
+ข้อความสัญญาอนุญาตฉบับเต็มอยู่ในโฟลเดอร์ LICENSES/ (ชื่อไฟล์ระบุไว้ท้ายแต่ละข้อ)
 
 == ไลบรารีที่รวมอยู่ในโปรแกรมที่ปล่อย ==
 
-1) Python 3.12 — Python Software Foundation License (https://docs.python.org/3/license.html)
-   Tcl/Tk (tkinter) — Tcl/Tk License แบบ BSD (https://www.tcl.tk/software/tcltk/license.html)
+1) Python 3.12 — Python Software Foundation License (https://www.python.org)
+   → LICENSES/Python-PSF.txt
+   Tcl/Tk (tkinter) — Tcl/Tk License แบบ BSD (https://www.tcl.tk) — ข้อความเดียวกันทุกรุ่น (8.6 / 9)
+   → LICENSES/Tcl-Tk.txt
 
 2) PyInstaller (https://pyinstaller.org) — GPL-2.0-or-later พร้อมข้อยกเว้นสำหรับ bootloader
    ที่อนุญาตให้แจกโปรแกรมที่สร้างด้วย PyInstaller ภายใต้สัญญาอนุญาตใดก็ได้
+   → LICENSES/PyInstaller-GPL-2.0-bootloader-exception.txt
 
 3) Sun Valley ttk theme (sv-ttk) — © rdbende, MIT License
    https://github.com/rdbende/Sun-Valley-ttk-theme — ธีมหน้าต่างโปรแกรม (gui/)
+   → LICENSES/sv-ttk-MIT.txt
 
-4) Pillow — © Secret Labs AB, Fredrik Lundh, Jeffrey A. Clark and contributors, MIT-CMU License (https://python-pillow.github.io)
-   วาดภาพตัวอย่างซับและหน้าจอปรับตำแหน่ง (gui/)
+4) Pillow — © Secret Labs AB, Fredrik Lundh, Jeffrey A. Clark and contributors, MIT-CMU License
+   (https://python-pillow.github.io) — วาดภาพตัวอย่างซับและหน้าจอปรับตำแหน่ง (gui/)
+   รวมสัญญาอนุญาตของไลบรารีที่ Pillow บรรจุมาด้วย (FreeType, libjpeg, zlib ฯลฯ)
+   → LICENSES/Pillow-MIT-CMU.txt
 
-5) deflate — © Dan Watson, MIT License (https://github.com/dcwatson/deflate)
-   ครอบ libdeflate — © Eric Biggers, MIT License (https://github.com/ebiggers/libdeflate) — core/panel_layout.py
+5) deflate — © Dan Watson, MIT License (https://github.com/dcwatson/deflate) — core/panel_layout.py
+   → LICENSES/deflate-MIT.txt
+   ครอบ libdeflate — © Eric Biggers, Google LLC, MIT License (https://github.com/ebiggers/libdeflate)
+   → LICENSES/libdeflate-MIT.txt
 
-6) openpyxl — MIT License (https://foss.heptapod.net/openpyxl/openpyxl) — อ่านชีตคำแปลเสริม (core/custom.py)
+6) openpyxl — © openpyxl, MIT License (https://foss.heptapod.net/openpyxl/openpyxl)
+   อ่านชีตคำแปลเสริม (core/custom.py) → LICENSES/openpyxl-MIT.txt
 
 7) certifi — MPL-2.0 (https://github.com/certifi/python-certifi) — ชุดใบรับรอง CA สำหรับ HTTPS (core/net.py)
    ซอร์สของ certifi หาได้ที่ลิงก์ข้างบน โปรแกรมนี้ไม่ได้แก้ไขไฟล์ของ certifi
+   → LICENSES/certifi-MPL-2.0.txt
 
 ใช้เฉพาะเครื่องมือนักพัฒนา (devtools/) ไม่รวมในโปรแกรมที่ปล่อย:
    gspread — MIT License · google-auth-oauthlib — Apache License 2.0
 
 == ข้อมูลและภาพใน assets/ ==
 
-8) assets/thai_words.txt.gz — พจนานุกรมตัดคำ 65,758 คำ รวมผ่าน thaiwrap (MIT, https://github.com/AeyXD/thaiwrap)
-   เป็น union ของ pythainlp corpus (Apache License 2.0, https://github.com/PyThaiNLP/pythainlp)
-   และ ICU thaidict (Unicode License, https://www.unicode.org/license.txt) — เครดิตตามสัญญาอนุญาตเดิมทั้งสองชุด
+8) assets/thai_words.txt.gz — พจนานุกรมตัดคำ 65,758 คำ รวมผ่าน thaiwrap
+   (© Prawith T, MIT, https://github.com/AeyXD/thaiwrap) → LICENSES/thaiwrap-MIT.txt
+   เป็น union ของ
+   - pythainlp corpus — Apache License 2.0 (https://github.com/PyThaiNLP/pythainlp) → LICENSES/Apache-2.0.txt
+   - ICU thaidict — © Unicode, Inc., Unicode License V3 (https://github.com/unicode-org/icu)
+     → LICENSES/Unicode-3.0-ICU.txt
 
 9) assets/icons/ — Material Symbols ของ Google, Apache License 2.0
    (https://github.com/google/material-design-icons) สร้างด้วย devtools/make_ui_icons.py
+   → LICENSES/Apache-2.0.txt
 
 10) assets/fonts/ — ฟอนต์ไทย 6 แบบ จัดเตรียมโดยทีมแปล w3tu / Kuntoon
     แปลงเป็นฟอนต์ของเกม (fonts_en.redswf) — ฟอนต์ยังเป็นของเจ้าของเดิม
-    - Sarabun, Prompt, Srisakdi — Cadson Demak, SIL Open Font License 1.1 (https://fonts.google.com)
+    - Sarabun — © The Sarabun Project Authors, SIL OFL 1.1 → LICENSES/OFL-Sarabun.txt
+    - Prompt — © Cadson Demak, SIL OFL 1.1 → LICENSES/OFL-Prompt.txt
+    - Srisakdi — © The Srisakdi Project Authors, SIL OFL 1.1 → LICENSES/OFL-Srisakdi.txt
     - CS PraKas, Mahaniyom, SuperMarket — ลิขสิทธิ์ของผู้ออกแบบแต่ละราย (ยังไม่ได้ระบุผู้ออกแบบ/สัญญาอนุญาต)
 
 11) assets/translations.json.gz, assets/custom/, assets/storybook.bundle — คำแปลภาษาไทยและซับ Storybook

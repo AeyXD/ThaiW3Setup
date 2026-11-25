@@ -60,6 +60,7 @@ jobs:
           Copy-Item README.md dist/ThaiW3Setup/README.md
           Copy-Item LICENSE dist/ThaiW3Setup/LICENSE.txt
           Copy-Item NOTICE dist/ThaiW3Setup/NOTICE.txt
+          Copy-Item LICENSES dist/ThaiW3Setup/LICENSES -Recurse
 
       - name: Smoke test
         run: |
