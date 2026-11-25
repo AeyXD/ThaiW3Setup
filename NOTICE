@@ -42,7 +42,7 @@ ThaiW3Setup — ส่วนประกอบของบุคคลที่�
 == ข้อมูลและภาพใน assets/ ==
 
 8) assets/thai_words.txt.gz — พจนานุกรมตัดคำ 65,758 คำ รวมผ่าน thaiwrap
-   (© Prawith T, MIT, https://github.com/AeyXD/thaiwrap) → LICENSES/thaiwrap-MIT.txt
+   (© AeyXD, MIT, https://github.com/AeyXD/thaiwrap) → LICENSES/thaiwrap-MIT.txt
    เป็น union ของ
    - pythainlp corpus — Apache License 2.0 (https://github.com/PyThaiNLP/pythainlp) → LICENSES/Apache-2.0.txt
    - ICU thaidict — © Unicode, Inc., Unicode License V3 (https://github.com/unicode-org/icu)
