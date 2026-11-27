@@ -668,6 +668,15 @@ def export_console(opts: InstallOptions, out_dir: str | os.PathLike, progress: P
         _build_mods(game, opts, staging, report, progress, force_download)
         # uploaded folders stay content-only; the manifest documents local installs
         (staging / MOD_TEXT / MANIFEST).unlink(missing_ok=True)
+        # mod.io only approves console mods with scripts when built in REDkit: no .ws in any package
+        # (modThaiStoryBook carries the pre-menu recap script, which only matters on the English slot)
+        for name in report.mods:
+            scripts = staging / name / "content" / "scripts"
+            if scripts.is_dir():
+                shutil.rmtree(scripts)
+                log.info("console: dropped scripts from %s", name)
+        if opts.storybook and opts.slot == "en":
+            report.warnings.append("แพ็กเกจคอนโซลไม่มีสคริปต์แปลซับฉากสรุปก่อนเมนู ช่องภาษาอังกฤษจึงเห็นซับฉากนั้นเป็นอังกฤษ")
         report.warnings.append("แพ็กเกจคอนโซลไม่มี mod สคริปต์ปรับสี/ขนาด/ตำแหน่งซับ (ต้องสร้างด้วย REDkit "
                                "จึงอนุมัติขึ้นคอนโซลได้) ซับจึงใช้สไตล์มาตรฐานของเกม")
         progress(0.95, "บีบอัดแพ็กเกจสำหรับ mod.io...")
